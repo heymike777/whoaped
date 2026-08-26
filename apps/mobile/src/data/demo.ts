@@ -1,0 +1,88 @@
+import { Activity, Wallet } from '../types';
+
+const now = Date.now();
+
+export const demoWallets: Wallet[] = [
+  {
+    id: 'wallet-1',
+    name: 'main character',
+    address: '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe',
+    chain: 'solana',
+    status: 'active',
+    createdAt: new Date(now - 86_400_000).toISOString(),
+  },
+  {
+    id: 'wallet-2',
+    name: 'degen vault',
+    address: 'B7ZxS7bmQJdYwLRFxm4kFHHuKFPxhuhxE4Fh4YYvMw4A',
+    chain: 'solana',
+    status: 'active',
+    createdAt: new Date(now - 172_800_000).toISOString(),
+  },
+  {
+    id: 'wallet-3',
+    name: 'cold-ish',
+    address: 'DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy',
+    chain: 'solana',
+    status: 'active',
+    createdAt: new Date(now - 259_200_000).toISOString(),
+  },
+];
+
+export const demoActivities: Activity[] = [
+  {
+    id: 'activity-1',
+    walletId: 'wallet-1',
+    walletName: 'main character',
+    walletAddress: demoWallets[0].address,
+    chain: 'solana',
+    kind: 'swap',
+    title: 'Swapped 100 SOL to 10,024 USDC',
+    detail: 'Jupiter · 0.32% price impact',
+    source: 'Jupiter',
+    valueUsd: 10_024,
+    signature: '5nJiUEz2cWBoA3NRMYXLq9o8iUUL9cY3YgSqEUfPiJg8dE7VtQ3w',
+    occurredAt: new Date(now - 4 * 60_000).toISOString(),
+  },
+  {
+    id: 'activity-2',
+    walletId: 'wallet-2',
+    walletName: 'degen vault',
+    walletAddress: demoWallets[1].address,
+    chain: 'solana',
+    kind: 'buy',
+    title: 'Bought 24,800 LUMEN',
+    detail: 'Pump.fun · spent 6.2 SOL',
+    source: 'Pump.fun',
+    valueUsd: 621,
+    signature: '4gHnLDh3EL7rvdT3cPtLDQ1ZJjGDR8yMXwPsVN7gqkQ9p6Y',
+    occurredAt: new Date(now - 21 * 60_000).toISOString(),
+  },
+  {
+    id: 'activity-3',
+    walletId: 'wallet-3',
+    walletName: 'cold-ish',
+    walletAddress: demoWallets[2].address,
+    chain: 'solana',
+    kind: 'stake',
+    title: 'Staked 10 SOL',
+    detail: 'Helius validator · now earning',
+    source: 'Native staking',
+    valueUsd: 1_002,
+    signature: '3nCFtX8w7HMiQ4dKFPmH9B7wZpLQ4WvJb86d8F35crQ',
+    occurredAt: new Date(now - 64 * 60_000).toISOString(),
+  },
+  {
+    id: 'activity-4',
+    walletId: 'wallet-1',
+    walletName: 'main character',
+    walletAddress: demoWallets[0].address,
+    chain: 'solana',
+    kind: 'transfer',
+    title: 'Received 1,250 USDC',
+    detail: 'From 9WzY…p6Js',
+    valueUsd: 1_250,
+    signature: '2yNvqC1qV8fR5qkgcP9YDrYF6vNRJkPc6ptJd3fK3ws',
+    occurredAt: new Date(now - 3.2 * 3_600_000).toISOString(),
+  },
+];
