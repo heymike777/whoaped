@@ -42,8 +42,12 @@ app.use('/v1/*', requireSession);
 
 app.get('/v1/wallets', async (context) => {
   const rows = await query<Record<string, unknown>>(
-    `SELECT id, name, address, chain, status, created_at AS "createdAt"
-     FROM wallets WHERE user_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC`,
+    `SELECT w.id, w.name, w.address, w.chain, w.status, w.created_at AS "createdAt",
+       (SELECT count(*)::integer FROM transactions t
+        WHERE t.wallet_id = w.id AND t.occurred_at >= now() - interval '24 hours') AS "transactionCount24h"
+     FROM wallets w
+     WHERE w.user_id = $1 AND w.deleted_at IS NULL
+     ORDER BY w.created_at DESC`,
     [context.get('userId')],
   );
   return context.json({ data: rows });
@@ -58,10 +62,11 @@ app.post('/v1/wallets', async (context) => {
     `INSERT INTO wallets (id, user_id, name, address, chain, status)
      VALUES ($1, $2, $3, $4, $5, 'syncing')
      ON CONFLICT (user_id, chain, address) WHERE deleted_at IS NULL
-     DO UPDATE SET name = EXCLUDED.name
-     RETURNING id, name, address, chain, status, created_at AS "createdAt"`,
+     DO NOTHING
+     RETURNING id, name, address, chain, status, 0 AS "transactionCount24h", created_at AS "createdAt"`,
     [walletId, context.get('userId'), parsed.data.name, parsed.data.address, parsed.data.chain],
   );
+  if (!wallet) return context.json({ error: 'This wallet is already being tracked.' }, 409);
 
   try {
     const sync = await syncHeliusAddresses();
@@ -72,6 +77,19 @@ app.post('/v1/wallets', async (context) => {
     await query('UPDATE wallets SET status = $1, sync_error = $2 WHERE id = $3', ['error', error instanceof Error ? error.message : String(error), wallet.id]);
     return context.json({ ...wallet, status: 'error' }, 201);
   }
+});
+
+app.delete('/v1/wallets/:walletId', async (context) => {
+  const [wallet] = await query<{ id: string }>(
+    `UPDATE wallets SET deleted_at = now()
+     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+     RETURNING id`,
+    [context.req.param('walletId'), context.get('userId')],
+  );
+  if (!wallet) return context.json({ error: 'Wallet not found.' }, 404);
+
+  syncHeliusAddresses().catch((error) => console.error('Helius address sync deferred', error));
+  return context.json({ ok: true });
 });
 
 app.get('/v1/activities', async (context) => {

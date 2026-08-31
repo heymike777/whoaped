@@ -14,6 +14,7 @@
 		5351D8A8A221F89CD31EB054 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		5932653F68E046FFB8DDBF25 /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3590522781414DCD84EA48EA /* IBMPlexMono-Medium.ttf */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		A17B0A022D6F000100000001 /* WhoApedTabBarManagerBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A17B0A012D6F000100000001 /* WhoApedTabBarManagerBridge.m */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		BF809F2024D24C7AA57DC258 /* SpaceGrotesk-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 43CC78BA91754798ABD6AFCD /* SpaceGrotesk-Medium.ttf */; };
 		CA2DEC98DA24DE60BE222ECC /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CC7A1744DCD661CEAD3F9B00 /* GoogleService-Info.plist */; };
@@ -33,6 +34,7 @@
 		5709B34CF0A7D63546082F79 /* Pods-WhoAped.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WhoAped.release.xcconfig"; path = "Target Support Files/Pods-WhoAped/Pods-WhoAped.release.xcconfig"; sourceTree = "<group>"; };
 		6FD3875CA83F4A4484E12A62 /* SpaceGrotesk-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "SpaceGrotesk-Regular.ttf"; path = "../assets/fonts/SpaceGrotesk-Regular.ttf"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = WhoAped/AppDelegate.swift; sourceTree = "<group>"; };
+		A17B0A012D6F000100000001 /* WhoApedTabBarManagerBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = WhoApedTabBarManagerBridge.m; path = WhoAped/WhoApedTabBarManagerBridge.m; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = WhoAped/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		C899E715B8AF4246BA8E5CC7 /* SpaceGrotesk-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "SpaceGrotesk-Bold.ttf"; path = "../assets/fonts/SpaceGrotesk-Bold.ttf"; sourceTree = "<group>"; };
 		CC7A1744DCD661CEAD3F9B00 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; lastKnownFileType = text.plist; name = "GoogleService-Info.plist"; path = "WhoAped/GoogleService-Info.plist"; sourceTree = "<group>"; };
@@ -69,6 +71,7 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				A17B0A012D6F000100000001 /* WhoApedTabBarManagerBridge.m */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -346,6 +349,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				A17B0A022D6F000100000001 /* WhoApedTabBarManagerBridge.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -362,7 +366,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = WhoAped/WhoAped.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = L28H25M8LS;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = WhoAped/Info.plist;
@@ -400,7 +404,7 @@
 				CODE_SIGN_ENTITLEMENTS = WhoAped/WhoAped.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = L28H25M8LS;
 				INFOPLIST_FILE = WhoAped/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;

@@ -51,3 +51,85 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 #endif
   }
 }
+
+@objc(WhoApedTabBarManager)
+final class WhoApedTabBarManager: RCTViewManager {
+  override class func requiresMainQueueSetup() -> Bool {
+    true
+  }
+
+  override func view() -> UIView! {
+    WhoApedTabBarView()
+  }
+}
+
+@objc(WhoApedTabBarView)
+final class WhoApedTabBarView: UIView, UITabBarDelegate {
+  @objc var selectedIndex: Int = 0 {
+    didSet {
+      applySelectedIndex()
+    }
+  }
+
+  @objc var onTabSelected: RCTDirectEventBlock?
+
+  private let tabBar = UITabBar()
+  private lazy var tabItems: [UITabBarItem] = [
+    makeItem(title: "Activity", symbol: "waveform.path.ecg", selectedSymbol: "waveform.path.ecg"),
+    makeItem(title: "Wallets", symbol: "wallet.pass", selectedSymbol: "wallet.pass.fill"),
+    makeItem(title: "Settings", symbol: "gearshape", selectedSymbol: "gearshape.fill"),
+  ]
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    configureTabBar()
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    configureTabBar()
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    tabBar.frame = bounds
+  }
+
+  private func configureTabBar() {
+    backgroundColor = .clear
+    overrideUserInterfaceStyle = .dark
+
+    tabBar.items = tabItems
+    tabBar.delegate = self
+    tabBar.isTranslucent = true
+    tabBar.tintColor = UIColor(red: 0.4, green: 0.957, blue: 0.706, alpha: 1)
+    tabBar.unselectedItemTintColor = UIColor(red: 0.631, green: 0.718, blue: 0.69, alpha: 1)
+    tabBar.accessibilityIdentifier = "main-tab-bar"
+    addSubview(tabBar)
+
+    applySelectedIndex()
+  }
+
+  func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
+    guard let index = tabItems.firstIndex(of: item) else { return }
+    selectedIndex = index
+    UISelectionFeedbackGenerator().selectionChanged()
+    onTabSelected?(["index": index])
+  }
+
+  private func applySelectedIndex() {
+    guard !tabItems.isEmpty else { return }
+    let index = min(max(selectedIndex, 0), tabItems.count - 1)
+    tabBar.selectedItem = tabItems[index]
+  }
+
+  private func makeItem(title: String, symbol: String, selectedSymbol: String) -> UITabBarItem {
+    let item = UITabBarItem(
+      title: title,
+      image: UIImage(systemName: symbol),
+      selectedImage: UIImage(systemName: selectedSymbol)
+    )
+    item.accessibilityLabel = "\(title) tab"
+    return item
+  }
+}

@@ -40,7 +40,12 @@ export default function App() {
 
         <View style={styles.content}>
           <ConnectivityBanner />
-          {activeTab === 'activity' && <ActivityScreen reduceMotion={reduceMotion} />}
+          {activeTab === 'activity' && (
+            <ActivityScreen
+              onAddWallet={() => setActiveTab('wallets')}
+              reduceMotion={reduceMotion}
+            />
+          )}
           {activeTab === 'wallets' && <WalletsScreen />}
           {activeTab === 'settings' && <SettingsScreen />}
         </View>

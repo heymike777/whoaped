@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import Config from 'react-native-config';
 
-import { demoActivities, demoWallets } from '../data/demo';
 import { Activity, Chain, Wallet } from '../types';
 
 const API_URL = Config.API_URL?.replace(/\/$/, '');
@@ -44,15 +43,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function isDemoMode() {
-  return !API_URL;
-}
-
 export async function getActivities(): Promise<Activity[]> {
-  if (!API_URL) {
-    await new Promise<void>((resolve) => setTimeout(() => resolve(), 450));
-    return demoActivities;
-  }
+  if (!API_URL) return [];
   const result = await apiFetch<{ data: Activity[] }>('/v1/activities?limit=50');
   return result.data;
 }
@@ -60,25 +52,52 @@ export async function getActivities(): Promise<Activity[]> {
 export async function getWallets(): Promise<Wallet[]> {
   if (!API_URL) {
     const saved = await AsyncStorage.getItem(LOCAL_WALLETS_KEY);
-    return saved ? JSON.parse(saved) as Wallet[] : demoWallets;
+    const wallets = saved ? JSON.parse(saved) as Wallet[] : [];
+    return wallets.map((wallet) => ({
+      ...wallet,
+      transactionCount24h: Number.isFinite(wallet.transactionCount24h)
+        ? wallet.transactionCount24h
+        : 0,
+    }));
   }
   const result = await apiFetch<{ data: Wallet[] }>('/v1/wallets');
-  return result.data;
+  return result.data.map((wallet) => ({
+    ...wallet,
+    transactionCount24h: Number(wallet.transactionCount24h) || 0,
+  }));
 }
 
 export async function addWallet(input: { name: string; address: string; chain: Chain }) {
   if (!API_URL) {
     const wallets = await getWallets();
+    if (wallets.some((wallet) => wallet.chain === input.chain && wallet.address === input.address)) {
+      throw new Error('This wallet is already being tracked.');
+    }
     const wallet: Wallet = {
       id: `local-${Date.now()}`,
       ...input,
       status: 'active',
+      transactionCount24h: 0,
       createdAt: new Date().toISOString(),
     };
     await AsyncStorage.setItem(LOCAL_WALLETS_KEY, JSON.stringify([wallet, ...wallets]));
     return wallet;
   }
   return apiFetch<Wallet>('/v1/wallets', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function deleteWallet(walletId: string) {
+  if (!API_URL) {
+    const wallets = await getWallets();
+    await AsyncStorage.setItem(
+      LOCAL_WALLETS_KEY,
+      JSON.stringify(wallets.filter((wallet) => wallet.id !== walletId)),
+    );
+    return;
+  }
+  await apiFetch<{ ok: true }>(`/v1/wallets/${encodeURIComponent(walletId)}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function registerPushToken(token: string, platform: string) {

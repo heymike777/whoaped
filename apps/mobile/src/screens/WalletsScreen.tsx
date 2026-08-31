@@ -1,6 +1,7 @@
-import { Check, ChevronRight, Plus, Radio, Search, X } from 'lucide-react-native';
+import { BellRing, Check, Plus, Search, ShieldCheck, Trash2, WalletCards, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,7 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
-import { addWallet, getWallets } from '../api/client';
+import { addWallet, deleteWallet, getWallets } from '../api/client';
+import { isWalletAlreadyTracked, transactionCount24hLabel } from '../lib/wallets';
 import { colors, layout, typography } from '../theme';
 import { Wallet } from '../types';
 
@@ -24,6 +26,7 @@ export function WalletsScreen() {
   const insets = useSafeAreaInsets();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -38,6 +41,32 @@ export function WalletsScreen() {
       wallet.name.toLowerCase().includes(query) || wallet.address.toLowerCase().includes(query),
     );
   }, [search, wallets]);
+
+  const confirmRemove = (wallet: Wallet) => {
+    Alert.alert(
+      `Remove ${wallet.name}?`,
+      'WhoAped will stop tracking new transactions from this wallet. Existing activity stays in your feed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setRemovingId(wallet.id);
+            deleteWallet(wallet.id)
+              .then(() => setWallets((current) => current.filter((item) => item.id !== wallet.id)))
+              .catch((reason) => {
+                Alert.alert(
+                  'Could not remove wallet',
+                  reason instanceof Error ? reason.message : 'Please try again.',
+                );
+              })
+              .finally(() => setRemovingId(null));
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -61,66 +90,128 @@ export function WalletsScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.searchBox}>
-          <Search color={colors.textFaint} size={18} />
-          <TextInput
-            accessibilityLabel="Search wallets"
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setSearch}
-            placeholder="Search name or address"
-            placeholderTextColor={colors.textFaint}
-            style={styles.searchInput}
-            value={search}
-          />
-        </View>
+        {(loading || wallets.length > 0) && (
+          <>
+            <View style={styles.searchBox}>
+              <Search color={colors.textFaint} size={18} />
+              <TextInput
+                accessibilityLabel="Search wallets"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={setSearch}
+                placeholder="Search name or address"
+                placeholderTextColor={colors.textFaint}
+                style={styles.searchInput}
+                value={search}
+              />
+            </View>
 
-        <View style={styles.summary}>
-          <Text style={styles.summaryNumber}>{wallets.length}</Text>
-          <Text style={styles.summaryLabel}>wallets tracked</Text>
-          <View style={styles.summaryDivider} />
-          <Radio color={colors.primary} size={15} />
-          <Text style={styles.summaryLive}>Helius live</Text>
-        </View>
+            <View style={styles.summary}>
+              <Text style={styles.summaryNumber}>{wallets.length}</Text>
+              <Text style={styles.summaryLabel}>{wallets.length === 1 ? 'wallet tracked' : 'wallets tracked'}</Text>
+            </View>
+          </>
+        )}
 
         {loading && [0, 1, 2].map((item) => <View key={item} style={styles.walletSkeleton} />)}
-        {!loading && filtered.length === 0 && (
+        {!loading && wallets.length === 0 && (
+          <WalletEmptyState onAdd={() => setShowAdd(true)} />
+        )}
+        {!loading && wallets.length > 0 && filtered.length === 0 && (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{search ? 'No wallet matches' : 'No wallets yet'}</Text>
-            <Text style={styles.emptyBody}>{search ? 'Try a shorter name or address.' : 'Add a public address. WhoAped never asks for keys.'}</Text>
+            <Search color={colors.textFaint} size={24} />
+            <Text style={styles.emptyTitle}>No wallet matches</Text>
+            <Text style={styles.emptyBody}>Try a shorter name or address.</Text>
           </View>
         )}
-        {filtered.map((wallet) => <WalletRow key={wallet.id} wallet={wallet} />)}
-
-        <View style={styles.evmCard}>
-          <View style={styles.evmBadge}><Text style={styles.evmBadgeText}>NEXT</Text></View>
-          <Text style={styles.evmTitle}>EVM chains</Text>
-          <Text style={styles.evmBody}>Ethereum and Base plug into the same feed through a chain adapter.</Text>
-        </View>
+        {filtered.map((wallet) => (
+          <WalletRow
+            key={wallet.id}
+            onRemove={() => confirmRemove(wallet)}
+            removing={removingId === wallet.id}
+            wallet={wallet}
+          />
+        ))}
       </ScrollView>
 
       <AddWalletModal
         open={showAdd}
         onClose={() => setShowAdd(false)}
         onCreated={(wallet) => setWallets((current) => [wallet, ...current])}
+        wallets={wallets}
       />
     </View>
   );
 }
 
-function WalletRow({ wallet }: { wallet: Wallet }) {
+function WalletEmptyState({ onAdd }: { onAdd: () => void }) {
+  return (
+    <View style={styles.onboardingCard}>
+      <View style={styles.walletVisual}>
+        <View style={styles.walletOrbitOuter} />
+        <View style={styles.walletOrbitInner} />
+        <View style={styles.walletVisualIcon}>
+          <WalletCards color={colors.primary} size={30} strokeWidth={1.9} />
+        </View>
+        <View style={[styles.orbitDot, styles.orbitDotTop]} />
+        <View style={[styles.orbitDot, styles.orbitDotBottom]} />
+      </View>
+
+      <View style={styles.watchOnlyBadge}>
+        <ShieldCheck color={colors.primary} size={13} />
+        <Text style={styles.watchOnlyText}>WATCH ONLY</Text>
+      </View>
+      <Text style={styles.onboardingTitle}>Your wallet.{`\n`}Every move.</Text>
+      <Text style={styles.onboardingBody}>Add a public Solana address. We’ll watch for new activity and let you know the moment it lands.</Text>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={onAdd}
+        style={({ pressed }) => [styles.onboardingAction, pressed && styles.pressed]}
+      >
+        <Plus color={colors.primaryInk} size={19} strokeWidth={2.7} />
+        <Text style={styles.onboardingActionText}>Track a wallet</Text>
+      </Pressable>
+
+      <View style={styles.onboardingNote}>
+        <BellRing color={colors.textFaint} size={14} />
+        <Text style={styles.onboardingNoteText}>New transactions appear in your feed and notifications.</Text>
+      </View>
+    </View>
+  );
+}
+
+function WalletRow({
+  wallet,
+  onRemove,
+  removing,
+}: {
+  wallet: Wallet;
+  onRemove: () => void;
+  removing: boolean;
+}) {
   return (
     <View
-      accessibilityLabel={`${wallet.name}, ${wallet.status}`}
+      accessibilityLabel={`${wallet.name}, ${transactionCount24hLabel(wallet.transactionCount24h)}`}
       style={styles.walletCard}
     >
       <View style={styles.walletAvatar}><Text style={styles.walletInitial}>{wallet.name[0]?.toUpperCase()}</Text></View>
       <View style={styles.walletCopy}>
         <Text numberOfLines={1} style={styles.walletName}>{wallet.name}</Text>
         <Text numberOfLines={1} style={styles.walletAddress}>{wallet.address.slice(0, 5)}…{wallet.address.slice(-5)}</Text>
+        <Text style={styles.walletActivity}>{transactionCount24hLabel(wallet.transactionCount24h)}</Text>
       </View>
-      <View style={styles.activeStatus}><View style={styles.statusDot} /><Text style={styles.statusText}>{wallet.status}</Text></View>
-      <ChevronRight color={colors.textFaint} size={17} />
+      <Pressable
+        accessibilityLabel={`Remove ${wallet.name}`}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: removing }}
+        disabled={removing}
+        hitSlop={8}
+        onPress={onRemove}
+        style={({ pressed }) => [styles.removeButton, pressed && styles.pressed, removing && styles.disabled]}
+      >
+        <Trash2 color={colors.destructive} size={18} strokeWidth={1.9} />
+      </Pressable>
     </View>
   );
 }
@@ -129,10 +220,12 @@ function AddWalletModal({
   open,
   onClose,
   onCreated,
+  wallets,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: (wallet: Wallet) => void;
+  wallets: Wallet[];
 }) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
@@ -150,6 +243,9 @@ function AddWalletModal({
     const cleanAddress = address.trim();
     if (cleanName.length < 2) return setError('Give this wallet a name with at least 2 characters.');
     if (!SOLANA_ADDRESS.test(cleanAddress)) return setError('Enter a valid Solana public address.');
+    if (isWalletAlreadyTracked(wallets, cleanAddress, 'solana')) {
+      return setError('This wallet is already being tracked.');
+    }
 
     setSaving(true); setError(null);
     try {
@@ -179,13 +275,13 @@ function AddWalletModal({
             </View>
             <Pressable accessibilityLabel="Close" onPress={close} style={styles.closeButton}><X color={colors.textMuted} size={20} /></Pressable>
           </View>
-          <Text style={styles.sheetBody}>Paste a public address. Tracking begins as soon as Helius confirms the subscription.</Text>
+          <Text style={styles.sheetBody}>Paste a public address. Tracking starts immediately after it is added.</Text>
 
           <Text style={styles.label}>Wallet name</Text>
           <TextInput
             autoCapitalize="sentences"
             autoComplete="off"
-            onChangeText={setName}
+            onChangeText={(value) => { setName(value); setError(null); }}
             placeholder="e.g. degen vault"
             placeholderTextColor={colors.textFaint}
             style={styles.input}
@@ -197,7 +293,7 @@ function AddWalletModal({
             autoComplete="off"
             autoCorrect={false}
             multiline
-            onChangeText={setAddress}
+            onChangeText={(value) => { setAddress(value); setError(null); }}
             placeholder="Paste Solana address"
             placeholderTextColor={colors.textFaint}
             style={[styles.input, styles.addressInput]}
@@ -233,26 +329,34 @@ const styles = StyleSheet.create({
   summary: { flexDirection: 'row', alignItems: 'baseline', minHeight: 46, paddingHorizontal: 4 },
   summaryNumber: { color: colors.text, fontFamily: typography.mono, fontSize: 16 },
   summaryLabel: { marginLeft: 7, color: colors.textMuted, fontFamily: typography.regular, fontSize: 13 },
-  summaryDivider: { marginHorizontal: 12, width: 1, height: 15, backgroundColor: colors.borderStrong },
-  summaryLive: { marginLeft: 6, color: colors.primary, fontFamily: typography.medium, fontSize: 12 },
-  walletCard: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 21, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
+  walletCard: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 21, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
   walletAvatar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surfaceRaised },
   walletInitial: { color: colors.primary, fontFamily: typography.semibold, fontSize: 16 },
   walletCopy: { flex: 1, minWidth: 0 },
   walletName: { color: colors.text, fontFamily: typography.semibold, fontSize: 15 },
   walletAddress: { marginTop: 4, color: colors.textMuted, fontFamily: typography.mono, fontSize: 10 },
-  activeStatus: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
-  statusText: { color: colors.textMuted, fontFamily: typography.regular, fontSize: 10 },
-  walletSkeleton: { height: 78, borderRadius: 21, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
-  empty: { minHeight: 170, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.glass },
-  emptyTitle: { color: colors.text, fontFamily: typography.semibold, fontSize: 16 },
+  walletActivity: { marginTop: 6, color: colors.primary, fontFamily: typography.medium, fontSize: 11 },
+  removeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: colors.surfaceRaised },
+  walletSkeleton: { height: 88, borderRadius: 21, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
+  empty: { minHeight: 170, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
+  emptyTitle: { marginTop: 12, color: colors.text, fontFamily: typography.semibold, fontSize: 16 },
   emptyBody: { marginTop: 7, maxWidth: 260, textAlign: 'center', color: colors.textMuted, fontFamily: typography.regular, fontSize: 13, lineHeight: 19 },
-  evmCard: { marginTop: 8, padding: 18, borderRadius: 22, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.borderStrong },
-  evmBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, backgroundColor: colors.primarySoft },
-  evmBadgeText: { color: colors.primary, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1 },
-  evmTitle: { marginTop: 12, color: colors.text, fontFamily: typography.semibold, fontSize: 16 },
-  evmBody: { marginTop: 5, color: colors.textMuted, fontFamily: typography.regular, fontSize: 13, lineHeight: 19 },
+  onboardingCard: { minHeight: 450, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32, borderRadius: 28, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  walletVisual: { width: 136, height: 136, alignItems: 'center', justifyContent: 'center' },
+  walletOrbitOuter: { position: 'absolute', width: 136, height: 136, borderRadius: 68, borderWidth: 1, borderColor: colors.primaryBorder },
+  walletOrbitInner: { position: 'absolute', width: 94, height: 94, borderRadius: 47, borderWidth: 1, borderColor: colors.primaryBorderStrong, backgroundColor: colors.primarySoft },
+  walletVisualIcon: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.primaryBorderStrong },
+  orbitDot: { position: 'absolute', width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary },
+  orbitDotTop: { top: 8, right: 31 },
+  orbitDotBottom: { bottom: 17, left: 20, opacity: 0.5 },
+  watchOnlyBadge: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, minHeight: 28, borderRadius: 14, backgroundColor: colors.primarySoft },
+  watchOnlyText: { color: colors.primary, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.2 },
+  onboardingTitle: { marginTop: 16, color: colors.text, fontFamily: typography.semibold, fontSize: 28, lineHeight: 31, letterSpacing: -0.8, textAlign: 'center' },
+  onboardingBody: { marginTop: 10, maxWidth: 300, color: colors.textMuted, fontFamily: typography.regular, fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  onboardingAction: { minHeight: 54, marginTop: 24, paddingHorizontal: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 18, backgroundColor: colors.primary },
+  onboardingActionText: { color: colors.primaryInk, fontFamily: typography.semibold, fontSize: 15 },
+  onboardingNote: { marginTop: 18, maxWidth: 285, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  onboardingNoteText: { flexShrink: 1, color: colors.textFaint, fontFamily: typography.regular, fontSize: 11, lineHeight: 16, textAlign: 'center' },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: colors.scrim },
   sheet: { paddingHorizontal: 20, paddingTop: 10, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong },

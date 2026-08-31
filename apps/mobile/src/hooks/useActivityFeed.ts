@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { getActivities, isDemoMode } from '../api/client';
+import { getActivities } from '../api/client';
 import { Activity, FeedState } from '../types';
 
 export function useActivityFeed(): FeedState {
@@ -20,5 +20,5 @@ export function useActivityFeed(): FeedState {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
-  return { activities, isLoading, error, isDemo: isDemoMode(), refresh };
+  return { activities, isLoading, error, refresh };
 }

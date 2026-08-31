@@ -6,6 +6,7 @@ export type Wallet = {
   address: string;
   chain: Chain;
   status: 'active' | 'syncing' | 'error';
+  transactionCount24h: number;
   createdAt: string;
 };
 
@@ -36,6 +37,5 @@ export type FeedState = {
   activities: Activity[];
   isLoading: boolean;
   error: string | null;
-  isDemo: boolean;
   refresh: () => Promise<void>;
 };
