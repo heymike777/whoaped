@@ -8,8 +8,14 @@
   "backend": {
     "runtime": "node-22-hono",
     "database": "neon-postgres",
-    "solana_ingestion": "helius-enhanced-webhooks",
+    "solana_ingestion": "helius-parsed-streams",
     "push": "firebase-cloud-messaging",
     "multichain_boundary": "ChainAdapter"
+  },
+  "pipeline": {
+    "ingestion_method": "websocket",
+    "data_types": ["transactions", "token-transfers", "decoded-instructions"],
+    "storage": "postgresql",
+    "backfill_implemented": true
   }
 }

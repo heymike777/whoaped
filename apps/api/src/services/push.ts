@@ -40,13 +40,14 @@ export async function drainNotificationJobs(limit = 100) {
   const jobs = await query<Job>(
     `WITH claimed AS (
        SELECT id FROM notification_jobs
-       WHERE status = 'pending' AND available_at <= now()
+       WHERE status IN ('pending', 'processing') AND available_at <= now()
        ORDER BY created_at
        FOR UPDATE SKIP LOCKED
        LIMIT $1
      )
      UPDATE notification_jobs jobs
-     SET status = 'processing', attempts = attempts + 1
+     SET status = 'processing', attempts = attempts + 1,
+         available_at = now() + interval '5 minutes'
      FROM claimed
      WHERE jobs.id = claimed.id
      RETURNING jobs.id, jobs.title, jobs.body, jobs.data, jobs.device_token_id,

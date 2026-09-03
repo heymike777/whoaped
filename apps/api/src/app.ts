@@ -5,9 +5,7 @@ import { logger } from 'hono/logger';
 import { z } from 'zod';
 
 import { createAnonymousSession, requireSession, type Variables } from './auth.js';
-import { solanaAdapter, type HeliusTransaction } from './chains/solana.js';
 import { hasDatabase, query } from './db.js';
-import { syncHeliusAddresses } from './services/helius-webhooks.js';
 import { drainNotificationJobs } from './services/push.js';
 
 const walletSchema = z.object({
@@ -60,7 +58,7 @@ app.post('/v1/wallets', async (context) => {
   const walletId = randomUUID();
   const [wallet] = await query<Record<string, unknown>>(
     `INSERT INTO wallets (id, user_id, name, address, chain, status)
-     VALUES ($1, $2, $3, $4, $5, 'syncing')
+     VALUES ($1, $2, $3, $4, $5, 'active')
      ON CONFLICT (user_id, chain, address) WHERE deleted_at IS NULL
      DO NOTHING
      RETURNING id, name, address, chain, status, 0 AS "transactionCount24h", created_at AS "createdAt"`,
@@ -68,15 +66,7 @@ app.post('/v1/wallets', async (context) => {
   );
   if (!wallet) return context.json({ error: 'This wallet is already being tracked.' }, 409);
 
-  try {
-    const sync = await syncHeliusAddresses();
-    const status = sync.configured ? 'active' : 'syncing';
-    await query('UPDATE wallets SET status = $1 WHERE id = $2', [status, wallet.id]);
-    return context.json({ ...wallet, status }, 201);
-  } catch (error) {
-    await query('UPDATE wallets SET status = $1, sync_error = $2 WHERE id = $3', ['error', error instanceof Error ? error.message : String(error), wallet.id]);
-    return context.json({ ...wallet, status: 'error' }, 201);
-  }
+  return context.json(wallet, 201);
 });
 
 app.delete('/v1/wallets/:walletId', async (context) => {
@@ -88,7 +78,6 @@ app.delete('/v1/wallets/:walletId', async (context) => {
   );
   if (!wallet) return context.json({ error: 'Wallet not found.' }, 404);
 
-  syncHeliusAddresses().catch((error) => console.error('Helius address sync deferred', error));
   return context.json({ ok: true });
 });
 
@@ -119,61 +108,6 @@ app.post('/v1/devices', async (context) => {
     [randomUUID(), context.get('userId'), parsed.data.token, parsed.data.platform],
   );
   return context.json({ ok: true }, 201);
-});
-
-app.post('/webhooks/helius/:secret', async (context) => {
-  const expected = process.env.HELIUS_WEBHOOK_SECRET;
-  if (!expected || !safeSecretEqual(context.req.param('secret'), expected)) return context.json({ error: 'Not found.' }, 404);
-  const payload = await context.req.json().catch(() => null);
-  if (!Array.isArray(payload)) return context.json({ error: 'Expected an array of Helius transactions.' }, 400);
-
-  let inserted = 0;
-  for (const item of payload as HeliusTransaction[]) {
-    const eventId = randomUUID();
-    const [accepted] = await query<{ id: string }>(
-      `INSERT INTO webhook_events (id, provider, external_id, payload)
-       VALUES ($1, 'helius', $2, $3::jsonb)
-       ON CONFLICT (provider, external_id) DO NOTHING
-       RETURNING id`,
-      [eventId, item.signature ?? eventId, JSON.stringify(item)],
-    );
-    if (!accepted) continue;
-
-    const addresses = solanaAdapter.extractAddresses(item);
-    if (!addresses.length) continue;
-    const wallets = await query<{ id: string; user_id: string; name: string; address: string }>(
-      `SELECT id, user_id, name, address FROM wallets
-       WHERE chain = 'solana' AND deleted_at IS NULL AND status != 'error'
-         AND address = ANY($1::text[])`,
-      [addresses],
-    );
-
-    for (const wallet of wallets) {
-      for (const activity of solanaAdapter.normalize(item, wallet.address)) {
-        const transactionId = randomUUID();
-        const [transaction] = await query<{ id: string }>(
-          `INSERT INTO transactions
-             (id, user_id, wallet_id, chain, tx_hash, event_index, kind, title, detail, source, value_usd, occurred_at, metadata)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
-           ON CONFLICT (wallet_id, chain, tx_hash, event_index) DO NOTHING
-           RETURNING id`,
-          [transactionId, wallet.user_id, wallet.id, activity.chain, activity.txHash, activity.eventIndex, activity.kind, activity.title, activity.detail, activity.source ?? null, activity.valueUsd ?? null, activity.occurredAt, JSON.stringify(activity.metadata)],
-        );
-        if (!transaction) continue;
-        inserted += 1;
-        await query(
-          `INSERT INTO notification_jobs (id, user_id, device_token_id, transaction_id, title, body, data)
-           SELECT gen_random_uuid(), $1, id, $2, $3, $4, $5::jsonb
-           FROM device_tokens WHERE user_id = $1 AND disabled_at IS NULL
-           ON CONFLICT (device_token_id, transaction_id) DO NOTHING`,
-          [wallet.user_id, transaction.id, wallet.name, activity.title, JSON.stringify({ transactionId: transaction.id, walletId: wallet.id })],
-        );
-      }
-    }
-  }
-
-  if (inserted) await drainNotificationJobs().catch((error) => console.error('Push delivery deferred', error));
-  return context.json({ accepted: payload.length, inserted }, 202);
 });
 
 app.post('/internal/jobs/drain', async (context) => {

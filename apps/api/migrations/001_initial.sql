@@ -32,15 +32,16 @@ CREATE TABLE wallets (
 CREATE UNIQUE INDEX wallets_active_address_uq ON wallets(user_id, chain, address) WHERE deleted_at IS NULL;
 CREATE INDEX wallets_chain_address_idx ON wallets(chain, address) WHERE deleted_at IS NULL;
 
-CREATE TABLE webhook_events (
+CREATE TABLE ingestion_events (
   id uuid PRIMARY KEY,
   provider varchar(32) NOT NULL,
   external_id text NOT NULL,
+  slot bigint,
   payload jsonb NOT NULL,
   received_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(provider, external_id)
 );
-CREATE INDEX webhook_events_received_brin ON webhook_events USING brin(received_at);
+CREATE INDEX ingestion_events_received_brin ON ingestion_events USING brin(received_at);
 
 -- Start unpartitioned: Postgres handles the first tens of millions of compact rows well.
 -- Move this table to monthly RANGE partitions before the working set exceeds memory;
@@ -52,6 +53,7 @@ CREATE TABLE transactions (
   chain chain_id NOT NULL,
   tx_hash text NOT NULL,
   event_index integer NOT NULL DEFAULT 0,
+  slot bigint NOT NULL,
   kind activity_kind NOT NULL,
   title varchar(180) NOT NULL,
   detail varchar(240) NOT NULL,
@@ -65,6 +67,13 @@ CREATE TABLE transactions (
 CREATE INDEX transactions_user_feed_idx ON transactions(user_id, occurred_at DESC) INCLUDE (wallet_id, kind, title, detail, source, value_usd);
 CREATE INDEX transactions_wallet_feed_idx ON transactions(wallet_id, occurred_at DESC);
 CREATE INDEX transactions_occurred_brin ON transactions USING brin(occurred_at);
+CREATE INDEX transactions_chain_slot_idx ON transactions(chain, slot DESC);
+
+CREATE TABLE pipeline_checkpoints (
+  id text PRIMARY KEY,
+  last_slot bigint NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
 CREATE TABLE device_tokens (
   id uuid PRIMARY KEY,
@@ -97,4 +106,4 @@ CREATE TABLE notification_jobs (
 CREATE INDEX notification_jobs_pending_idx ON notification_jobs(available_at, created_at) WHERE status = 'pending';
 
 -- Run daily once traffic starts. Raw provider payloads are for replay/debugging, not permanent history.
--- DELETE FROM webhook_events WHERE received_at < now() - interval '7 days';
+-- DELETE FROM ingestion_events WHERE received_at < now() - interval '7 days';

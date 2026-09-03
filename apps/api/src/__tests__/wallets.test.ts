@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
-  syncHeliusAddresses: vi.fn(),
 }));
 
 vi.mock('../db.js', () => ({
@@ -18,10 +17,6 @@ vi.mock('../auth.js', () => ({
   },
 }));
 
-vi.mock('../services/helius-webhooks.js', () => ({
-  syncHeliusAddresses: mocks.syncHeliusAddresses,
-}));
-
 vi.mock('../services/push.js', () => ({
   drainNotificationJobs: vi.fn(),
 }));
@@ -33,7 +28,6 @@ const address = '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe';
 describe('wallet routes', () => {
   beforeEach(() => {
     mocks.query.mockReset();
-    mocks.syncHeliusAddresses.mockReset();
   });
 
   it('returns a transaction count for the last 24 hours with each wallet', async () => {
@@ -58,18 +52,15 @@ describe('wallet routes', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'This wallet is already being tracked.',
     });
-    expect(mocks.syncHeliusAddresses).not.toHaveBeenCalled();
   });
 
-  it('soft-deletes a wallet and refreshes the Helius address set', async () => {
+  it('soft-deletes a wallet for the stream worker to remove on refresh', async () => {
     mocks.query.mockResolvedValueOnce([{ id: 'wallet-1' }]);
-    mocks.syncHeliusAddresses.mockResolvedValueOnce({ configured: true });
 
     const response = await app.request('/v1/wallets/wallet-1', { method: 'DELETE' });
 
     expect(response.status).toBe(200);
     expect(mocks.query.mock.calls[0]?.[0]).toContain('deleted_at = now()');
     expect(mocks.query.mock.calls[0]?.[1]).toEqual(['wallet-1', 'user-1']);
-    expect(mocks.syncHeliusAddresses).toHaveBeenCalledOnce();
   });
 });
