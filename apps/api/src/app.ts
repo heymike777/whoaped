@@ -52,7 +52,7 @@ app.use('/v1/*', requireSession);
 app.get('/v1/wallets', async (context) => {
   const db = await collections();
   const wallets = await db.wallets.find({
-    userId: context.get('userId'), deletedAt: { $exists: false },
+    userId: context.get('userId'), deletedAt: null,
   }).sort({ createdAt: -1 }).toArray();
   const since = new Date(Date.now() - 24 * 60 * 60 * 1_000);
   const rows = await Promise.all(wallets.map(async (wallet) => ({
@@ -85,6 +85,7 @@ app.post('/v1/wallets', async (context) => {
       chain: parsed.data.chain,
       status: 'active',
       createdAt,
+      deletedAt: null,
     });
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
@@ -103,7 +104,7 @@ app.delete('/v1/wallets/:walletId', async (context) => {
     {
       _id: context.req.param('walletId'),
       userId: context.get('userId'),
-      deletedAt: { $exists: false },
+      deletedAt: null,
     },
     { $set: { deletedAt: new Date() } },
   );

@@ -79,7 +79,7 @@ describe('wallet routes', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.walletUpdateOne).toHaveBeenCalledWith(
-      { _id: 'wallet-1', userId: 'user-1', deletedAt: { $exists: false } },
+      { _id: 'wallet-1', userId: 'user-1', deletedAt: null },
       { $set: { deletedAt: expect.any(Date) } },
     );
   });

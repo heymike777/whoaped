@@ -145,7 +145,7 @@ class ParsedStreamSupervisor {
   private async refresh() {
     const db = await collections();
     const addresses = (await db.wallets.distinct('address', {
-      chain: 'solana', deletedAt: { $exists: false }, status: { $ne: 'error' },
+      chain: 'solana', deletedAt: null, status: { $ne: 'error' },
     })).sort();
     this.lastRefreshAt = Date.now();
     const fingerprint = addresses.join(',');

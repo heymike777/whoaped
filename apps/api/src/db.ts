@@ -15,7 +15,7 @@ export type WalletDocument = {
   status: 'syncing' | 'active' | 'error';
   syncError?: string;
   createdAt: Date;
-  deletedAt?: Date;
+  deletedAt?: Date | null;
 };
 export type IngestionEventDocument = {
   _id: string; provider: string; externalId: string; slot: number; payload: unknown; receivedAt: Date;
@@ -103,7 +103,7 @@ async function ensureIndexes(database: Db) {
     db.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.wallets.createIndex(
       { userId: 1, chain: 1, address: 1 },
-      { unique: true, partialFilterExpression: { deletedAt: { $exists: false } } },
+      { unique: true, partialFilterExpression: { deletedAt: null } },
     ),
     db.wallets.createIndex({ chain: 1, address: 1, status: 1 }),
     db.ingestionEvents.createIndex({ provider: 1, externalId: 1 }, { unique: true }),

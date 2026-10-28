@@ -25,7 +25,7 @@ export async function ingestParsedTransaction(
 
   const wallets = await db.wallets.find({
     chain: 'solana',
-    deletedAt: { $exists: false },
+    deletedAt: null,
     status: { $ne: 'error' },
     address: { $in: addresses },
   }).toArray();
