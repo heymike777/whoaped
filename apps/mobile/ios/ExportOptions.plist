@@ -8,15 +8,8 @@
 	<false/>
 	<key>method</key>
 	<string>app-store-connect</string>
-	<key>provisioningProfiles</key>
-	<dict>
-		<key>com.whoaped.app</key>
-		<string>WhoAped App Store</string>
-	</dict>
-	<key>signingCertificate</key>
-	<string>C9D3D41445DA734F600EEE906F42CD1DDCE5DBE1</string>
 	<key>signingStyle</key>
-	<string>manual</string>
+	<string>automatic</string>
 	<key>stripSwiftSymbols</key>
 	<true/>
 	<key>teamID</key>
