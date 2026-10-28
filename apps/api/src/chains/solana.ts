@@ -67,6 +67,9 @@ const KNOWN_SYMBOLS: Record<string, string> = {
   Es9vMFrzaCERmJfrF4H2FYDshorBZG77ZK1k3m1dAWF: 'USDT',
 };
 
+const METAPLEX_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
+const SQUADS_V4_PROGRAM = 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf';
+
 function tokenSymbol(mint?: string) {
   if (!mint) return 'token';
   return KNOWN_SYMBOLS[mint] ?? `${mint.slice(0, 4)}…${mint.slice(-4)}`;
@@ -87,6 +90,26 @@ function formatAmount(amount: number, symbol: string) {
 function addDelta(deltas: Map<string, number>, symbol: string, amount: number) {
   if (!Number.isFinite(amount) || Math.abs(amount) < Number.EPSILON) return;
   deltas.set(symbol, (deltas.get(symbol) ?? 0) + amount);
+}
+
+function canonical(value?: string | null) {
+  return (value ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function namedAccount(instruction: ParsedInstruction, ...names: string[]) {
+  const wanted = new Set(names.map(canonical));
+  return instruction.decoded?.accounts?.find((account) => wanted.has(canonical(account.name)))?.pubkey;
+}
+
+function instructionTouches(instruction: ParsedInstruction, watchedAddress: string) {
+  return instruction.decoded?.accounts?.some((account) => account.pubkey === watchedAddress) ?? false;
+}
+
+function decodedIndex(instruction: ParsedInstruction) {
+  const entry = Object.entries(instruction.decoded?.args ?? {})
+    .find(([key]) => ['transactionindex', 'proposalindex', 'index'].includes(canonical(key)));
+  if (!entry || !['string', 'number', 'bigint'].includes(typeof entry[1])) return '';
+  return ` #${String(entry[1])}`;
 }
 
 function accountBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress: string) {
@@ -151,6 +174,62 @@ function balanceActivity(
   };
 }
 
+function semanticActivity(
+  transaction: ParsedSolanaTransaction,
+  watchedAddress: string,
+  base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
+): NormalizedActivity | null {
+  const relevant = transaction.instructions?.filter((instruction) =>
+    instructionTouches(instruction, watchedAddress) || transaction.feePayer === watchedAddress,
+  ) ?? [];
+
+  const core = relevant.find((instruction) => {
+    const program = canonical(instruction.programName);
+    return instruction.programId === METAPLEX_CORE_PROGRAM
+      || program === 'mplcore'
+      || program === 'metaplexcore';
+  });
+  if (core) {
+    const name = canonical(core.instructionName);
+    let title: string | null = null;
+    if (['createv1', 'createv2'].includes(name)) title = 'Minted Core NFT';
+    if (name === 'transferv1') {
+      const newOwner = namedAccount(core, 'new_owner', 'newOwner');
+      const previousOwner = namedAccount(core, 'owner', 'authority');
+      title = newOwner === watchedAddress
+        ? 'Received Core NFT'
+        : previousOwner === watchedAddress
+          ? 'Sent Core NFT'
+          : 'Transferred Core NFT';
+    }
+    if (name === 'burnv1') title = 'Burned Core NFT';
+    if (title) return { ...base, kind: 'nft', title, detail: 'Metaplex Core', source: 'Metaplex Core' };
+  }
+
+  const squads = relevant.find((instruction) => {
+    const program = canonical(instruction.programName);
+    return instruction.programId === SQUADS_V4_PROGRAM || program.includes('squads');
+  });
+  if (squads) {
+    const name = canonical(squads.instructionName);
+    const index = decodedIndex(squads);
+    const titles: Record<string, string> = {
+      proposalcreate: `Created Squads proposal${index}`,
+      proposalactivate: `Activated Squads proposal${index}`,
+      proposalapprove: `Approved Squads proposal${index}`,
+      proposalreject: `Rejected Squads proposal${index}`,
+      proposalcancel: `Cancelled Squads proposal${index}`,
+      vaulttransactionexecute: `Executed Squads proposal${index}`,
+      configtransactionexecute: `Executed Squads config proposal${index}`,
+      batchexecute: `Executed Squads batch${index}`,
+    };
+    const title = titles[name];
+    if (title) return { ...base, kind: 'multisig', title, detail: 'Squads multisig', source: 'Squads' };
+  }
+
+  return null;
+}
+
 export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
   chain: 'solana',
 
@@ -188,7 +267,14 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
       metadata: { slot: transaction.slot, watchedAddress },
     };
 
-    const activity = balanceActivity(transaction, watchedAddress, base);
-    return activity ? [activity] : [];
+    const semantic = semanticActivity(transaction, watchedAddress, base);
+    const balance = balanceActivity(transaction, watchedAddress, base);
+    if (semantic) {
+      return [{
+        ...semantic,
+        title: balance ? `${semantic.title}  ·  ${balance.title}` : semantic.title,
+      }];
+    }
+    return balance ? [balance] : [];
   },
 };

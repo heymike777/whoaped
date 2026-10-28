@@ -72,6 +72,66 @@ describe('solanaAdapter balance changes', () => {
     expect(solanaAdapter.normalize(payload, wallet)).toEqual([]);
   });
 
+  it('keeps a Metaplex Core mint semantic and appends its balance change', () => {
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      accountData: [{ account: wallet, nativeBalanceChange: -6_959_600 }],
+      instructions: [{
+        programId: 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d',
+        programName: 'mpl_core',
+        instructionName: 'create_v1',
+        decoded: { accounts: [{ name: 'owner', pubkey: wallet }] },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'nft',
+      title: 'Minted Core NFT  ·  −0.0069596 SOL',
+      detail: 'Metaplex Core',
+    });
+  });
+
+  it('keeps a Squads proposal approval even without a balance change', () => {
+    const payload = parsedTransaction({
+      instructions: [{
+        programId: 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf',
+        programName: 'squads_multisig_program',
+        instructionName: 'proposal_approve',
+        decoded: {
+          args: { transactionIndex: 42 },
+          accounts: [
+            { name: 'member', pubkey: wallet },
+            { name: 'multisig', pubkey: 'multisig-address' },
+          ],
+        },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'multisig',
+      title: 'Approved Squads proposal #42',
+      detail: 'Squads multisig',
+    });
+  });
+
+  it('shows the direction of a Core NFT transfer for the watched owner', () => {
+    const payload = parsedTransaction({
+      instructions: [{
+        programName: 'metaplex_core',
+        instructionName: 'transfer_v1',
+        decoded: { accounts: [
+          { name: 'authority', pubkey: 'previous-owner' },
+          { name: 'new_owner', pubkey: wallet },
+        ] },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'nft',
+      title: 'Received Core NFT',
+    });
+  });
+
   it('collects balance, transfer, raw, and decoded accounts once', () => {
     const addresses = solanaAdapter.extractAddresses(parsedTransaction({
       feePayer: wallet,

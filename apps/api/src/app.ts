@@ -116,7 +116,10 @@ app.delete('/v1/wallets/:walletId', async (context) => {
 app.get('/v1/activities', async (context) => {
   const limit = Math.min(Number(context.req.query('limit') ?? 50) || 50, 100);
   const db = await collections();
-  const transactions = await db.transactions.find({ userId: context.get('userId'), kind: 'balance' })
+  const transactions = await db.transactions.find({
+    userId: context.get('userId'),
+    kind: { $in: ['balance', 'nft', 'multisig'] },
+  })
     .sort({ occurredAt: -1, createdAt: -1 }).limit(limit).toArray();
   const walletIds = [...new Set(transactions.map((transaction) => transaction.walletId))];
   const wallets = await db.wallets.find({ _id: { $in: walletIds } }).toArray();

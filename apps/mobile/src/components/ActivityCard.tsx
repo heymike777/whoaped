@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpDown, Image, Rocket, Sprout, Zap } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpDown, Image, Rocket, ShieldCheck, Sprout, Zap } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, typography } from '../theme';
@@ -6,6 +6,7 @@ import { Activity, ActivityKind } from '../types';
 
 const iconByKind = {
   balance: ArrowUpDown,
+  multisig: ShieldCheck,
   swap: ArrowLeftRight,
   buy: Rocket,
   stake: Sprout,
@@ -16,6 +17,7 @@ const iconByKind = {
 
 const colorByKind: Record<ActivityKind, string> = {
   balance: colors.primary,
+  multisig: colors.blue,
   swap: colors.blue,
   buy: colors.coral,
   stake: colors.primary,
