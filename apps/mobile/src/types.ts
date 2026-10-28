@@ -11,6 +11,7 @@ export type Wallet = {
 };
 
 export type ActivityKind =
+  | 'balance'
   | 'swap'
   | 'buy'
   | 'stake'

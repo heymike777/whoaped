@@ -175,7 +175,7 @@ function WalletEmptyState({ onAdd }: { onAdd: () => void }) {
 
       <View style={styles.onboardingNote}>
         <BellRing color={colors.textFaint} size={14} />
-        <Text style={styles.onboardingNoteText}>New transactions appear in your feed and notifications.</Text>
+        <Text style={styles.onboardingNoteText}>New balance changes appear in your feed and notifications.</Text>
       </View>
     </View>
   );

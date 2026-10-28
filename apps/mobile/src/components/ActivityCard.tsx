@@ -1,10 +1,11 @@
-import { ArrowDownLeft, ArrowLeftRight, Image, Rocket, Sprout, Zap } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpDown, Image, Rocket, Sprout, Zap } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, typography } from '../theme';
 import { Activity, ActivityKind } from '../types';
 
 const iconByKind = {
+  balance: ArrowUpDown,
   swap: ArrowLeftRight,
   buy: Rocket,
   stake: Sprout,
@@ -14,6 +15,7 @@ const iconByKind = {
 };
 
 const colorByKind: Record<ActivityKind, string> = {
+  balance: colors.primary,
   swap: colors.blue,
   buy: colors.coral,
   stake: colors.primary,
@@ -46,7 +48,7 @@ export function ActivityCard({ activity }: { activity: Activity }) {
           <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
         </View>
         <Text style={styles.title}>{activity.title}</Text>
-        <Text numberOfLines={1} style={styles.detail}>{activity.detail}</Text>
+        {activity.kind !== 'balance' && <Text numberOfLines={1} style={styles.detail}>{activity.detail}</Text>}
       </View>
       {activity.valueUsd != null && (
         <Text style={styles.value}>

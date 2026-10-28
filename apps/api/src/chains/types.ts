@@ -4,7 +4,7 @@ export type NormalizedActivity = {
   chain: ChainId;
   txHash: string;
   eventIndex: number;
-  kind: 'swap' | 'buy' | 'stake' | 'transfer' | 'nft' | 'unknown';
+  kind: 'balance' | 'swap' | 'buy' | 'stake' | 'transfer' | 'nft' | 'unknown';
   title: string;
   detail: string;
   source?: string;

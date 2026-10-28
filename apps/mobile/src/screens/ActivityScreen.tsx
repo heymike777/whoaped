@@ -57,7 +57,7 @@ export function ActivityScreen({
 
       <Text style={styles.eyebrow}>ON-CHAIN, WITHOUT THE NOISE</Text>
       <Text style={styles.heading}>Know when{`\n`}they move.</Text>
-      <Text style={styles.subheading}>Track any wallet. Get every swap, buy, stake and transfer as it happens.</Text>
+      <Text style={styles.subheading}>Track any wallet. See every balance change as it happens.</Text>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>{hasNoWallets ? 'Start tracking' : 'Latest activity'}</Text>
@@ -155,7 +155,7 @@ function EmptyState({
         {walletCount ? `${walletCount} ${walletCount === 1 ? 'WALLET' : 'WALLETS'} ON WATCH` : 'TRACKER IS LIVE'}
       </Text>
       <Text style={styles.emptyTitle}>You’re all caught up</Text>
-      <Text style={styles.emptyBody}>We’re watching for new confirmed transactions. The next move will appear here and trigger a notification.</Text>
+      <Text style={styles.emptyBody}>We’re watching for balance changes. The next one will appear here and trigger a notification.</Text>
       <View style={styles.watchingPill}>
         <View style={styles.liveDot} />
         <Text style={styles.watchingText}>Listening on Solana</Text>

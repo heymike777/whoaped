@@ -14,62 +14,42 @@ function parsedTransaction(overrides: Partial<ParsedSolanaTransaction>): ParsedS
     accountKeys: [wallet],
     nativeTransfers: [],
     tokenTransfers: [],
+    accountData: [],
     instructions: [],
     ...overrides,
   };
 }
 
-describe('solanaAdapter for Helius Parsed Events', () => {
-  it('normalizes a SOL to USDC swap from raw summary amounts', () => {
+describe('solanaAdapter balance changes', () => {
+  it('aggregates actual native and token balance changes for the watched wallet', () => {
     const payload = parsedTransaction({
-      summary: {
-        type: 'swap',
-        parsedData: {
-          protocol: 'jupiter',
-          in_amount: '100000000000',
-          actual_out_amount: '10000000000',
-          input_mint: sol,
-          output_mint: usdc,
+      accountData: [
+        { account: wallet, nativeBalanceChange: -100_005_000_000 },
+        {
+          account: 'associated-token-account',
+          tokenBalanceChanges: [{
+            userAccount: wallet,
+            mint: usdc,
+            rawTokenAmount: { tokenAmount: '10000000000', decimals: 6 },
+          }],
         },
-      },
-      tokenTransfers: [{ mint: usdc, rawTokenAmount: 10_000_000_000, decimals: 6 }],
+      ],
     });
 
     expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
-      kind: 'swap',
-      title: 'Swapped 100 SOL to 10,000 USDC',
-      detail: 'Jupiter',
+      kind: 'balance',
+      title: '−100.01 SOL  ·  +10,000 USDC',
+      detail: 'Balance change',
       metadata: { slot: 433_950_192 },
     });
   });
 
-  it('labels a Pump.fun swap output as a buy', () => {
-    const mint = 'LumeN1111111111111111111111111111111111111';
+  it('falls back to transfer amounts when account deltas are unavailable', () => {
     const payload = parsedTransaction({
-      summary: {
-        type: 'swap',
-        parsedData: {
-          protocol: 'pump_fun',
-          in_amount: '6200000000',
-          actual_out_amount: '24800000000',
-          input_mint: sol,
-          output_mint: mint,
-        },
-      },
-      tokenTransfers: [{ mint, rawTokenAmount: 24_800_000_000, decimals: 6 }],
-    });
-
-    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
-      kind: 'buy',
-      title: 'Bought 24,800 Lume…1111',
-      detail: 'Pump.fun · spent 6.2 SOL',
-    });
-  });
-
-  it('normalizes an incoming token transfer', () => {
-    const payload = parsedTransaction({
+      accountData: undefined,
+      nativeTransfers: [{ fromUserAccount: wallet, toUserAccount: 'receiver', amount: 80_000_000 }],
       tokenTransfers: [{
-        fromUserAccount: '9WzY1111111111111111111111111111111111111111',
+        fromUserAccount: 'sender',
         toUserAccount: wallet,
         mint: usdc,
         rawTokenAmount: 1_250_000_000,
@@ -78,21 +58,41 @@ describe('solanaAdapter for Helius Parsed Events', () => {
     });
 
     expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
-      kind: 'transfer',
-      title: 'Received 1,250 USDC',
+      kind: 'balance',
+      title: '−0.08 SOL  ·  +1,250 USDC',
     });
   });
 
-  it('collects transaction, transfer, raw, and decoded accounts once', () => {
+  it('does not create noisy activity when the watched balance did not change', () => {
+    const payload = parsedTransaction({
+      summary: { description: `${wallet} created account with 0.00069596 SOL` },
+      instructions: [{ programName: 'Compute Budget' }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)).toEqual([]);
+  });
+
+  it('collects balance, transfer, raw, and decoded accounts once', () => {
     const addresses = solanaAdapter.extractAddresses(parsedTransaction({
       feePayer: wallet,
       accountKeys: [wallet, 'program'],
+      accountData: [{
+        account: wallet,
+        tokenBalanceChanges: [{ userAccount: 'token-owner', mint: sol }],
+      }],
       nativeTransfers: [{ fromUserAccount: wallet, toUserAccount: 'receiver' }],
       instructions: [{
         rawAccounts: ['program', 'raw-account'],
         decoded: { accounts: [{ name: 'authority', pubkey: 'decoded-account' }] },
       }],
     }));
-    expect(addresses).toEqual([wallet, 'program', 'receiver', 'raw-account', 'decoded-account']);
+    expect(addresses).toEqual([
+      wallet,
+      'program',
+      'token-owner',
+      'receiver',
+      'raw-account',
+      'decoded-account',
+    ]);
   });
 });

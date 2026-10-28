@@ -10,6 +10,16 @@ export type ParsedTokenTransfer = {
   mint?: string;
 };
 
+type ParsedTokenBalanceChange = {
+  userAccount?: string | null;
+  mint?: string;
+  rawTokenAmount?: number | string | {
+    tokenAmount?: number | string;
+    decimals?: number;
+  };
+  decimals?: number;
+};
+
 export type ParsedSummary = {
   type?: string;
   description?: string;
@@ -43,6 +53,11 @@ export type ParsedSolanaTransaction = {
     amount?: number;
   }>;
   tokenTransfers?: ParsedTokenTransfer[];
+  accountData?: Array<{
+    account?: string;
+    nativeBalanceChange?: number;
+    tokenBalanceChanges?: ParsedTokenBalanceChange[];
+  }>;
   instructions?: ParsedInstruction[];
 };
 
@@ -62,64 +77,77 @@ function displayAmount(raw: number | string | undefined, decimals = 0) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
-function decimalsForMint(transaction: ParsedSolanaTransaction, mint?: string) {
-  if (!mint) return 0;
-  if (mint === 'So11111111111111111111111111111111111111112') return 9;
-  return transaction.tokenTransfers?.find((transfer) => transfer.mint === mint)?.decimals ?? 0;
-}
-
 function formatAmount(amount: number, symbol: string) {
-  const digits = amount >= 1000 ? 0 : amount >= 1 ? 2 : 4;
-  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(amount)} ${symbol}`;
+  const absolute = Math.abs(amount);
+  const digits = absolute >= 1000 ? 0 : absolute >= 1 ? 2 : 9;
+  const formatted = new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(absolute);
+  return `${amount > 0 ? '+' : '−'}${formatted} ${symbol}`;
 }
 
-function titleCase(value: string) {
-  if (/^pump([_\s.-]?(fun|amm))?$/i.test(value)) return 'Pump.fun';
-  return value.toLowerCase().split(/[_\s-]+/).map((part) => part[0]?.toUpperCase() + part.slice(1)).join(' ');
+function addDelta(deltas: Map<string, number>, symbol: string, amount: number) {
+  if (!Number.isFinite(amount) || Math.abs(amount) < Number.EPSILON) return;
+  deltas.set(symbol, (deltas.get(symbol) ?? 0) + amount);
 }
 
-function transactionSource(transaction: ParsedSolanaTransaction) {
-  const protocol = transaction.summary?.parsedData?.protocol;
-  if (typeof protocol === 'string' && protocol) return titleCase(protocol);
-  const program = transaction.instructions?.find((instruction) => instruction.programName)?.programName;
-  return program ? titleCase(program) : 'Solana';
+function accountBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  const deltas = new Map<string, number>();
+  let foundWatchedAccount = false;
+  transaction.accountData?.forEach((account) => {
+    if (account.account === watchedAddress) {
+      foundWatchedAccount = true;
+      addDelta(deltas, 'SOL', (account.nativeBalanceChange ?? 0) / 1e9);
+    }
+    account.tokenBalanceChanges?.forEach((change) => {
+      if (change.userAccount !== watchedAddress) return;
+      foundWatchedAccount = true;
+      const raw = typeof change.rawTokenAmount === 'object'
+        ? change.rawTokenAmount.tokenAmount
+        : change.rawTokenAmount;
+      const decimals = typeof change.rawTokenAmount === 'object'
+        ? change.rawTokenAmount.decimals ?? change.decimals ?? 0
+        : change.decimals ?? 0;
+      addDelta(deltas, tokenSymbol(change.mint), displayAmount(raw, decimals));
+    });
+  });
+  return foundWatchedAccount ? deltas : null;
 }
 
-function isPump(source: string) {
-  return source.toLowerCase().includes('pump');
+function transferBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  const deltas = new Map<string, number>();
+  transaction.nativeTransfers?.forEach((transfer) => {
+    const amount = (transfer.amount ?? 0) / 1e9;
+    if (transfer.toUserAccount === watchedAddress) addDelta(deltas, 'SOL', amount);
+    if (transfer.fromUserAccount === watchedAddress) addDelta(deltas, 'SOL', -amount);
+  });
+  transaction.tokenTransfers?.forEach((transfer) => {
+    const amount = displayAmount(transfer.rawTokenAmount, transfer.decimals);
+    const symbol = tokenSymbol(transfer.mint);
+    if (transfer.toUserAccount === watchedAddress) addDelta(deltas, symbol, amount);
+    if (transfer.fromUserAccount === watchedAddress) addDelta(deltas, symbol, -amount);
+  });
+  return deltas;
 }
 
-function swapActivity(
+function balanceActivity(
   transaction: ParsedSolanaTransaction,
+  watchedAddress: string,
   base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
 ): NormalizedActivity | null {
-  const summary = transaction.summary;
-  if (summary?.type?.toLowerCase() !== 'swap') return null;
-
-  const data = summary.parsedData ?? {};
-  const inputMint = typeof data.input_mint === 'string' ? data.input_mint : undefined;
-  const outputMint = typeof data.output_mint === 'string' ? data.output_mint : undefined;
-  const inputSymbol = tokenSymbol(inputMint);
-  const outputSymbol = tokenSymbol(outputMint);
-  const inputAmount = displayAmount(
-    typeof data.in_amount === 'string' || typeof data.in_amount === 'number' ? data.in_amount : undefined,
-    decimalsForMint(transaction, inputMint),
-  );
-  const outputRaw = data.actual_out_amount ?? data.out_amount ?? data.output_amount;
-  const outputAmount = displayAmount(
-    typeof outputRaw === 'string' || typeof outputRaw === 'number' ? outputRaw : undefined,
-    decimalsForMint(transaction, outputMint),
-  );
-  const source = transactionSource(transaction);
-  const buy = isPump(source) && !['SOL', 'USDC', 'USDT'].includes(outputSymbol);
+  const deltas = accountBalanceDeltas(transaction, watchedAddress)
+    ?? transferBalanceDeltas(transaction, watchedAddress);
+  const changes = [...deltas.entries()]
+    .filter(([, amount]) => Math.abs(amount) >= Number.EPSILON)
+    .sort((left, right) => {
+      if ((left[1] < 0) !== (right[1] < 0)) return left[1] < 0 ? -1 : 1;
+      return Math.abs(right[1]) - Math.abs(left[1]);
+    });
+  if (!changes.length) return null;
 
   return {
     ...base,
-    kind: buy ? 'buy' : 'swap',
-    title: buy
-      ? `Bought ${formatAmount(outputAmount, outputSymbol)}`
-      : `Swapped ${formatAmount(inputAmount, inputSymbol)} to ${formatAmount(outputAmount, outputSymbol)}`,
-    detail: buy ? `${source} · spent ${formatAmount(inputAmount, inputSymbol)}` : source,
+    kind: 'balance',
+    title: changes.map(([symbol, amount]) => formatAmount(amount, symbol)).join('  ·  '),
+    detail: 'Balance change',
   };
 }
 
@@ -130,6 +158,10 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
     const addresses = new Set<string>();
     if (transaction.feePayer) addresses.add(transaction.feePayer);
     transaction.accountKeys?.forEach((address) => addresses.add(address));
+    transaction.accountData?.forEach(({ account, tokenBalanceChanges }) => {
+      if (account) addresses.add(account);
+      tokenBalanceChanges?.forEach(({ userAccount }) => userAccount && addresses.add(userAccount));
+    });
     transaction.nativeTransfers?.forEach(({ fromUserAccount, toUserAccount }) => {
       if (fromUserAccount) addresses.add(fromUserAccount);
       if (toUserAccount) addresses.add(toUserAccount);
@@ -148,74 +180,15 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
   normalize(transaction, watchedAddress) {
     if (!transaction.signature) return [];
 
-    const source = transactionSource(transaction);
     const base = {
       chain: 'solana' as const,
       txHash: transaction.signature,
       eventIndex: 0,
       occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
-      source,
-      metadata: {
-        slot: transaction.slot,
-        summaryType: transaction.summary?.type ?? null,
-        watchedAddress,
-      },
+      metadata: { slot: transaction.slot, watchedAddress },
     };
 
-    const swap = swapActivity(transaction, base);
-    if (swap) return [swap];
-
-    const stakeInstruction = transaction.instructions?.find((instruction) => {
-      const program = instruction.programName ?? '';
-      const name = instruction.instructionName ?? '';
-      return /stake|marinade|jito/i.test(program) && /stake|delegate|deposit/i.test(name);
-    });
-    if (transaction.summary?.type?.toLowerCase() === 'stake' || stakeInstruction) {
-      const lamports = transaction.nativeTransfers?.reduce((sum, item) => sum + (item.amount ?? 0), 0) ?? 0;
-      return [{
-        ...base,
-        kind: 'stake',
-        title: lamports > 0 ? `Staked ${formatAmount(lamports / 1e9, 'SOL')}` : 'Updated SOL stake',
-        detail: source,
-      }];
-    }
-
-    const tokenTransfer = transaction.tokenTransfers?.find((transfer) =>
-      transfer.fromUserAccount === watchedAddress || transfer.toUserAccount === watchedAddress,
-    );
-    if (tokenTransfer) {
-      const incoming = tokenTransfer.toUserAccount === watchedAddress;
-      return [{
-        ...base,
-        kind: 'transfer',
-        title: `${incoming ? 'Received' : 'Sent'} ${formatAmount(
-          displayAmount(tokenTransfer.rawTokenAmount, tokenTransfer.decimals),
-          tokenSymbol(tokenTransfer.mint),
-        )}`,
-        detail: incoming
-          ? `From ${tokenTransfer.fromUserAccount?.slice(0, 4) ?? 'unknown'}…${tokenTransfer.fromUserAccount?.slice(-4) ?? ''}`
-          : `To ${tokenTransfer.toUserAccount?.slice(0, 4) ?? 'unknown'}…${tokenTransfer.toUserAccount?.slice(-4) ?? ''}`,
-      }];
-    }
-
-    const nativeTransfer = transaction.nativeTransfers?.find((transfer) =>
-      transfer.fromUserAccount === watchedAddress || transfer.toUserAccount === watchedAddress,
-    );
-    if (nativeTransfer) {
-      const incoming = nativeTransfer.toUserAccount === watchedAddress;
-      return [{
-        ...base,
-        kind: 'transfer',
-        title: `${incoming ? 'Received' : 'Sent'} ${formatAmount((nativeTransfer.amount ?? 0) / 1e9, 'SOL')}`,
-        detail: source,
-      }];
-    }
-
-    return [{
-      ...base,
-      kind: 'unknown',
-      title: transaction.summary?.description?.slice(0, 140) || 'Interacted on Solana',
-      detail: source,
-    }];
+    const activity = balanceActivity(transaction, watchedAddress, base);
+    return activity ? [activity] : [];
   },
 };
