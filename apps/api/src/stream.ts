@@ -1,5 +1,7 @@
+import { createServer } from 'node:http';
+
 import type { ParsedSolanaTransaction } from './chains/solana.js';
-import { query } from './db.js';
+import { collections } from './db.js';
 import { backfillParsedEvents } from './services/parsed-events.js';
 import {
   ADDRESSES_PER_CONNECTION,
@@ -17,6 +19,7 @@ function positiveInteger(value: string | undefined, fallback: number, maximum = 
 const STREAM_URL = (process.env.HELIUS_PARSED_STREAM_URL ?? 'wss://fs-beta.helius-rpc.com').replace(/\/$/, '');
 const REFRESH_MS = positiveInteger(process.env.HELIUS_WALLET_REFRESH_MS, 5_000);
 const PING_MS = positiveInteger(process.env.HELIUS_STREAM_PING_MS, 240_000, 540_000);
+const HEALTH_PORT = positiveInteger(process.env.PORT, 8_080, 65_535);
 
 type StreamValue = {
   transaction: ParsedSolanaTransaction;
@@ -40,20 +43,17 @@ type RpcResponse = {
 };
 
 async function getCheckpoint(id: string) {
-  const [row] = await query<{ last_slot: string | number }>(
-    'SELECT last_slot FROM pipeline_checkpoints WHERE id = $1',
-    [id],
-  );
-  return row ? Number(row.last_slot) : null;
+  const db = await collections();
+  const row = await db.pipelineCheckpoints.findOne({ _id: id });
+  return row?.lastSlot ?? null;
 }
 
 async function saveCheckpoint(id: string, slot: number) {
-  await query(
-    `INSERT INTO pipeline_checkpoints (id, last_slot, updated_at)
-     VALUES ($1, $2, now())
-     ON CONFLICT (id) DO UPDATE
-       SET last_slot = GREATEST(pipeline_checkpoints.last_slot, EXCLUDED.last_slot), updated_at = now()`,
-    [id, slot],
+  const db = await collections();
+  await db.pipelineCheckpoints.updateOne(
+    { _id: id },
+    { $max: { lastSlot: slot }, $set: { updatedAt: new Date() } },
+    { upsert: true },
   );
 }
 
@@ -105,6 +105,7 @@ class ParsedStreamSupervisor {
   private refreshTimer?: NodeJS.Timeout;
   private pushTimer?: NodeJS.Timeout;
   private drainingPush = false;
+  private lastRefreshAt = 0;
 
   async start() {
     if (!process.env.HELIUS_API_KEY) throw new Error('HELIUS_API_KEY is not configured');
@@ -126,6 +127,11 @@ class ParsedStreamSupervisor {
     this.sockets.clear();
   }
 
+  isHealthy() {
+    const maximumRefreshAge = Math.max(REFRESH_MS * 3, 30_000);
+    return !this.stopped && Date.now() - this.lastRefreshAt <= maximumRefreshAge;
+  }
+
   private async drainPush() {
     if (this.drainingPush) return;
     this.drainingPush = true;
@@ -137,12 +143,11 @@ class ParsedStreamSupervisor {
   }
 
   private async refresh() {
-    const rows = await query<{ address: string }>(
-      `SELECT DISTINCT address FROM wallets
-       WHERE chain = 'solana' AND deleted_at IS NULL AND status != 'error'
-       ORDER BY address`,
-    );
-    const addresses = rows.map((row) => row.address);
+    const db = await collections();
+    const addresses = (await db.wallets.distinct('address', {
+      chain: 'solana', deletedAt: { $exists: false }, status: { $ne: 'error' },
+    })).sort();
+    this.lastRefreshAt = Date.now();
     const fingerprint = addresses.join(',');
     if (fingerprint === this.fingerprint) return;
 
@@ -255,9 +260,24 @@ class ParsedStreamSupervisor {
 const supervisor = new ParsedStreamSupervisor();
 await supervisor.start();
 
+const healthServer = createServer((request, response) => {
+  if (request.url !== '/health') {
+    response.writeHead(404).end();
+    return;
+  }
+  const healthy = supervisor.isHealthy();
+  response.writeHead(healthy ? 200 : 503, { 'Content-Type': 'application/json' });
+  response.end(JSON.stringify({ ok: healthy }));
+});
+healthServer.listen(HEALTH_PORT, '0.0.0.0', () => {
+  console.log(`Stream worker health endpoint listening on port ${HEALTH_PORT}`);
+});
+
 const shutdown = () => {
   supervisor.stop();
-  process.exitCode = 0;
+  healthServer.close(() => {
+    process.exitCode = 0;
+  });
 };
 process.once('SIGINT', shutdown);
 process.once('SIGTERM', shutdown);

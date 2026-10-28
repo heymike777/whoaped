@@ -1,0 +1,143 @@
+name: whoaped
+
+services:
+  - name: api
+    github:
+      repo: heymike777/whoaped
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/api
+    dockerfile_path: apps/api/Dockerfile
+    run_command: npm start
+    http_port: 8787
+    instance_count: 1
+    routes:
+      - path: /
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 20
+      period_seconds: 15
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 5
+    liveness_health_check:
+      http_path: /health
+      port: 8787
+      initial_delay_seconds: 30
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    alerts:
+      - rule: CPU_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 85
+        window: FIVE_MINUTES
+      - rule: RESTART_COUNT
+        operator: GREATER_THAN
+        value: 3
+        window: FIVE_MINUTES
+
+workers:
+  - name: parsed-stream-worker
+    github:
+      repo: heymike777/whoaped
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/api
+    dockerfile_path: apps/api/Dockerfile
+    run_command: npm run start:stream
+    instance_count: 1
+    envs:
+      - key: PORT
+        value: "8080"
+        scope: RUN_TIME
+        type: GENERAL
+    liveness_health_check:
+      http_path: /health
+      port: 8080
+      initial_delay_seconds: 30
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    alerts:
+      - rule: CPU_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 85
+        window: FIVE_MINUTES
+      - rule: RESTART_COUNT
+        operator: GREATER_THAN
+        value: 3
+        window: FIVE_MINUTES
+
+domains:
+  - domain: api.whoaped.com
+    type: PRIMARY
+    minimum_tls_version: "1.2"
+
+envs:
+  - key: NODE_ENV
+    value: production
+    scope: RUN_TIME
+    type: GENERAL
+  - key: MONGODB_URI
+    value: SET_IN_DIGITALOCEAN
+    scope: RUN_TIME
+    type: SECRET
+  - key: MONGODB_DATABASE
+    value: whoaped
+    scope: RUN_TIME
+    type: GENERAL
+  - key: HELIUS_API_KEY
+    value: SET_IN_DIGITALOCEAN
+    scope: RUN_TIME
+    type: SECRET
+  - key: HELIUS_PARSED_STREAM_URL
+    value: wss://fs-beta.helius-rpc.com
+    scope: RUN_TIME
+    type: GENERAL
+  - key: HELIUS_WALLET_REFRESH_MS
+    value: "5000"
+    scope: RUN_TIME
+    type: GENERAL
+  - key: HELIUS_STREAM_PING_MS
+    value: "240000"
+    scope: RUN_TIME
+    type: GENERAL
+  - key: HELIUS_BACKFILL_CONCURRENCY
+    value: "4"
+    scope: RUN_TIME
+    type: GENERAL
+  - key: HELIUS_BACKFILL_MAX_PAGES
+    value: "20"
+    scope: RUN_TIME
+    type: GENERAL
+  - key: INTERNAL_JOB_SECRET
+    value: SET_IN_DIGITALOCEAN
+    scope: RUN_TIME
+    type: SECRET
+  - key: CORS_ORIGIN
+    value: "*"
+    scope: RUN_TIME
+    type: GENERAL
+  - key: FIREBASE_PROJECT_ID
+    value: whoaped
+    scope: RUN_TIME
+    type: GENERAL
+  - key: FIREBASE_SERVICE_ACCOUNT_JSON
+    value: SET_IN_DIGITALOCEAN
+    scope: RUN_TIME
+    type: SECRET
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED

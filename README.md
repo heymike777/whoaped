@@ -2,7 +2,7 @@
 
 Watch-only wallet activity for humans. Add a Solana public address and get a plain-language push alert after its next confirmed transaction.
 
-This repository contains a React Native Community CLI mobile client with checked-in iOS and Android projects, plus a Hono/Postgres API and a persistent Solana ingestion worker. Without `API_URL`, wallets are stored locally and no live tracking occurs.
+This repository contains a React Native Community CLI mobile client with checked-in iOS and Android projects, plus a Hono/MongoDB API and a persistent Solana ingestion worker. Without `API_URL`, wallets are stored locally and no live tracking occurs.
 
 ## Stack
 
@@ -11,7 +11,7 @@ This repository contains a React Native Community CLI mobile client with checked
 - Push: Firebase Cloud Messaging through React Native Firebase
 - API: Hono on Node 22
 - Ingestion: Helius Parsed Streams (confirmed WebSocket) with Parsed Events REST backfill
-- Database: Neon Postgres through the serverless driver
+- Database: MongoDB with automatic indexes and seven-day raw-ingestion retention
 
 ## Run the mobile app
 
@@ -62,11 +62,10 @@ The native projects deliberately still build without these files so UI developme
 
 ## Run the API
 
-1. Create a Neon database.
-2. Run every SQL file in `apps/api/migrations` in numeric order. Existing databases need `002_parsed_streams.sql`.
-3. Copy `apps/api/.env.example` to `apps/api/.env` and fill in the values.
-4. Provide Application Default Credentials or `FIREBASE_SERVICE_ACCOUNT_JSON` for FCM delivery.
-5. Start the API and the continuously running Parsed Streams worker as separate processes:
+1. Create a MongoDB deployment and database named `whoaped`.
+2. Copy `apps/api/.env.example` to `apps/api/.env` and fill in `MONGODB_URI` and the remaining values.
+3. Provide Application Default Credentials or `FIREBASE_SERVICE_ACCOUNT_JSON` for FCM delivery.
+4. Start the API and the continuously running Parsed Streams worker as separate processes:
 
 ```bash
 cd apps/api
@@ -76,9 +75,9 @@ npm run dev
 npm run dev:stream
 ```
 
-The worker reads active wallet addresses from Postgres every five seconds, opens `parsedTransactionSubscribe` subscriptions at confirmed commitment, and persists the last completely processed slot. Helius Parsed Streams is at-most-once, so reconnects use the Parsed Events transaction-history endpoint to backfill the missed slot window before live processing resumes.
+The first API or worker connection creates the required MongoDB indexes automatically. The worker reads active wallet addresses from MongoDB every five seconds, opens `parsedTransactionSubscribe` subscriptions at confirmed commitment, and persists the last completely processed slot. Helius Parsed Streams is at-most-once, so reconnects use the Parsed Events transaction-history endpoint to backfill the missed slot window before live processing resumes.
 
-Run exactly one worker replica initially. It needs an always-on runtime; if deploying on Cloud Run, configure minimum instances `1` and maximum instances `1`. The stateless HTTP API may still scale to zero.
+Run exactly one worker replica initially. It needs an always-on runtime. The repository includes a DigitalOcean App Platform spec at `.do/app.yaml`; deployment and Managed MongoDB setup are covered in [docs/deployment-digitalocean.md](docs/deployment-digitalocean.md).
 
 ## Verify
 
@@ -94,6 +93,6 @@ The infrastructure and scaling decisions are documented in [docs/architecture.md
 
 - Replace anonymous install sessions with Sign in with Apple/Google if cross-device sync is required.
 - Add App Attest / Play Integrity and rate limiting before opening session creation publicly.
-- Move push delivery to a durable queue when Postgres job polling becomes a bottleneck.
+- Move push delivery to a dedicated durable queue when MongoDB job polling becomes a bottleneck.
 - Test FCM permissions and delivery on physical iOS and Android devices.
 - Add ingestion-lag alerting based on `pipeline_checkpoints.updated_at`.

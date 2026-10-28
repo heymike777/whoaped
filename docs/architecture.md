@@ -2,18 +2,16 @@
 
 ## Recommendation
 
-Use Postgres, with Neon as the first host.
+Use MongoDB as the primary store. Collections match the product boundaries: users, sessions, wallets, normalized transactions, short-lived ingestion events, device tokens, notification jobs, and pipeline checkpoints.
 
-The workload is append-heavy but it is not a document-store-shaped workload. WhoAped needs deterministic webhook deduplication, wallet-to-user joins, chronological pagination, device-token fanout, retryable notification jobs, and later retention/partitioning. Postgres handles all of those directly. Firestore is attractive for an early mobile prototype, but per-document read/write billing and denormalized fanout become awkward as transaction volume rises.
-
-Neon is a good cheap starting point because compute and storage scale independently and idle environments can scale to zero. For a continuously busy production tracker, scale-to-zero matters less; Postgres portability matters more. If Neon stops being economical, the same schema moves to RDS, AlloyDB, Crunchy Bridge, or another Postgres provider.
+MongoDB is not inherently better than Postgres for this workload, but it is now the chosen operational standard. Correctness is preserved with compound unique indexes for ingestion events, normalized transactions, active wallets, and notification jobs. Raw ingestion payloads expire after seven days through a TTL index. The API performs the small wallet-to-activity lookup in application code; cursor pagination should be added before feed volume grows.
 
 ## Data flow
 
 ```mermaid
 flowchart LR
   M["Native React Native app"] -->|"wallet + FCM token"| A["Hono API"]
-  A --> P[("Postgres")]
+  A --> P[("MongoDB")]
   P -->|"active address set"| W["Parsed Streams worker"]
   S["Solana"] --> H["Helius Parsed Streams"]
   H -->|"decoded confirmed transaction"| W
@@ -29,41 +27,41 @@ The mobile contract only knows `Wallet`, `Activity`, and `Chain`. Provider paylo
 
 ## Idempotency and ordering
 
-- Short-lived ingestion events are unique on `(provider, external_id)`.
-- Feed events are unique on `(wallet_id, chain, tx_hash, event_index)`.
-- Notification jobs are unique on `(device_token_id, transaction_id)`.
+- Short-lived ingestion events are unique on `(provider, externalId)`.
+- Feed events are unique on `(walletId, chain, txHash, eventIndex)`.
+- Notification jobs are unique on `(deviceTokenId, transactionId)`.
 - Every new Solana transaction stores its slot. Each stream connection persists its last completely processed slot in `pipeline_checkpoints`.
 - Feed reads use `(user_id, occurred_at desc)` and should move from offset to cursor pagination before public launch.
 
-This makes duplicate stream deliveries and REST backfill overlap harmless. A transfer between two watched wallets intentionally creates one feed event per watched wallet because the user-facing direction differs.
+MongoDB upserts make duplicate stream deliveries and REST backfill overlap harmless. `findOneAndUpdate` atomically leases pending push jobs so concurrent drain calls cannot claim the same job. A transfer between two watched wallets intentionally creates one feed event per watched wallet because the user-facing direction differs.
 
 ## Scaling the transaction store
 
-The initial table is deliberately compact and unpartitioned. With the covering B-tree feed index and a BRIN time index, this is simpler and efficient through the early tens of millions of rows, assuming payload JSON stays small. Before the hot index set outgrows memory:
+The initial collections use access-pattern indexes for user feed, wallet history, chain slot, and notification leases. Before the hot working set outgrows memory:
 
-1. Partition `transactions` monthly by `occurred_at`.
-2. Retain normalized activity according to product tier; archive cold history to object storage as Parquet if indefinite history is required.
-3. Delete raw `ingestion_events` after 7 days once replay tooling exists.
-4. Put push jobs on Cloudflare Queues, SQS, or QStash when inline delivery affects webhook latency.
-5. Add a read replica only after query metrics show it is needed.
+1. Move to a managed MongoDB replica set if the MVP starts on the single DigitalOcean server.
+2. Retain normalized activity according to product tier; archive cold history to object storage if indefinite history is required.
+3. Shard `transactions` only after measured volume requires it; a likely key begins with `userId` or a stable user bucket.
+4. Put push jobs on a dedicated queue when database polling becomes a bottleneck.
+5. Add read capacity only after query metrics show it is needed.
 
-Do not introduce Redis initially. Postgres already provides the uniqueness constraints and `SKIP LOCKED` job claiming this MVP needs.
+Do not introduce Redis initially. MongoDB provides the required uniqueness constraints and atomic job leasing for this MVP.
 
 ## Helius Parsed Streams strategy
 
-The worker polls the distinct active Solana address set every five seconds. It creates one subscription per 100 addresses, up to 25 subscriptions (2,500 addresses) on each WebSocket connection, matching Helius's beta limits. Address changes rebuild the connection set. The database remains the source of truth, so API instances never need to coordinate socket state.
+The worker polls the distinct active Solana address set every five seconds. It creates one subscription per 100 addresses, up to 25 subscriptions (2,500 addresses) on each WebSocket connection, matching Helius's beta limits. Address changes rebuild the connection set. MongoDB remains the source of truth, so API instances never need to coordinate socket state.
 
 Parsed Streams delivers at most once and has no replay. Each connection sends JSON-RPC `ping` messages to survive the ten-minute idle timeout. On reconnect, the worker compares its persisted slot checkpoint with the current slot and queries Parsed Events history for every address in that connection over the missing slot range. Writes and notifications remain idempotent.
 
-Run one worker replica initially. Multiple replicas are data-safe but waste Helius connections and database writes. At higher scale, assign stable address shards to workers with leases in Postgres rather than relying on process-local connection indexes.
+Run one worker replica initially. Multiple replicas are data-safe but waste Helius connections and database writes. At higher scale, assign stable address shards to workers with MongoDB lease documents rather than relying on process-local connection indexes.
 
 ## Cost progression
 
-- MVP: Neon free/entry tier + scale-to-zero HTTP API + one minimum-size always-on stream worker + existing Helius paid plan + Firebase Cloud Messaging.
-- Growing: paid Neon with capped autoscaling, leased stream-worker shards, durable push queue.
-- High volume: monthly partitions, object-storage archive, stable address sharding, and separate ingest/read deployments.
+- MVP: DigitalOcean App Platform with one HTTP service, exactly one persistent stream worker, DigitalOcean Managed MongoDB, the existing Helius plan, and Firebase Cloud Messaging.
+- Growing: larger App Platform components, MongoDB standby/read capacity, worker shard leases, and a durable push queue when needed.
+- High volume: managed MongoDB scaling or sharding, object-storage archive, stable address sharding, and separate ingest/read deployments.
 
-The first dollars should go to reliable ingestion and database observability. Parsed Streams avoids raw transaction decoding and gRPC infrastructure, but its persistent socket means the worker cannot scale to zero.
+The first dollars should go to reliable ingestion, backups, and database observability. Parsed Streams avoids raw transaction decoding and gRPC infrastructure, but its persistent socket means the worker cannot scale to zero.
 
 ## Security
 

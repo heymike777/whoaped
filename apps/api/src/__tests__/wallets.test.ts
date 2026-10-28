@@ -1,12 +1,23 @@
+import { MongoServerError } from 'mongodb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  query: vi.fn(),
+  walletFind: vi.fn(),
+  walletInsertOne: vi.fn(),
+  walletUpdateOne: vi.fn(),
+  transactionCountDocuments: vi.fn(),
 }));
 
 vi.mock('../db.js', () => ({
   hasDatabase: () => true,
-  query: mocks.query,
+  collections: async () => ({
+    wallets: {
+      find: mocks.walletFind,
+      insertOne: mocks.walletInsertOne,
+      updateOne: mocks.walletUpdateOne,
+    },
+    transactions: { countDocuments: mocks.transactionCountDocuments },
+  }),
 }));
 
 vi.mock('../auth.js', () => ({
@@ -17,30 +28,37 @@ vi.mock('../auth.js', () => ({
   },
 }));
 
-vi.mock('../services/push.js', () => ({
-  drainNotificationJobs: vi.fn(),
-}));
+vi.mock('../services/push.js', () => ({ drainNotificationJobs: vi.fn() }));
 
 import { app } from '../app.js';
 
 const address = '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe';
 
 describe('wallet routes', () => {
-  beforeEach(() => {
-    mocks.query.mockReset();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
   it('returns a transaction count for the last 24 hours with each wallet', async () => {
-    mocks.query.mockResolvedValueOnce([]);
+    const wallet = {
+      _id: 'wallet-1', userId: 'user-1', name: 'Main', address, chain: 'solana',
+      status: 'active', createdAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    const cursor = { sort: vi.fn().mockReturnThis(), toArray: vi.fn().mockResolvedValue([wallet]) };
+    mocks.walletFind.mockReturnValue(cursor);
+    mocks.transactionCountDocuments.mockResolvedValue(3);
 
     const response = await app.request('/v1/wallets');
 
     expect(response.status).toBe(200);
-    expect(mocks.query.mock.calls[0]?.[0]).toContain("now() - interval '24 hours'");
+    expect(mocks.transactionCountDocuments).toHaveBeenCalledWith({
+      walletId: 'wallet-1', occurredAt: { $gte: expect.any(Date) },
+    });
+    await expect(response.json()).resolves.toMatchObject({
+      data: [{ id: 'wallet-1', transactionCount24h: 3 }],
+    });
   });
 
   it('rejects an already tracked wallet instead of renaming it', async () => {
-    mocks.query.mockResolvedValueOnce([]);
+    mocks.walletInsertOne.mockRejectedValue(new MongoServerError({ message: 'duplicate', code: 11000 }));
 
     const response = await app.request('/v1/wallets', {
       method: 'POST',
@@ -55,12 +73,14 @@ describe('wallet routes', () => {
   });
 
   it('soft-deletes a wallet for the stream worker to remove on refresh', async () => {
-    mocks.query.mockResolvedValueOnce([{ id: 'wallet-1' }]);
+    mocks.walletUpdateOne.mockResolvedValue({ matchedCount: 1 });
 
     const response = await app.request('/v1/wallets/wallet-1', { method: 'DELETE' });
 
     expect(response.status).toBe(200);
-    expect(mocks.query.mock.calls[0]?.[0]).toContain('deleted_at = now()');
-    expect(mocks.query.mock.calls[0]?.[1]).toEqual(['wallet-1', 'user-1']);
+    expect(mocks.walletUpdateOne).toHaveBeenCalledWith(
+      { _id: 'wallet-1', userId: 'user-1', deletedAt: { $exists: false } },
+      { $set: { deletedAt: expect.any(Date) } },
+    );
   });
 });

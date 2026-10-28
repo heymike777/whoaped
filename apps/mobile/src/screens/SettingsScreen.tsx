@@ -54,7 +54,7 @@ export function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>TRACKING STACK</Text>
         <StackRow icon={Server} label="Solana ingestion" value="Helius webhooks" />
-        <StackRow icon={Database} label="Transaction store" value="Postgres" />
+        <StackRow icon={Database} label="Transaction store" value="MongoDB" />
         <StackRow icon={ShieldCheck} label="Wallet access" value="Watch-only" />
       </View>
 

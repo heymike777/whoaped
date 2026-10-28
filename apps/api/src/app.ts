@@ -3,9 +3,10 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { z } from 'zod';
+import { MongoServerError } from 'mongodb';
 
 import { createAnonymousSession, requireSession, type Variables } from './auth.js';
-import { hasDatabase, query } from './db.js';
+import { collections, getDatabase, hasDatabase } from './db.js';
 import { drainNotificationJobs } from './services/push.js';
 
 const walletSchema = z.object({
@@ -29,7 +30,17 @@ export const app = new Hono<{ Variables: Variables }>();
 app.use('*', logger());
 app.use('*', cors({ origin: process.env.CORS_ORIGIN ?? '*', allowHeaders: ['Authorization', 'Content-Type'] }));
 
-app.get('/health', (context) => context.json({ ok: true, database: hasDatabase() ? 'configured' : 'missing' }));
+app.get('/health', async (context) => {
+  if (!hasDatabase()) return context.json({ ok: false, database: 'missing' }, 503);
+  try {
+    const database = await getDatabase();
+    await database.command({ ping: 1 });
+    return context.json({ ok: true, database: 'connected' });
+  } catch (error) {
+    console.error('MongoDB health check failed', error);
+    return context.json({ ok: false, database: 'unavailable' }, 503);
+  }
+});
 
 app.post('/v1/sessions', async (context) => {
   if (!hasDatabase()) return context.json({ error: 'Database is not configured.' }, 503);
@@ -39,15 +50,22 @@ app.post('/v1/sessions', async (context) => {
 app.use('/v1/*', requireSession);
 
 app.get('/v1/wallets', async (context) => {
-  const rows = await query<Record<string, unknown>>(
-    `SELECT w.id, w.name, w.address, w.chain, w.status, w.created_at AS "createdAt",
-       (SELECT count(*)::integer FROM transactions t
-        WHERE t.wallet_id = w.id AND t.occurred_at >= now() - interval '24 hours') AS "transactionCount24h"
-     FROM wallets w
-     WHERE w.user_id = $1 AND w.deleted_at IS NULL
-     ORDER BY w.created_at DESC`,
-    [context.get('userId')],
-  );
+  const db = await collections();
+  const wallets = await db.wallets.find({
+    userId: context.get('userId'), deletedAt: { $exists: false },
+  }).sort({ createdAt: -1 }).toArray();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1_000);
+  const rows = await Promise.all(wallets.map(async (wallet) => ({
+    id: wallet._id,
+    name: wallet.name,
+    address: wallet.address,
+    chain: wallet.chain,
+    status: wallet.status,
+    createdAt: wallet.createdAt,
+    transactionCount24h: await db.transactions.countDocuments({
+      walletId: wallet._id, occurredAt: { $gte: since },
+    }),
+  })));
   return context.json({ data: rows });
 });
 
@@ -56,56 +74,87 @@ app.post('/v1/wallets', async (context) => {
   if (!parsed.success) return context.json({ error: parsed.error.issues[0]?.message ?? 'Invalid wallet.' }, 400);
 
   const walletId = randomUUID();
-  const [wallet] = await query<Record<string, unknown>>(
-    `INSERT INTO wallets (id, user_id, name, address, chain, status)
-     VALUES ($1, $2, $3, $4, $5, 'active')
-     ON CONFLICT (user_id, chain, address) WHERE deleted_at IS NULL
-     DO NOTHING
-     RETURNING id, name, address, chain, status, 0 AS "transactionCount24h", created_at AS "createdAt"`,
-    [walletId, context.get('userId'), parsed.data.name, parsed.data.address, parsed.data.chain],
-  );
-  if (!wallet) return context.json({ error: 'This wallet is already being tracked.' }, 409);
-
-  return context.json(wallet, 201);
+  const createdAt = new Date();
+  try {
+    const db = await collections();
+    await db.wallets.insertOne({
+      _id: walletId,
+      userId: context.get('userId'),
+      name: parsed.data.name,
+      address: parsed.data.address,
+      chain: parsed.data.chain,
+      status: 'active',
+      createdAt,
+    });
+  } catch (error) {
+    if (error instanceof MongoServerError && error.code === 11000) {
+      return context.json({ error: 'This wallet is already being tracked.' }, 409);
+    }
+    throw error;
+  }
+  return context.json({
+    id: walletId, ...parsed.data, status: 'active', transactionCount24h: 0, createdAt,
+  }, 201);
 });
 
 app.delete('/v1/wallets/:walletId', async (context) => {
-  const [wallet] = await query<{ id: string }>(
-    `UPDATE wallets SET deleted_at = now()
-     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
-     RETURNING id`,
-    [context.req.param('walletId'), context.get('userId')],
+  const db = await collections();
+  const result = await db.wallets.updateOne(
+    {
+      _id: context.req.param('walletId'),
+      userId: context.get('userId'),
+      deletedAt: { $exists: false },
+    },
+    { $set: { deletedAt: new Date() } },
   );
-  if (!wallet) return context.json({ error: 'Wallet not found.' }, 404);
+  if (!result.matchedCount) return context.json({ error: 'Wallet not found.' }, 404);
 
   return context.json({ ok: true });
 });
 
 app.get('/v1/activities', async (context) => {
   const limit = Math.min(Number(context.req.query('limit') ?? 50) || 50, 100);
-  const rows = await query<Record<string, unknown>>(
-    `SELECT t.id, t.wallet_id AS "walletId", w.name AS "walletName",
-       w.address AS "walletAddress", t.chain, t.kind, t.title, t.detail,
-       t.source, t.value_usd AS "valueUsd", t.tx_hash AS signature,
-       t.occurred_at AS "occurredAt"
-     FROM transactions t
-     JOIN wallets w ON w.id = t.wallet_id
-     WHERE t.user_id = $1
-     ORDER BY t.occurred_at DESC, t.created_at DESC
-     LIMIT $2`,
-    [context.get('userId'), limit],
-  );
+  const db = await collections();
+  const transactions = await db.transactions.find({ userId: context.get('userId') })
+    .sort({ occurredAt: -1, createdAt: -1 }).limit(limit).toArray();
+  const walletIds = [...new Set(transactions.map((transaction) => transaction.walletId))];
+  const wallets = await db.wallets.find({ _id: { $in: walletIds } }).toArray();
+  const walletById = new Map(wallets.map((wallet) => [wallet._id, wallet]));
+  const rows = transactions.map((transaction) => {
+    const wallet = walletById.get(transaction.walletId);
+    return {
+      id: transaction._id,
+      walletId: transaction.walletId,
+      walletName: wallet?.name ?? 'Wallet',
+      walletAddress: wallet?.address ?? '',
+      chain: transaction.chain,
+      kind: transaction.kind,
+      title: transaction.title,
+      detail: transaction.detail,
+      source: transaction.source,
+      valueUsd: transaction.valueUsd,
+      signature: transaction.txHash,
+      occurredAt: transaction.occurredAt,
+    };
+  });
   return context.json({ data: rows });
 });
 
 app.post('/v1/devices', async (context) => {
   const parsed = deviceSchema.safeParse(await context.req.json().catch(() => null));
   if (!parsed.success) return context.json({ error: parsed.error.issues[0]?.message ?? 'Invalid push token.' }, 400);
-  await query(
-    `INSERT INTO device_tokens (id, user_id, token, platform)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, last_seen_at = now()`,
-    [randomUUID(), context.get('userId'), parsed.data.token, parsed.data.platform],
+  const db = await collections();
+  const now = new Date();
+  await db.deviceTokens.updateOne(
+    { token: parsed.data.token },
+    {
+      $set: {
+        userId: context.get('userId'), platform: parsed.data.platform, lastSeenAt: now,
+      },
+      $setOnInsert: { _id: randomUUID(), token: parsed.data.token, createdAt: now },
+      $unset: { disabledAt: '' },
+    },
+    { upsert: true },
   );
   return context.json({ ok: true }, 201);
 });
