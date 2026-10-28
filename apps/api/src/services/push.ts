@@ -13,13 +13,24 @@ type Job = {
   attempts: number;
 };
 
+export function parseFirebaseServiceAccount(json?: string, base64?: string) {
+  const value = base64
+    ? Buffer.from(base64, 'base64').toString('utf8')
+    : json;
+  if (!value) return null;
+  return JSON.parse(value) as Record<string, unknown>;
+}
+
 function firebaseApp() {
   const existing = getApps()[0];
   if (existing) return existing;
 
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const serviceAccount = parseFirebaseServiceAccount(
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+    process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+  );
   const credential = serviceAccount
-    ? cert(JSON.parse(serviceAccount))
+    ? cert(serviceAccount)
     : applicationDefault();
   return initializeApp({
     credential,

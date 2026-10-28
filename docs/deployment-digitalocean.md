@@ -37,7 +37,7 @@ Set these as **Encrypted** and **Run Time**:
 
 - [ ] `MONGODB_URI` — the MongoDB bindable URL described above.
 - [ ] `HELIUS_API_KEY` — the paid Helius project API key.
-- [ ] `FIREBASE_SERVICE_ACCOUNT_JSON` — complete Firebase service-account JSON on one line.
+- [ ] `FIREBASE_SERVICE_ACCOUNT_BASE64` — Base64 encoding of the complete Firebase Admin service-account JSON.
 - [ ] `INTERNAL_JOB_SECRET` — a new unrelated long random secret.
 
 Set these as normal **Run Time** variables:
@@ -56,7 +56,13 @@ CORS_ORIGIN=*
 
 Set `PORT=8080` only on the `parsed-stream-worker` component. App Platform supplies the API service port from its `http_port` setting.
 
-Never commit MongoDB credentials, Firebase JSON, Helius keys, APNs keys, or App Store Connect keys.
+Create the Firebase value on macOS without printing the private key:
+
+```bash
+base64 < /path/to/firebase-service-account.json | tr -d '\n' | pbcopy
+```
+
+Paste the clipboard into `FIREBASE_SERVICE_ACCOUNT_BASE64`. Never commit MongoDB credentials, Firebase JSON, Helius keys, APNs keys, or App Store Connect keys.
 
 ## 4. Health checks and scaling
 
