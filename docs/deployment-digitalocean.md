@@ -39,6 +39,7 @@ Set these as **Encrypted** and **Run Time**:
 - [ ] `HELIUS_API_KEY` — the paid Helius project API key.
 - [ ] `FIREBASE_SERVICE_ACCOUNT_BASE64` — Base64 encoding of the complete Firebase Admin service-account JSON.
 - [ ] `INTERNAL_JOB_SECRET` — a new unrelated long random secret.
+- [ ] `DEX_LINK_CONFIG_BASE64` — optional Base64-encoded DEX link/referral configuration described below.
 
 Set these as normal **Run Time** variables:
 
@@ -63,6 +64,33 @@ base64 < /path/to/firebase-service-account.json | tr -d '\n' | pbcopy
 ```
 
 Paste the clipboard into `FIREBASE_SERVICE_ACCOUNT_BASE64`. Never commit MongoDB credentials, Firebase JSON, Helius keys, APNs keys, or App Store Connect keys.
+
+### DEX links and referral codes
+
+Copy `apps/api/dex-links.example.json`, then add an entry keyed by the normalized DEX id used by WhoAped, for example `jupiter`, `pancakeswap`, `orca`, or `raydium`:
+
+```json
+{
+  "pancakeswap": {
+    "providerName": "PancakeSwap",
+    "urlTemplate": "https://pancakeswap.finance/swap?chain=solana&inputCurrency={inputMint}&outputCurrency={outputMint}",
+    "referralCode": "YOUR_CODE",
+    "referralQueryParam": "ref"
+  }
+}
+```
+
+Supported URL placeholders are `{inputMint}`, `{outputMint}`, `{tokenMint}`, `{dex}`, and `{referralCode}`. Use `referralQueryParam` when a DEX expects a query parameter. Use `{referralCode}` directly in `urlTemplate` when it expects the code in the path or another custom position. When `referralCode` is empty or absent, no referral query parameter is added.
+
+Only HTTPS URLs are accepted. A missing, malformed, or unsafe DEX entry falls back to the Jupiter pair URL. Confirm each DEX's current official referral parameter before enabling its code; the parameter names are not assumed to be identical.
+
+Encode the finished file without printing its contents:
+
+```bash
+base64 < apps/api/dex-links.production.json | tr -d '\n' | pbcopy
+```
+
+Paste it into the encrypted runtime variable `DEX_LINK_CONFIG_BASE64`. Raw `DEX_LINK_CONFIG_JSON` is also supported locally, but Base64 avoids App Platform JSON parsing issues.
 
 ## 4. Health checks and scaling
 

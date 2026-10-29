@@ -37,6 +37,9 @@ export type SwapMetadata = {
   dexName: string;
   input: SwapToken;
   output: SwapToken;
+  tradeUrl?: string;
+  tradeProvider?: string;
+  tradeProviderName?: string;
 };
 
 export type YieldAsset = SwapToken;
@@ -53,6 +56,8 @@ export type LaunchMetadata = {
   platformName: string;
   token: Omit<SwapToken, 'amount'>;
   buyUrl: string;
+  buyProvider?: string;
+  buyProviderName?: string;
 };
 
 export type Activity = {

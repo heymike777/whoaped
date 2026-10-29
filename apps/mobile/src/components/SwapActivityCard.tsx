@@ -1,7 +1,9 @@
-import { ArrowDown } from 'lucide-react-native';
+import { ArrowDown, ExternalLink } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   Image,
+  Linking,
+  Pressable,
   type ImageSourcePropType,
   StyleSheet,
   Text,
@@ -91,6 +93,9 @@ export function SwapActivityCard({
   activity: Activity;
   swap: SwapMetadata;
 }) {
+  const openTrade = () => {
+    if (swap.tradeUrl) Linking.openURL(swap.tradeUrl).catch(() => undefined);
+  };
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -122,6 +127,18 @@ export function SwapActivityCard({
         <Text style={styles.confirmed}>SWAP CONFIRMED</Text>
         <Text style={styles.routeText}>{swap.input.symbol} → {swap.output.symbol}</Text>
       </View>
+      {swap.tradeUrl && (
+        <Pressable
+          accessibilityHint="Opens this token pair in an external exchange"
+          accessibilityLabel={`Trade on ${swap.tradeProviderName ?? swap.dexName}`}
+          accessibilityRole="link"
+          onPress={openTrade}
+          style={({ pressed }) => [styles.tradeButton, pressed && styles.tradeButtonPressed]}
+        >
+          <Text style={styles.tradeButtonText}>Trade on {swap.tradeProviderName ?? swap.dexName}</Text>
+          <ExternalLink color={colors.primary} size={15} strokeWidth={2.3} />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -199,4 +216,7 @@ const styles = StyleSheet.create({
   confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.primary },
   confirmed: { color: colors.primary, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.05 },
   routeText: { marginLeft: 'auto', color: colors.textFaint, fontFamily: typography.mono, fontSize: 9 },
+  tradeButton: { marginTop: 12, height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorderStrong },
+  tradeButtonPressed: { opacity: 0.75 },
+  tradeButtonText: { color: colors.primary, fontFamily: typography.semibold, fontSize: 12 },
 });

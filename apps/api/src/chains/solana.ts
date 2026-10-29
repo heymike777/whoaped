@@ -1,4 +1,5 @@
 import type { ChainAdapter, NormalizedActivity } from './types.js';
+import { buildDexTradeLink, buildTokenBuyLink } from '../config/dex-links.js';
 
 export type ParsedTokenTransfer = {
   fromUserAccount?: string | null;
@@ -337,7 +338,7 @@ function launchActivity(
   const decodedSymbol = instruction ? decodedValue(instruction, 'symbol', 'token_symbol', 'tokenSymbol') : undefined;
   const name = decodedName ?? parsedValue(parsedData, 'name', 'token_name', 'tokenName');
   const symbol = decodedSymbol ?? parsedValue(parsedData, 'symbol', 'token_symbol', 'tokenSymbol') ?? tokenSymbol(mint);
-  const buyUrl = `https://jup.ag/swap/${SOL_MINT}-${encodeURIComponent(mint)}`;
+  const buyLink = buildTokenBuyLink(mint);
   return {
     ...base,
     kind: 'launch',
@@ -350,7 +351,9 @@ function launchActivity(
         platform: launchpad.id,
         platformName: launchpad.name,
         token: { mint, symbol, ...(name ? { name } : {}) },
-        buyUrl,
+        buyUrl: buyLink.url,
+        buyProvider: buyLink.provider,
+        buyProviderName: buyLink.providerName,
       },
     },
   };
@@ -565,6 +568,7 @@ function swapActivity(
   const outputSymbol = tokenSymbol(outputMint);
   const displayInput = formatAmount(-inputAmount, inputSymbol).slice(1);
   const displayOutput = formatAmount(outputAmount, outputSymbol).slice(1);
+  const tradeLink = buildDexTradeLink(dex.id, dex.name, inputMint, outputMint);
   return {
     ...base,
     kind: 'swap',
@@ -578,6 +582,9 @@ function swapActivity(
         dexName: dex.name,
         input: { mint: inputMint, symbol: inputSymbol, amount: inputAmount },
         output: { mint: outputMint, symbol: outputSymbol, amount: outputAmount },
+        tradeUrl: tradeLink.url,
+        tradeProvider: tradeLink.provider,
+        tradeProviderName: tradeLink.providerName,
       },
     },
   };

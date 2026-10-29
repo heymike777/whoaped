@@ -1,0 +1,14 @@
+{
+  "jupiter": {
+    "providerName": "Jupiter",
+    "urlTemplate": "https://jup.ag/swap/{inputMint}-{outputMint}",
+    "referralCode": "",
+    "referralQueryParam": ""
+  },
+  "pancakeswap": {
+    "providerName": "PancakeSwap",
+    "urlTemplate": "https://pancakeswap.finance/swap?chain=solana&inputCurrency={inputMint}&outputCurrency={outputMint}",
+    "referralCode": "",
+    "referralQueryParam": "ref"
+  }
+}

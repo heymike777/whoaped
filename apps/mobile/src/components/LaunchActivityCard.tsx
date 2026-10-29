@@ -76,13 +76,13 @@ export function LaunchActivityCard({ activity, metadata }: { activity: Activity;
       </View>
 
       <Pressable
-        accessibilityHint="Opens this token in Jupiter"
-        accessibilityLabel={`Buy ${metadata.token.symbol} on Jupiter`}
+        accessibilityHint="Opens this token in an external exchange"
+        accessibilityLabel={`Buy ${metadata.token.symbol} on ${metadata.buyProviderName ?? 'Jupiter'}`}
         accessibilityRole="link"
         onPress={openBuy}
         style={({ pressed }) => [styles.buyButton, pressed && styles.buyButtonPressed]}
       >
-        <Text style={styles.buyText}>Buy on Jupiter</Text>
+        <Text style={styles.buyText}>Buy on {metadata.buyProviderName ?? 'Jupiter'}</Text>
         <ExternalLink color={colors.primaryInk} size={17} strokeWidth={2.4} />
       </Pressable>
     </View>
