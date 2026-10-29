@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
+import { SwapActivityCard } from '../components/SwapActivityCard';
 import { useActivityFeed } from '../hooks/useActivityFeed';
 import { getActivityEmptyMode } from '../lib/emptyState';
 import { colors, layout, typography } from '../theme';
@@ -69,7 +70,9 @@ export function ActivityScreen({
         <EmptyState onAddWallet={onAddWallet} walletCount={walletCount} />
       )}
       {!feed.error && feed.activities.map((activity) => (
-        <ActivityCard activity={activity} key={activity.id} />
+        activity.kind === 'swap' && activity.metadata?.swap
+          ? <SwapActivityCard activity={activity} key={activity.id} swap={activity.metadata.swap} />
+          : <ActivityCard activity={activity} key={activity.id} />
       ))}
 
       <Text style={styles.footerNote}>

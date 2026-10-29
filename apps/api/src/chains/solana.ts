@@ -70,6 +70,17 @@ const KNOWN_SYMBOLS: Record<string, string> = {
 const METAPLEX_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
 const SQUADS_V4_PROGRAM = 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf';
 
+type SwapDex = 'jupiter' | 'pumpfun' | 'meteora' | 'orca' | 'titan' | 'raydium';
+
+const DEXES: Array<{ id: SwapDex; name: string; aliases: string[] }> = [
+  { id: 'jupiter', name: 'Jupiter', aliases: ['jupiter', 'metis'] },
+  { id: 'pumpfun', name: 'Pump.fun', aliases: ['pumpfun', 'pumpswap', 'pumpamm', 'pump'] },
+  { id: 'meteora', name: 'Meteora', aliases: ['meteora', 'dlmm', 'damm'] },
+  { id: 'orca', name: 'Orca', aliases: ['orca', 'whirlpool'] },
+  { id: 'titan', name: 'Titan', aliases: ['titan'] },
+  { id: 'raydium', name: 'Raydium', aliases: ['raydium'] },
+];
+
 function tokenSymbol(mint?: string) {
   if (!mint) return 'token';
   return KNOWN_SYMBOLS[mint] ?? `${mint.slice(0, 4)}…${mint.slice(-4)}`;
@@ -94,6 +105,122 @@ function addDelta(deltas: Map<string, number>, symbol: string, amount: number) {
 
 function canonical(value?: string | null) {
   return (value ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint'
+    ? String(value)
+    : undefined;
+}
+
+function parsedValue(parsedData: Record<string, unknown> | null | undefined, ...keys: string[]) {
+  if (!parsedData) return undefined;
+  const wanted = new Set(keys.map(canonical));
+  const entry = Object.entries(parsedData).find(([key]) => wanted.has(canonical(key)));
+  return stringValue(entry?.[1]);
+}
+
+function swapDex(transaction: ParsedSolanaTransaction) {
+  const candidates = [
+    parsedValue(transaction.summary?.parsedData, 'protocol', 'source', 'platform', 'dex'),
+    transaction.summary?.description,
+    ...((transaction.instructions ?? []).flatMap((instruction) => [
+      instruction.programName,
+      instruction.instructionName,
+      instruction.summary?.description,
+    ])),
+  ].map((value) => canonical(value));
+  return DEXES.find((dex) => candidates.some((candidate) =>
+    dex.aliases.some((alias) => candidate.includes(canonical(alias))),
+  ));
+}
+
+function decimalsForMint(transaction: ParsedSolanaTransaction, mint: string) {
+  if (mint === 'So11111111111111111111111111111111111111112') return 9;
+  const transfer = transaction.tokenTransfers?.find((item) => item.mint === mint && item.decimals != null);
+  if (transfer?.decimals != null) return transfer.decimals;
+  for (const account of transaction.accountData ?? []) {
+    const change = account.tokenBalanceChanges?.find((item) => item.mint === mint);
+    if (!change) continue;
+    if (typeof change.rawTokenAmount === 'object' && change.rawTokenAmount.decimals != null) {
+      return change.rawTokenAmount.decimals;
+    }
+    if (change.decimals != null) return change.decimals;
+  }
+  return 0;
+}
+
+function inferredSwapLegs(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  const legs: Array<{ mint: string; amount: number }> = [];
+  const native = transaction.accountData?.find((account) => account.account === watchedAddress)?.nativeBalanceChange;
+  if (native) legs.push({ mint: 'So11111111111111111111111111111111111111112', amount: native / 1e9 });
+  transaction.accountData?.forEach((account) => account.tokenBalanceChanges?.forEach((change) => {
+    if (change.userAccount !== watchedAddress || !change.mint) return;
+    const raw = typeof change.rawTokenAmount === 'object'
+      ? change.rawTokenAmount.tokenAmount
+      : change.rawTokenAmount;
+    const decimals = typeof change.rawTokenAmount === 'object'
+      ? change.rawTokenAmount.decimals ?? change.decimals ?? 0
+      : change.decimals ?? 0;
+    const amount = displayAmount(raw, decimals);
+    if (amount) legs.push({ mint: change.mint, amount });
+  }));
+  return legs;
+}
+
+function swapActivity(
+  transaction: ParsedSolanaTransaction,
+  watchedAddress: string,
+  base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
+): NormalizedActivity | null {
+  const summaryType = canonical(transaction.summary?.type);
+  const description = canonical(transaction.summary?.description);
+  const dex = swapDex(transaction);
+  if (!dex) return null;
+  const isTrade = ['swap', 'buy', 'sell'].some((type) => summaryType.includes(type))
+    || ['swap', 'bought', 'sold'].some((verb) => description.includes(verb));
+  if (!isTrade) return null;
+
+  const data = transaction.summary?.parsedData;
+  const inferred = inferredSwapLegs(transaction, watchedAddress);
+  const inputMint = parsedValue(data, 'input_mint', 'inputMint', 'source_mint', 'sourceMint', 'token_in_mint')
+    ?? inferred.find((leg) => leg.amount < 0)?.mint;
+  const outputMint = parsedValue(data, 'output_mint', 'outputMint', 'destination_mint', 'destinationMint', 'token_out_mint')
+    ?? inferred.find((leg) => leg.amount > 0)?.mint;
+  if (!inputMint || !outputMint || inputMint === outputMint) return null;
+
+  const inputRaw = parsedValue(data, 'in_amount', 'input_amount', 'inputAmount', 'amount_in');
+  const outputRaw = parsedValue(data, 'actual_out_amount', 'out_amount', 'output_amount', 'outputAmount', 'amount_out');
+  const inferredInput = inferred.find((leg) => leg.mint === inputMint && leg.amount < 0);
+  const inferredOutput = inferred.find((leg) => leg.mint === outputMint && leg.amount > 0);
+  const inputAmount = inferredInput
+    ? Math.abs(inferredInput.amount)
+    : displayAmount(inputRaw, decimalsForMint(transaction, inputMint));
+  const outputAmount = inferredOutput
+    ? Math.abs(inferredOutput.amount)
+    : displayAmount(outputRaw, decimalsForMint(transaction, outputMint));
+  if (!inputAmount || !outputAmount) return null;
+
+  const inputSymbol = tokenSymbol(inputMint);
+  const outputSymbol = tokenSymbol(outputMint);
+  const displayInput = formatAmount(-inputAmount, inputSymbol).slice(1);
+  const displayOutput = formatAmount(outputAmount, outputSymbol).slice(1);
+  return {
+    ...base,
+    kind: 'swap',
+    title: `Swapped ${displayInput} → ${displayOutput}`,
+    detail: dex.name,
+    source: dex.name,
+    metadata: {
+      ...base.metadata,
+      swap: {
+        dex: dex.id,
+        dexName: dex.name,
+        input: { mint: inputMint, symbol: inputSymbol, amount: inputAmount },
+        output: { mint: outputMint, symbol: outputSymbol, amount: outputAmount },
+      },
+    },
+  };
 }
 
 function namedAccount(instruction: ParsedInstruction, ...names: string[]) {
@@ -266,6 +393,9 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
       occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
       metadata: { slot: transaction.slot, watchedAddress },
     };
+
+    const swap = swapActivity(transaction, watchedAddress, base);
+    if (swap) return [swap];
 
     const semantic = semanticActivity(transaction, watchedAddress, base);
     const balance = balanceActivity(transaction, watchedAddress, base);

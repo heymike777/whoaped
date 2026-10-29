@@ -118,7 +118,7 @@ app.get('/v1/activities', async (context) => {
   const db = await collections();
   const transactions = await db.transactions.find({
     userId: context.get('userId'),
-    kind: { $in: ['balance', 'nft', 'multisig'] },
+    kind: { $in: ['balance', 'nft', 'multisig', 'swap'] },
   })
     .sort({ occurredAt: -1, createdAt: -1 }).limit(limit).toArray();
   const walletIds = [...new Set(transactions.map((transaction) => transaction.walletId))];
@@ -139,6 +139,7 @@ app.get('/v1/activities', async (context) => {
       valueUsd: transaction.valueUsd,
       signature: transaction.txHash,
       occurredAt: transaction.occurredAt,
+      metadata: transaction.metadata,
     };
   });
   return context.json({ data: rows });

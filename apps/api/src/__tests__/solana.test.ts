@@ -21,6 +21,92 @@ function parsedTransaction(overrides: Partial<ParsedSolanaTransaction>): ParsedS
 }
 
 describe('solanaAdapter balance changes', () => {
+  it.each([
+    ['Jupiter', 'jupiter', 'Jupiter'],
+    ['PumpSwap', 'pumpfun', 'Pump.fun'],
+    ['Meteora DLMM', 'meteora', 'Meteora'],
+    ['Orca Whirlpool', 'orca', 'Orca'],
+    ['Titan', 'titan', 'Titan'],
+    ['Raydium CPMM', 'raydium', 'Raydium'],
+  ])('creates structured swap metadata for %s', (protocol, dex, dexName) => {
+    const payload = parsedTransaction({
+      summary: {
+        type: 'SWAP',
+        description: `Swap routed by ${protocol}`,
+        parsedData: {
+          protocol,
+          input_mint: sol,
+          output_mint: usdc,
+          in_amount: '1250000000',
+          actual_out_amount: '25000000',
+        },
+      },
+      tokenTransfers: [
+        { mint: sol, decimals: 9 },
+        { mint: usdc, decimals: 6 },
+      ],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'swap',
+      title: 'Swapped 1.25 SOL → 25 USDC',
+      detail: dexName,
+      metadata: {
+        swap: {
+          dex,
+          dexName,
+          input: { mint: sol, symbol: 'SOL', amount: 1.25 },
+          output: { mint: usdc, symbol: 'USDC', amount: 25 },
+        },
+      },
+    });
+  });
+
+  it('prefers the watched wallet balance deltas for exact swap amounts', () => {
+    const payload = parsedTransaction({
+      summary: {
+        type: 'swap',
+        description: 'Jupiter swap',
+        parsedData: { protocol: 'Jupiter', input_mint: sol, output_mint: usdc },
+      },
+      accountData: [
+        { account: wallet, nativeBalanceChange: -500_000_000 },
+        { account: 'token-account', tokenBalanceChanges: [{
+          userAccount: wallet,
+          mint: usdc,
+          rawTokenAmount: { tokenAmount: 12_345_678, decimals: 6 },
+        }] },
+      ],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]?.metadata.swap).toEqual(expect.objectContaining({
+      input: expect.objectContaining({ amount: 0.5 }),
+      output: expect.objectContaining({ amount: 12.345678 }),
+    }));
+  });
+
+  it('treats a Pump.fun buy summary as a structured swap', () => {
+    const payload = parsedTransaction({
+      summary: {
+        type: 'buy',
+        description: `${wallet} bought a token via pump_fun`,
+        parsedData: {
+          protocol: 'pump_fun',
+          input_mint: sol,
+          output_mint: usdc,
+          in_amount: '100000000',
+          actual_out_amount: '2000000',
+        },
+      },
+      tokenTransfers: [{ mint: sol, decimals: 9 }, { mint: usdc, decimals: 6 }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'swap',
+      source: 'Pump.fun',
+    });
+  });
+
   it('aggregates actual native and token balance changes for the watched wallet', () => {
     const payload = parsedTransaction({
       accountData: [

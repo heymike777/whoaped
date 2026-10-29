@@ -20,6 +20,23 @@ export type ActivityKind =
   | 'nft'
   | 'unknown';
 
+export type SwapDex = 'jupiter' | 'pumpfun' | 'meteora' | 'orca' | 'titan' | 'raydium';
+
+export type SwapToken = {
+  mint: string;
+  symbol: string;
+  name?: string;
+  amount: number;
+  iconUrl?: string;
+};
+
+export type SwapMetadata = {
+  dex: SwapDex;
+  dexName: string;
+  input: SwapToken;
+  output: SwapToken;
+};
+
 export type Activity = {
   id: string;
   walletId: string;
@@ -33,6 +50,7 @@ export type Activity = {
   valueUsd?: number;
   signature: string;
   occurredAt: string;
+  metadata?: { swap?: SwapMetadata; [key: string]: unknown };
 };
 
 export type FeedState = {
