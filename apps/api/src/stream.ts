@@ -10,7 +10,6 @@ import {
 } from './services/parsed-stream-protocol.js';
 import { ingestParsedTransaction } from './services/parsed-transactions.js';
 import { drainNotificationJobs } from './services/push.js';
-import { getFinalizedSlot, waitForFinalizedSignature } from './services/finality.js';
 
 function positiveInteger(value: string | undefined, fallback: number, maximum = Number.MAX_SAFE_INTEGER) {
   const parsed = Number(value);
@@ -225,20 +224,18 @@ class ParsedStreamSupervisor {
         if ('id' in message && message.id != null && pingIds.delete(message.id)) {
           const slot = Number(message.result);
           if (Number.isFinite(slot) && subscriptionIds.size === 0) {
-            const finalizedSlot = await getFinalizedSlot();
             if (!synchronized) {
               synchronized = true;
-              await backfillConnection(checkpointId, addresses, finalizedSlot);
+              await backfillConnection(checkpointId, addresses, slot);
             } else {
               // The message queue is serial, so all notifications before this ping are durable.
-              await saveCheckpoint(checkpointId, finalizedSlot);
+              await saveCheckpoint(checkpointId, slot);
             }
           }
           return;
         }
         if ('method' in message && message.method === 'parsedTransactionNotification') {
           const transaction = streamTransaction(message);
-          await waitForFinalizedSignature(transaction.signature);
           await ingestParsedTransaction(transaction, { provider: 'helius-parsed-stream' });
           await saveCheckpoint(checkpointId, transaction.slot);
         }

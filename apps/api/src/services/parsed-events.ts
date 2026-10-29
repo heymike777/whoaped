@@ -55,7 +55,7 @@ export async function backfillParsedEvents(
       address,
       limit: 100,
       sortOrder: 'asc',
-      commitment: 'finalized',
+      commitment: 'confirmed',
       slot: { gte: fromSlot, lte: toSlot },
       ...(paginationToken ? { paginationToken } : {}),
     });
