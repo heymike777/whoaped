@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped Detected circular profile image</title>
+  <circle cx="512" cy="512" r="512" fill="#111313"/>
+  <path d="M366 226H278C248 226 226 248 226 278V366M658 226H746C776 226 798 248 798 278V366M366 798H278C248 798 226 776 226 746V658M658 798H746C776 798 798 776 798 746V658" stroke="#F4F4EF" stroke-width="76" stroke-linecap="round"/>
+  <path d="M314 512C364 420 430 374 512 374C594 374 660 420 710 512C660 604 594 650 512 650C430 650 364 604 314 512Z" stroke="#F4F4EF" stroke-width="68" stroke-linejoin="round"/>
+  <circle cx="512" cy="512" r="64" fill="#F04B2F"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <title>WhoAped Detected mark</title>
+  <path d="M91 51H63C56 51 51 56 51 63V91M166 51H194C200 51 205 56 205 63V91M91 205H63C56 205 51 200 51 194V166M166 205H194C200 205 205 200 205 194V166" stroke="#111313" stroke-width="19" stroke-linecap="round"/>
+  <path d="M81 128C93 107 108 96 128 96C148 96 164 107 176 128C164 150 148 161 128 161C108 161 93 150 81 128Z" stroke="#111313" stroke-width="17" stroke-linejoin="round"/>
+  <circle cx="128" cy="128" r="15" fill="#F04B2F"/>
+</svg>

@@ -4,28 +4,20 @@ export function BrandMark({ size = 20 }: { size?: number }) {
   return (
     <Svg accessibilityLabel="WhoAped" height={size} viewBox="0 0 256 256" width={size}>
       <Path
-        d="M52 64C17 99 17 157 52 192"
+        d="M91 51H63C56 51 51 56 51 63V91M166 51H194C200 51 205 56 205 63V91M91 205H63C56 205 51 200 51 194V166M166 205H194C200 205 205 200 205 194V166"
         fill="none"
         stroke="#F4F4EF"
         strokeLinecap="round"
-        strokeWidth={22}
+        strokeWidth={19}
       />
       <Path
-        d="M204 64C239 99 239 157 204 192"
+        d="M81 128C93 107 108 96 128 96C148 96 164 107 176 128C164 150 148 161 128 161C108 161 93 150 81 128Z"
         fill="none"
         stroke="#F4F4EF"
-        strokeLinecap="round"
-        strokeWidth={22}
-      />
-      <Path
-        d="M82 91C59 113 59 143 82 165L108 191L128 170L148 191L174 165C197 143 197 113 174 91"
-        fill="none"
-        stroke="#F4F4EF"
-        strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth={22}
+        strokeWidth={17}
       />
-      <Circle cx={128} cy={126} fill="#F04B2F" r={14} />
+      <Circle cx={128} cy={128} fill="#F04B2F" r={15} />
     </Svg>
   );
 }
