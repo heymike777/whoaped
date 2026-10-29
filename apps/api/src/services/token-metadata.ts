@@ -139,7 +139,37 @@ async function enrichYieldActivity(activity: NormalizedActivity) {
   } satisfies NormalizedActivity;
 }
 
+async function enrichLaunchActivity(activity: NormalizedActivity) {
+  if (activity.kind !== 'launch') return activity;
+  const launch = activity.metadata.launch;
+  if (!launch || typeof launch !== 'object') return activity;
+  const typedLaunch = launch as {
+    token?: { mint?: string; symbol?: string; name?: string; iconUrl?: string };
+  };
+  const mint = typedLaunch.token?.mint;
+  if (!mint) return activity;
+  const token = (await resolveTokenMetadata([mint])).get(mint) ?? {};
+  const symbol = token.symbol ?? typedLaunch.token?.symbol ?? 'token';
+  const name = token.name ?? typedLaunch.token?.name;
+  return {
+    ...activity,
+    title: `Launched ${name ? `${name} (${symbol})` : symbol}`,
+    metadata: {
+      ...activity.metadata,
+      launch: {
+        ...(launch as Record<string, unknown>),
+        token: {
+          ...typedLaunch.token,
+          symbol,
+          ...(name ? { name } : {}),
+          ...(token.iconUrl ? { iconUrl: token.iconUrl } : {}),
+        },
+      },
+    },
+  } satisfies NormalizedActivity;
+}
+
 export async function enrichActivityMetadata(activity: NormalizedActivity) {
-  return enrichYieldActivity(await enrichSwapActivity(activity));
+  return enrichLaunchActivity(await enrichYieldActivity(await enrichSwapActivity(activity)));
 }
 

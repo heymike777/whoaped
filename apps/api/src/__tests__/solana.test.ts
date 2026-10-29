@@ -22,6 +22,103 @@ function parsedTransaction(overrides: Partial<ParsedSolanaTransaction>): ParsedS
 
 describe('solanaAdapter balance changes', () => {
   it.each([
+    ['pump_fun', 'create_v2', 'pumpfun', 'Pump.fun'],
+    ['raydium_launchlab', 'create_token', 'raydium-launchlab', 'Raydium LaunchLab'],
+    ['meteora_dynamic_bonding_curve', 'initialize_virtual_pool', 'meteora-dbc', 'Meteora DBC'],
+    ['jupiter_studio', 'launch_token', 'jupiter-studio', 'Jupiter Studio'],
+    ['moonit', 'create_pool', 'moonit', 'Moonit'],
+    ['boop_fun', 'create', 'boop', 'Boop.fun'],
+    ['bags_fm', 'launch_coin', 'bags', 'Bags'],
+    ['believe_app', 'launch_coin', 'believe', 'Believe'],
+    ['lets_bonk_fun', 'create_token', 'letsbonk', 'LetsBONK.fun'],
+    ['orca_wavebreak', 'create_pool', 'wavebreak', 'Orca Wavebreak'],
+  ])('recognizes a token launch on %s', (programName, instructionName, platform, platformName) => {
+    const mint = 'LaunchMint1111111111111111111111111111111111';
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      instructions: [{
+        programName,
+        instructionName,
+        decoded: {
+          args: { name: 'Who Token', symbol: 'WHO' },
+          accounts: [
+            { name: 'creator', pubkey: wallet },
+            { name: 'mint', pubkey: mint },
+          ],
+        },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'launch',
+      title: 'Launched Who Token (WHO)',
+      detail: platformName,
+      source: platformName,
+      metadata: {
+        launch: {
+          platform,
+          platformName,
+          token: { mint, symbol: 'WHO', name: 'Who Token' },
+          buyUrl: `https://jup.ag/swap/${sol}-${mint}`,
+        },
+      },
+    });
+  });
+
+  it('uses Pump.fun program id and only attributes the launch to its creator', () => {
+    const otherWallet = 'OtherWallet111111111111111111111111111111111';
+    const payload = parsedTransaction({
+      feePayer: otherWallet,
+      instructions: [{
+        programId: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
+        instructionName: 'create',
+        decoded: {
+          args: { name: 'Not Mine', symbol: 'NOPE' },
+          accounts: [
+            { name: 'user', pubkey: otherWallet },
+            { name: 'mint', pubkey: 'OtherMint11111111111111111111111111111111111' },
+          ],
+        },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)).toEqual([]);
+  });
+
+  it('does not attribute a sponsored launch to the fee payer when another creator is decoded', () => {
+    const mint = 'SponsoredMint11111111111111111111111111111111';
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      instructions: [{
+        programName: 'pump_fun',
+        instructionName: 'create',
+        decoded: {
+          args: { name: 'Sponsored', symbol: 'SPON' },
+          accounts: [
+            { name: 'creator', pubkey: 'ActualCreator11111111111111111111111111111111' },
+            { name: 'mint', pubkey: mint },
+          ],
+        },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)).toEqual([]);
+  });
+
+  it('does not mistake a generic SPL initialize mint for a token launch', () => {
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      instructions: [{
+        programName: 'spl_token_2022',
+        instructionName: 'initialize_mint_2',
+        decoded: { accounts: [{ name: 'mint', pubkey: 'Mint11111111111111111111111111111111111111' }] },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)).toEqual([]);
+  });
+
+  it.each([
     ['kamino_lending', 'kamino', 'Kamino'],
     ['jupiter_lend_amm', 'jupiter-lend', 'Jupiter Lend'],
     ['perena_numeraire', 'perena', 'Perena'],

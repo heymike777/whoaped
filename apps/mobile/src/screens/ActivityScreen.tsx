@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
+import { LaunchActivityCard } from '../components/LaunchActivityCard';
 import { SwapActivityCard } from '../components/SwapActivityCard';
 import { YieldActivityCard } from '../components/YieldActivityCard';
 import { useActivityFeed } from '../hooks/useActivityFeed';
@@ -75,6 +76,8 @@ export function ActivityScreen({
           ? <SwapActivityCard activity={activity} key={activity.id} swap={activity.metadata.swap} />
           : activity.kind === 'yield' && activity.metadata?.yield
             ? <YieldActivityCard activity={activity} key={activity.id} metadata={activity.metadata.yield} />
+          : activity.kind === 'launch' && activity.metadata?.launch
+            ? <LaunchActivityCard activity={activity} key={activity.id} metadata={activity.metadata.launch} />
           : <ActivityCard activity={activity} key={activity.id} />
       ))}
 

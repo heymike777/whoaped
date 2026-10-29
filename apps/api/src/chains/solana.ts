@@ -69,6 +69,8 @@ const KNOWN_SYMBOLS: Record<string, string> = {
 
 const METAPLEX_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
 const SQUADS_V4_PROGRAM = 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf';
+const PUMP_FUN_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
 type SwapDex = string;
 
@@ -167,6 +169,25 @@ const DEXES: Array<{ id: SwapDex; name: string; aliases: string[]; programIds?: 
   { id: 'vault-unstake', name: 'Vault Liquid Unstake', aliases: ['vaultliquidunstake'] },
 ];
 
+const LAUNCHPADS: Array<{ id: string; name: string; aliases: string[]; programIds?: string[] }> = [
+  { id: 'pumpfun', name: 'Pump.fun', aliases: ['pumpfun', 'pumpdotfun'], programIds: [PUMP_FUN_PROGRAM] },
+  { id: 'raydium-launchlab', name: 'Raydium LaunchLab', aliases: ['raydiumlaunchlab', 'launchlab'] },
+  { id: 'meteora-dbc', name: 'Meteora DBC', aliases: ['meteoradbc', 'dynamicbondingcurve', 'meteoralaunch'] },
+  { id: 'jupiter-studio', name: 'Jupiter Studio', aliases: ['jupiterstudio', 'jupstudio'] },
+  { id: 'moonit', name: 'Moonit', aliases: ['moonit'] },
+  { id: 'boop', name: 'Boop.fun', aliases: ['boopfun', 'boop'] },
+  { id: 'bags', name: 'Bags', aliases: ['bagsfm', 'bagsdotfm', 'bagslaunch'] },
+  { id: 'believe', name: 'Believe', aliases: ['believeapp', 'believe', 'launchcoin'] },
+  { id: 'letsbonk', name: 'LetsBONK.fun', aliases: ['letsbonkfun', 'letsbonk', 'bonkfun'] },
+  { id: 'heaven', name: 'Heaven', aliases: ['heaven'] },
+  { id: 'moonshot', name: 'Moonshot', aliases: ['moonshot'] },
+  { id: 'dexlab', name: 'Dexlab MintingLab', aliases: ['dexlabmintinglab', 'mintinglab'] },
+  { id: 'daosfun', name: 'daos.fun', aliases: ['daosfun'] },
+  { id: 'sugar', name: 'Sugar', aliases: ['sugarlaunchpad', 'sugar'] },
+  { id: 'wavebreak', name: 'Orca Wavebreak', aliases: ['orcawavebreak', 'wavebreak'] },
+  { id: 'streamflow', name: 'Streamflow Launchpad', aliases: ['streamflowlaunchpad', 'streamflow'] },
+];
+
 type YieldAction = 'deposit' | 'withdraw';
 
 const YIELD_PROTOCOLS: Array<{ id: string; name: string; aliases: string[]; programIds?: string[] }> = [
@@ -239,6 +260,100 @@ function parsedValue(parsedData: Record<string, unknown> | null | undefined, ...
   const wanted = new Set(keys.map(canonical));
   const entry = Object.entries(parsedData).find(([key]) => wanted.has(canonical(key)));
   return stringValue(entry?.[1]);
+}
+
+function decodedValue(instruction: ParsedInstruction, ...keys: string[]) {
+  const wanted = new Set(keys.map(canonical));
+  const entry = Object.entries(instruction.decoded?.args ?? {})
+    .find(([key]) => wanted.has(canonical(key)));
+  return stringValue(entry?.[1]);
+}
+
+function launchpadFor(transaction: ParsedSolanaTransaction) {
+  const programIds = new Set((transaction.instructions ?? []).map((instruction) => instruction.programId));
+  const candidates = [
+    parsedValue(transaction.summary?.parsedData, 'protocol', 'source', 'platform', 'launchpad'),
+    transaction.summary?.description,
+    ...((transaction.instructions ?? []).flatMap((instruction) => [
+      instruction.programName,
+      parsedValue(instruction.summary?.parsedData, 'protocol', 'source', 'platform', 'launchpad'),
+      instruction.summary?.description,
+    ])),
+  ].map((value) => canonical(value));
+  return LAUNCHPADS.find((launchpad) =>
+    launchpad.programIds?.some((programId) => programIds.has(programId))
+    || candidates.some((candidate) => launchpad.aliases.some((alias) => candidate.includes(canonical(alias)))),
+  );
+}
+
+function isLaunchInstruction(instruction: ParsedInstruction) {
+  const name = canonical(instruction.instructionName ?? instruction.summary?.type);
+  return [
+    'create',
+    'createv2',
+    'createtoken',
+    'createnewtoken',
+    'launch',
+    'launchtoken',
+    'launchcoin',
+    'initializepool',
+    'initializevirtualpool',
+    'createpool',
+    'createbondingcurve',
+    'initpool',
+  ].includes(name);
+}
+
+function launchActivity(
+  transaction: ParsedSolanaTransaction,
+  watchedAddress: string,
+  base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
+): NormalizedActivity | null {
+  const launchpad = launchpadFor(transaction);
+  if (!launchpad) return null;
+
+  const instruction = transaction.instructions?.find((candidate) => {
+    if (!isLaunchInstruction(candidate)) return false;
+    const creator = namedAccount(candidate, 'creator', 'user', 'payer', 'authority', 'owner');
+    const parsedCreator = parsedValue(candidate.summary?.parsedData, 'creator', 'user', 'payer', 'authority');
+    const attributedCreators = [creator, parsedCreator].filter(Boolean);
+    return attributedCreators.length
+      ? attributedCreators.includes(watchedAddress)
+      : transaction.feePayer === watchedAddress;
+  });
+  const summaryType = canonical(transaction.summary?.type);
+  const summaryIsLaunch = ['tokenlaunch', 'launchtoken', 'createtoken', 'tokencreation'].some((type) =>
+    summaryType.includes(type),
+  );
+  if (!instruction && !(summaryIsLaunch && transaction.feePayer === watchedAddress)) return null;
+
+  const parsedData = instruction?.summary?.parsedData ?? transaction.summary?.parsedData;
+  const mint = (instruction ? namedAccount(instruction, 'mint', 'token_mint', 'tokenMint', 'base_mint', 'baseMint', 'new_mint') : undefined)
+    ?? (instruction ? decodedValue(instruction, 'mint', 'token_mint', 'tokenMint', 'base_mint', 'baseMint') : undefined)
+    ?? parsedValue(parsedData, 'mint', 'token_mint', 'tokenMint', 'base_mint', 'baseMint');
+  if (!mint || mint === SOL_MINT) return null;
+
+  const decodedName = instruction ? decodedValue(instruction, 'name', 'token_name', 'tokenName') : undefined;
+  const decodedSymbol = instruction ? decodedValue(instruction, 'symbol', 'token_symbol', 'tokenSymbol') : undefined;
+  const name = decodedName ?? parsedValue(parsedData, 'name', 'token_name', 'tokenName');
+  const symbol = decodedSymbol ?? parsedValue(parsedData, 'symbol', 'token_symbol', 'tokenSymbol') ?? tokenSymbol(mint);
+  const buyUrl = `https://jup.ag/swap/${SOL_MINT}-${encodeURIComponent(mint)}`;
+  return {
+    ...base,
+    kind: 'launch',
+    title: `Launched ${name ? `${name} (${symbol})` : symbol}`,
+    detail: launchpad.name,
+    source: launchpad.name,
+    metadata: {
+      ...base.metadata,
+      launch: {
+        platform: launchpad.id,
+        platformName: launchpad.name,
+        token: { mint, symbol, ...(name ? { name } : {}) },
+        buyUrl,
+      },
+    },
+  };
 }
 
 function swapDex(transaction: ParsedSolanaTransaction) {
@@ -638,6 +753,9 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
       occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
       metadata: { slot: transaction.slot, watchedAddress },
     };
+
+    const launch = launchActivity(transaction, watchedAddress, base);
+    if (launch) return [launch];
 
     const swap = swapActivity(transaction, watchedAddress, base);
     if (swap) return [swap];

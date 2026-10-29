@@ -87,4 +87,43 @@ describe('swap token metadata enrichment', () => {
       assets: [{ symbol: 'USDC', name: 'USD Coin', iconUrl: 'https://cdn.example/usdc.png' }],
     });
   });
+
+  it('enriches a launched token while preserving its buy link', async () => {
+    process.env.HELIUS_API_KEY = 'test-key';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ result: [{
+        id: 'launch-mint-test',
+        token_info: { symbol: 'LAUNCH' },
+        content: { metadata: { name: 'Launch Token' }, links: { image: 'https://cdn.example/launch.png' } },
+      }] }),
+    }));
+    const activity: NormalizedActivity = {
+      chain: 'solana',
+      txHash: 'launch-signature',
+      eventIndex: 0,
+      kind: 'launch',
+      title: 'Launched token',
+      detail: 'Pump.fun',
+      occurredAt: new Date(),
+      metadata: { launch: {
+        platform: 'pumpfun',
+        platformName: 'Pump.fun',
+        token: { mint: 'launch-mint-test', symbol: 'unknown' },
+        buyUrl: 'https://jup.ag/swap/SOL-launch-mint-test',
+      } },
+    };
+
+    const enriched = await enrichActivityMetadata(activity);
+
+    expect(enriched.title).toBe('Launched Launch Token (LAUNCH)');
+    expect(enriched.metadata.launch).toMatchObject({
+      buyUrl: 'https://jup.ag/swap/SOL-launch-mint-test',
+      token: {
+        symbol: 'LAUNCH',
+        name: 'Launch Token',
+        iconUrl: 'https://cdn.example/launch.png',
+      },
+    });
+  });
 });
