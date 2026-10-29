@@ -7,7 +7,7 @@ import { ConnectivityBanner } from './src/components/ConnectivityBanner';
 import { ActivityScreen } from './src/screens/ActivityScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { WalletsScreen } from './src/screens/WalletsScreen';
-import { observePushTokenRefresh, syncEnabledPushNotifications } from './src/lib/notifications';
+import { enablePushNotifications, observePushTokenRefresh } from './src/lib/notifications';
 import { colors } from './src/theme';
 
 export default function App() {
@@ -24,7 +24,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    syncEnabledPushNotifications().catch(() => undefined);
+    enablePushNotifications().catch(() => undefined);
     return observePushTokenRefresh();
   }, []);
 
