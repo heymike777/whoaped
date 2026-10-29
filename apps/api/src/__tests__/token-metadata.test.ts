@@ -125,5 +125,27 @@ describe('swap token metadata enrichment', () => {
         iconUrl: 'https://cdn.example/launch.png',
       },
     });
+    expect(enriched.metadata.tokenActions).toMatchObject([{
+      token: { mint: 'launch-mint-test', symbol: 'LAUNCH', name: 'Launch Token' },
+      links: [
+        { id: 'bonkbot', label: 'BONKbot' },
+        { id: 'gmgn', label: 'GMGN' },
+        { id: 'fomo', label: 'FOMO' },
+        { id: 'dexscreener', label: 'DexScreener' },
+      ],
+    }]);
+  });
+
+  it('does not add trade actions for SOL, stablecoins, or NFTs', async () => {
+    const activity: NormalizedActivity = {
+      chain: 'solana', txHash: 'filtered', eventIndex: 0, kind: 'balance', title: 'Filtered', detail: '', occurredAt: new Date(),
+      metadata: { tokenCandidates: [
+        { mint: 'So11111111111111111111111111111111111111112', decimals: 9 },
+        { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6 },
+        { mint: 'nft-mint', decimals: 0 },
+      ] },
+    };
+    const enriched = await enrichActivityMetadata(activity);
+    expect(enriched.metadata.tokenActions).toBeUndefined();
   });
 });

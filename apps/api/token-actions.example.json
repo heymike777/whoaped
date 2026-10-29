@@ -1,0 +1,6 @@
+{
+  "bonkbot": { "label": "BONKbot", "urlTemplate": "https://t.me/bonkbot_bot?start=ref_ceqh3_ca_{mint}" },
+  "gmgn": { "label": "GMGN", "urlTemplate": "https://t.me/GMGN_sol_bot?start=i_gSWRgmGL_c_{mint}" },
+  "fomo": { "label": "FOMO", "urlTemplate": "https://fomo.family/coin?address={mint}&chainId=1399811149&r=heymike777&source=share_link" },
+  "dexscreener": { "label": "DexScreener", "urlTemplate": "https://dexscreener.com/solana/{mint}" }
+}

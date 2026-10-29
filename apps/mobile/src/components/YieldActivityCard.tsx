@@ -10,6 +10,7 @@ import {
 
 import { colors, typography } from '../theme';
 import type { Activity, YieldAsset, YieldMetadata } from '../types';
+import { TokenActionButtons } from './TokenActionButtons';
 
 const protocolLogos: Record<string, ImageSourcePropType> = {
   kamino: require('../assets/yield/kamino.png'),
@@ -121,6 +122,7 @@ export function YieldActivityCard({ activity, metadata }: { activity: Activity; 
         <Text style={styles.confirmed}>CONFIRMED ON SOLANA</Text>
         <Text style={styles.protocolRoute}>{metadata.protocolName}</Text>
       </View>
+      <TokenActionButtons actions={activity.metadata?.tokenActions} />
     </View>
   );
 }

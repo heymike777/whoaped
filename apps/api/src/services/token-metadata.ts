@@ -1,4 +1,5 @@
 import type { NormalizedActivity } from '../chains/types.js';
+import { buildTokenActionLinks } from '../config/token-actions.js';
 
 type TokenMetadata = { symbol?: string; name?: string; iconUrl?: string };
 
@@ -169,7 +170,54 @@ async function enrichLaunchActivity(activity: NormalizedActivity) {
   } satisfies NormalizedActivity;
 }
 
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
+const STABLE_MINTS = new Set([
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+  'Es9vMFrzaCERmJfrF4H2FYDshorBZG77ZK1k3m1dAWF', // USDT
+  '2b1kV6DkMWQZCFpW6y8c3A5F8gJdYgDB7B4dQ9wqF9uE', // PYUSD
+]);
+const STABLE_SYMBOLS = new Set(['USDC', 'USDT', 'PYUSD', 'USDS', 'USDG', 'USDE', 'USX', 'FDUSD', 'EURC', 'UXD', 'CASH']);
+
+function candidateTokens(activity: NormalizedActivity) {
+  const result = new Map<string, { mint: string; symbol?: string; name?: string; iconUrl?: string; decimals?: number }>();
+  const add = (token?: { mint?: string; symbol?: string; name?: string; iconUrl?: string; decimals?: number }) => {
+    if (token?.mint) result.set(token.mint, { ...result.get(token.mint), ...token, mint: token.mint });
+  };
+  const raw = activity.metadata.tokenCandidates;
+  if (Array.isArray(raw)) raw.forEach((token) => {
+    if (token && typeof token === 'object') add(token as { mint?: string; decimals?: number });
+  });
+  const swap = activity.metadata.swap as { input?: { mint?: string; symbol?: string; name?: string; iconUrl?: string }; output?: { mint?: string; symbol?: string; name?: string; iconUrl?: string } } | undefined;
+  add(swap?.input); add(swap?.output);
+  const yieldEvent = activity.metadata.yield as { assets?: Array<{ mint?: string; symbol?: string; name?: string; iconUrl?: string }> } | undefined;
+  yieldEvent?.assets?.forEach(add);
+  const launch = activity.metadata.launch as { token?: { mint?: string; symbol?: string; name?: string; iconUrl?: string } } | undefined;
+  add(launch?.token);
+  return [...result.values()];
+}
+
+async function enrichTokenActions(activity: NormalizedActivity) {
+  const candidates = candidateTokens(activity).filter((token) => token.mint !== SOL_MINT && token.decimals !== 0);
+  if (!candidates.length) return activity;
+  const metadata = await resolveTokenMetadata(candidates.map((token) => token.mint));
+  const tokenActions = candidates.flatMap((token) => {
+    const resolved = metadata.get(token.mint) ?? {};
+    const symbol = resolved.symbol ?? token.symbol;
+    if (STABLE_MINTS.has(token.mint) || (symbol && STABLE_SYMBOLS.has(symbol.toUpperCase()))) return [];
+    const links = buildTokenActionLinks(token.mint);
+    if (!links.length) return [];
+    return [{ token: {
+      mint: token.mint,
+      symbol: symbol ?? `${token.mint.slice(0, 4)}…${token.mint.slice(-4)}`,
+      ...(resolved.name ?? token.name ? { name: resolved.name ?? token.name } : {}),
+      ...(resolved.iconUrl ?? token.iconUrl ? { iconUrl: resolved.iconUrl ?? token.iconUrl } : {}),
+    }, links }];
+  }).slice(0, 2);
+  if (!tokenActions.length) return activity;
+  return { ...activity, metadata: { ...activity.metadata, tokenActions } } satisfies NormalizedActivity;
+}
+
 export async function enrichActivityMetadata(activity: NormalizedActivity) {
-  return enrichLaunchActivity(await enrichYieldActivity(await enrichSwapActivity(activity)));
+  return enrichTokenActions(await enrichLaunchActivity(await enrichYieldActivity(await enrichSwapActivity(activity))));
 }
 

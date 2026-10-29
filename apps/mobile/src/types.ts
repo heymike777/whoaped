@@ -60,6 +60,11 @@ export type LaunchMetadata = {
   buyProviderName?: string;
 };
 
+export type TokenAction = {
+  token: Omit<SwapToken, 'amount'>;
+  links: Array<{ id: string; label: string; url: string }>;
+};
+
 export type Activity = {
   id: string;
   walletId: string;
@@ -73,7 +78,7 @@ export type Activity = {
   valueUsd?: number;
   signature: string;
   occurredAt: string;
-  metadata?: { swap?: SwapMetadata; yield?: YieldMetadata; launch?: LaunchMetadata; [key: string]: unknown };
+  metadata?: { swap?: SwapMetadata; yield?: YieldMetadata; launch?: LaunchMetadata; tokenActions?: TokenAction[]; [key: string]: unknown };
 };
 
 export type FeedState = {

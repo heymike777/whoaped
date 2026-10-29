@@ -446,6 +446,22 @@ function mintBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress:
   return deltas;
 }
 
+function tokenCandidates(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  const candidates = new Map<string, { mint: string; decimals?: number }>();
+  transaction.accountData?.forEach((account) => account.tokenBalanceChanges?.forEach((change) => {
+    if (change.userAccount !== watchedAddress || !change.mint) return;
+    const decimals = typeof change.rawTokenAmount === 'object'
+      ? change.rawTokenAmount.decimals ?? change.decimals
+      : change.decimals;
+    candidates.set(change.mint, { mint: change.mint, ...(decimals != null ? { decimals } : {}) });
+  }));
+  transaction.tokenTransfers?.forEach((transfer) => {
+    if (!transfer.mint || (transfer.fromUserAccount !== watchedAddress && transfer.toUserAccount !== watchedAddress)) return;
+    candidates.set(transfer.mint, { mint: transfer.mint, ...(transfer.decimals != null ? { decimals: transfer.decimals } : {}) });
+  });
+  return [...candidates.values()];
+}
+
 function yieldActivity(
   transaction: ParsedSolanaTransaction,
   watchedAddress: string,
@@ -758,7 +774,7 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
       txHash: transaction.signature,
       eventIndex: 0,
       occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
-      metadata: { slot: transaction.slot, watchedAddress },
+      metadata: { slot: transaction.slot, watchedAddress, tokenCandidates: tokenCandidates(transaction, watchedAddress) },
     };
 
     const launch = launchActivity(transaction, watchedAddress, base);

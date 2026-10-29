@@ -4,6 +4,7 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { colors, typography } from '../theme';
 import type { Activity, LaunchMetadata } from '../types';
+import { TokenActionButtons } from './TokenActionButtons';
 
 function relativeTime(value: string) {
   const seconds = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 1000));
@@ -75,7 +76,7 @@ export function LaunchActivityCard({ activity, metadata }: { activity: Activity;
         <Text selectable style={styles.mint}>{compactAddress(metadata.token.mint)}</Text>
       </View>
 
-      <Pressable
+      {!activity.metadata?.tokenActions?.length && <Pressable
         accessibilityHint="Opens this token in an external exchange"
         accessibilityLabel={`Buy ${metadata.token.symbol} on ${metadata.buyProviderName ?? 'Jupiter'}`}
         accessibilityRole="link"
@@ -84,7 +85,8 @@ export function LaunchActivityCard({ activity, metadata }: { activity: Activity;
       >
         <Text style={styles.buyText}>Buy on {metadata.buyProviderName ?? 'Jupiter'}</Text>
         <ExternalLink color={colors.primaryInk} size={17} strokeWidth={2.4} />
-      </Pressable>
+      </Pressable>}
+      <TokenActionButtons actions={activity.metadata?.tokenActions} />
     </View>
   );
 }

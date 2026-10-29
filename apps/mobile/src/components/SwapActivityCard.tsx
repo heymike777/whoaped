@@ -12,6 +12,7 @@ import {
 
 import { colors, typography } from '../theme';
 import type { Activity, SwapDex, SwapMetadata, SwapToken } from '../types';
+import { TokenActionButtons } from './TokenActionButtons';
 
 const dexLogos: Partial<Record<SwapDex, ImageSourcePropType>> = {
   jupiter: require('../assets/dex/jupiter.png'),
@@ -127,7 +128,8 @@ export function SwapActivityCard({
         <Text style={styles.confirmed}>SWAP CONFIRMED</Text>
         <Text style={styles.routeText}>{swap.input.symbol} → {swap.output.symbol}</Text>
       </View>
-      {swap.tradeUrl && (
+      <TokenActionButtons actions={activity.metadata?.tokenActions} />
+      {swap.tradeUrl && !activity.metadata?.tokenActions?.length && (
         <Pressable
           accessibilityHint="Opens this token pair in an external exchange"
           accessibilityLabel={`Trade on ${swap.tradeProviderName ?? swap.dexName}`}

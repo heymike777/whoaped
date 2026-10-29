@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, typography } from '../theme';
 import { Activity, ActivityKind } from '../types';
+import { TokenActionButtons } from './TokenActionButtons';
 
 const iconByKind = {
   balance: ArrowUpDown,
@@ -44,25 +45,28 @@ export function ActivityCard({ activity }: { activity: Activity }) {
 
   return (
     <View style={styles.card}>
-      <View style={[styles.iconWrap, { backgroundColor: `${accent}18` }]}>
-        <Icon color={accent} size={20} strokeWidth={2.2} />
-      </View>
-      <View style={styles.copy}>
-        <View style={styles.metaRow}>
-          <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
-          <View style={styles.dot} />
-          <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
+      <View style={styles.mainRow}>
+        <View style={[styles.iconWrap, { backgroundColor: `${accent}18` }]}>
+          <Icon color={accent} size={20} strokeWidth={2.2} />
         </View>
-        <Text style={styles.title}>{activity.title}</Text>
-        {activity.kind !== 'balance' && <Text numberOfLines={1} style={styles.detail}>{activity.detail}</Text>}
+        <View style={styles.copy}>
+          <View style={styles.metaRow}>
+            <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
+            <View style={styles.dot} />
+            <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
+          </View>
+          <Text style={styles.title}>{activity.title}</Text>
+          {activity.kind !== 'balance' && <Text numberOfLines={1} style={styles.detail}>{activity.detail}</Text>}
+        </View>
+        {activity.valueUsd != null && (
+          <Text style={styles.value}>
+            ${activity.valueUsd >= 1000
+              ? `${(activity.valueUsd / 1000).toFixed(activity.valueUsd >= 10_000 ? 1 : 2)}k`
+              : activity.valueUsd.toFixed(0)}
+          </Text>
+        )}
       </View>
-      {activity.valueUsd != null && (
-        <Text style={styles.value}>
-          ${activity.valueUsd >= 1000
-            ? `${(activity.valueUsd / 1000).toFixed(activity.valueUsd >= 10_000 ? 1 : 2)}k`
-            : activity.valueUsd.toFixed(0)}
-        </Text>
-      )}
+      <TokenActionButtons actions={activity.metadata?.tokenActions} />
     </View>
   );
 }
@@ -70,15 +74,13 @@ export function ActivityCard({ activity }: { activity: Activity }) {
 const styles = StyleSheet.create({
   card: {
     minHeight: 112,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
     padding: 16,
     borderRadius: 22,
     backgroundColor: colors.glass,
     borderWidth: 1,
     borderColor: colors.border,
   },
+  mainRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   iconWrap: {
     width: 42,
     height: 42,

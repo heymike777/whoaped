@@ -40,6 +40,7 @@ Set these as **Encrypted** and **Run Time**:
 - [ ] `FIREBASE_SERVICE_ACCOUNT_BASE64` — Base64 encoding of the complete Firebase Admin service-account JSON.
 - [ ] `INTERNAL_JOB_SECRET` — a new unrelated long random secret.
 - [ ] `DEX_LINK_CONFIG_BASE64` — optional Base64-encoded DEX link/referral configuration described below.
+- [ ] `TOKEN_ACTION_CONFIG_BASE64` — optional Base64-encoded token destination configuration; defaults to the Gated BONKbot, GMGN, FOMO, and DexScreener links.
 
 Set these as normal **Run Time** variables:
 
@@ -91,6 +92,10 @@ base64 < apps/api/dex-links.production.json | tr -d '\n' | pbcopy
 ```
 
 Paste it into the encrypted runtime variable `DEX_LINK_CONFIG_BASE64`. Raw `DEX_LINK_CONFIG_JSON` is also supported locally, but Base64 avoids App Platform JSON parsing issues.
+
+### Token buy and chart links
+
+Every non-SOL, non-stable fungible token in a tracked activity gets external actions. The built-in defaults are copied from Gated and include its referral-enabled BONKbot, GMGN, and FOMO URLs plus DexScreener. Override the full destination set using `TOKEN_ACTION_CONFIG_BASE64`; use [apps/api/token-actions.example.json](../apps/api/token-actions.example.json) as the template and keep the `{mint}` placeholder. `TOKEN_ACTION_CONFIG_JSON` is available for local development. Only HTTPS URLs are accepted.
 
 ## 4. Health checks and scaling
 
