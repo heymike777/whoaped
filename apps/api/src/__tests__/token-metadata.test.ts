@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { NormalizedActivity } from '../chains/types.js';
-import { enrichSwapActivity } from '../services/token-metadata.js';
+import { enrichActivityMetadata, enrichSwapActivity } from '../services/token-metadata.js';
 
 describe('swap token metadata enrichment', () => {
   afterEach(() => {
@@ -51,6 +51,40 @@ describe('swap token metadata enrichment', () => {
     expect(enriched.metadata.swap).toMatchObject({
       input: { symbol: 'IN', name: 'Input Token', iconUrl: 'https://cdn.example/input.png' },
       output: { symbol: 'OUT', name: 'Output Token', iconUrl: 'https://cdn.example/output.png' },
+    });
+  });
+
+  it('enriches yield assets and rewrites the notification title', async () => {
+    process.env.HELIUS_API_KEY = 'test-key';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ result: [{
+        id: 'yield-mint-test',
+        token_info: { symbol: 'USDC' },
+        content: { metadata: { name: 'USD Coin' }, links: { image: 'https://cdn.example/usdc.png' } },
+      }] }),
+    }));
+    const activity: NormalizedActivity = {
+      chain: 'solana',
+      txHash: 'yield-signature',
+      eventIndex: 0,
+      kind: 'yield',
+      title: 'Deposit',
+      detail: 'Kamino',
+      occurredAt: new Date(),
+      metadata: { yield: {
+        action: 'deposit',
+        protocol: 'kamino',
+        protocolName: 'Kamino',
+        assets: [{ mint: 'yield-mint-test', symbol: 'yiel…test', amount: 100.25 }],
+      } },
+    };
+
+    const enriched = await enrichActivityMetadata(activity);
+
+    expect(enriched.title).toBe('Deposited 100.25 USDC');
+    expect(enriched.metadata.yield).toMatchObject({
+      assets: [{ symbol: 'USDC', name: 'USD Coin', iconUrl: 'https://cdn.example/usdc.png' }],
     });
   });
 });

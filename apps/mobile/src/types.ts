@@ -14,6 +14,7 @@ export type ActivityKind =
   | 'balance'
   | 'multisig'
   | 'swap'
+  | 'yield'
   | 'buy'
   | 'stake'
   | 'transfer'
@@ -37,6 +38,15 @@ export type SwapMetadata = {
   output: SwapToken;
 };
 
+export type YieldAsset = SwapToken;
+
+export type YieldMetadata = {
+  action: 'deposit' | 'withdraw';
+  protocol: string;
+  protocolName: string;
+  assets: YieldAsset[];
+};
+
 export type Activity = {
   id: string;
   walletId: string;
@@ -50,7 +60,7 @@ export type Activity = {
   valueUsd?: number;
   signature: string;
   occurredAt: string;
-  metadata?: { swap?: SwapMetadata; [key: string]: unknown };
+  metadata?: { swap?: SwapMetadata; yield?: YieldMetadata; [key: string]: unknown };
 };
 
 export type FeedState = {

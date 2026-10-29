@@ -22,6 +22,92 @@ function parsedTransaction(overrides: Partial<ParsedSolanaTransaction>): ParsedS
 
 describe('solanaAdapter balance changes', () => {
   it.each([
+    ['kamino_lending', 'kamino', 'Kamino'],
+    ['jupiter_lend_amm', 'jupiter-lend', 'Jupiter Lend'],
+    ['perena_numeraire', 'perena', 'Perena'],
+    ['solend', 'save', 'Save'],
+    ['marginfi', 'marginfi', 'marginfi'],
+    ['drift_earn', 'drift', 'Drift Earn'],
+    ['loopscale', 'loopscale', 'Loopscale'],
+    ['exponent', 'exponent', 'Exponent'],
+    ['rate_x', 'ratex', 'RateX'],
+    ['sanctum_infinity_pool', 'sanctum', 'Sanctum'],
+    ['jito_staking', 'jito', 'Jito'],
+    ['marinade_finance', 'marinade', 'Marinade'],
+    ['solayer', 'solayer', 'Solayer'],
+    ['fragmetric', 'fragmetric', 'Fragmetric'],
+    ['hylo', 'hylo', 'Hylo'],
+    ['carrot', 'carrot', 'Carrot'],
+    ['lulo_flexlend', 'lulo', 'Lulo'],
+    ['meteora_dynamic_vault', 'meteora-vault', 'Meteora Vaults'],
+    ['tulip', 'tulip', 'Tulip'],
+    ['francium', 'francium', 'Francium'],
+    ['port_finance', 'port', 'Port Finance'],
+    ['larix', 'larix', 'Larix'],
+    ['texture', 'texture', 'Texture'],
+    ['jpool', 'jpool', 'JPool'],
+    ['blaze_stake', 'blaze', 'BlazeStake'],
+  ])('creates structured yield deposit metadata for %s', (programName, protocol, protocolName) => {
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      accountData: [{ account: wallet, nativeBalanceChange: -2_000_000_000 }],
+      instructions: [{
+        programName,
+        instructionName: 'deposit',
+        decoded: { accounts: [{ name: 'user', pubkey: wallet }] },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'yield',
+      title: 'Deposited 2 SOL',
+      detail: protocolName,
+      metadata: {
+        yield: {
+          action: 'deposit',
+          protocol,
+          protocolName,
+          assets: [{ mint: sol, symbol: 'SOL', amount: 2 }],
+        },
+      },
+    });
+  });
+
+  it('creates a structured withdrawal and keeps up to two received assets', () => {
+    const secondMint = 'SecondMint111111111111111111111111111111111';
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      accountData: [
+        { account: wallet, nativeBalanceChange: 1_500_000_000 },
+        { account: 'usdc-account', tokenBalanceChanges: [{
+          userAccount: wallet,
+          mint: usdc,
+          rawTokenAmount: { tokenAmount: 25_000_000, decimals: 6 },
+        }] },
+        { account: 'other-account', tokenBalanceChanges: [{
+          userAccount: wallet,
+          mint: secondMint,
+          rawTokenAmount: { tokenAmount: 3, decimals: 0 },
+        }] },
+      ],
+      instructions: [{
+        programName: 'kamino_lending',
+        instructionName: 'withdraw_obligation_collateral_and_redeem_reserve_collateral',
+        decoded: { accounts: [{ name: 'owner', pubkey: wallet }] },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'yield',
+      title: 'Withdrew 25 USDC + 3 Seco…1111',
+      metadata: { yield: { action: 'withdraw', assets: [
+        expect.objectContaining({ mint: usdc, amount: 25 }),
+        expect.objectContaining({ mint: secondMint, amount: 3 }),
+      ] } },
+    });
+  });
+
+  it.each([
     ['Jupiter', 'jupiter', 'Jupiter'],
     ['PumpSwap', 'pumpfun', 'Pump.fun'],
     ['Meteora DLMM', 'meteora', 'Meteora'],

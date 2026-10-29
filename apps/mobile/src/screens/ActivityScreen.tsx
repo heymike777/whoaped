@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
 import { SwapActivityCard } from '../components/SwapActivityCard';
+import { YieldActivityCard } from '../components/YieldActivityCard';
 import { useActivityFeed } from '../hooks/useActivityFeed';
 import { getActivityEmptyMode } from '../lib/emptyState';
 import { colors, layout, typography } from '../theme';
@@ -72,6 +73,8 @@ export function ActivityScreen({
       {!feed.error && feed.activities.map((activity) => (
         activity.kind === 'swap' && activity.metadata?.swap
           ? <SwapActivityCard activity={activity} key={activity.id} swap={activity.metadata.swap} />
+          : activity.kind === 'yield' && activity.metadata?.yield
+            ? <YieldActivityCard activity={activity} key={activity.id} metadata={activity.metadata.yield} />
           : <ActivityCard activity={activity} key={activity.id} />
       ))}
 

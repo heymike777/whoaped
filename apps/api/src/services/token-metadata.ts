@@ -53,7 +53,7 @@ async function resolveTokenMetadata(mints: string[]) {
         expiresAt: now + CACHE_TTL_MS,
       }));
     } catch (error) {
-      console.warn('Could not enrich swap token metadata', error);
+      console.warn('Could not enrich activity token metadata', error);
     }
   }
   return new Map(unique.map((mint) => [mint, cache.get(mint)?.value ?? {}]));
@@ -101,5 +101,45 @@ export async function enrichSwapActivity(activity: NormalizedActivity) {
       },
     },
   } satisfies NormalizedActivity;
+}
+
+async function enrichYieldActivity(activity: NormalizedActivity) {
+  if (activity.kind !== 'yield') return activity;
+  const yieldEvent = activity.metadata.yield;
+  if (!yieldEvent || typeof yieldEvent !== 'object') return activity;
+  const typedYield = yieldEvent as {
+    action?: 'deposit' | 'withdraw';
+    assets?: Array<{ mint?: string; symbol?: string; amount?: number }>;
+  };
+  const assets = typedYield.assets?.filter((asset): asset is {
+    mint: string; symbol?: string; amount?: number;
+  } => Boolean(asset.mint)) ?? [];
+  if (!assets.length) return activity;
+  const metadata = await resolveTokenMetadata(assets.map((asset) => asset.mint));
+  const enrichedAssets = assets.map((asset) => {
+    const token = metadata.get(asset.mint) ?? {};
+    return {
+      ...asset,
+      symbol: token.symbol ?? asset.symbol ?? 'token',
+      ...(token.name ? { name: token.name } : {}),
+      ...(token.iconUrl ? { iconUrl: token.iconUrl } : {}),
+    };
+  });
+  const amount = (value?: number) => new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: Math.abs(value ?? 0) >= 1 ? 4 : 9,
+  }).format(Math.abs(value ?? 0));
+  const verb = typedYield.action === 'withdraw' ? 'Withdrew' : 'Deposited';
+  return {
+    ...activity,
+    title: `${verb} ${enrichedAssets.map((asset) => `${amount(asset.amount)} ${asset.symbol}`).join(' + ')}`,
+    metadata: {
+      ...activity.metadata,
+      yield: { ...(yieldEvent as Record<string, unknown>), assets: enrichedAssets },
+    },
+  } satisfies NormalizedActivity;
+}
+
+export async function enrichActivityMetadata(activity: NormalizedActivity) {
+  return enrichYieldActivity(await enrichSwapActivity(activity));
 }
 

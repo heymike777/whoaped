@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
 import { collections } from '../db.js';
-import { enrichSwapActivity } from './token-metadata.js';
+import { enrichActivityMetadata } from './token-metadata.js';
 
 export async function ingestParsedTransaction(
   transaction: ParsedSolanaTransaction,
@@ -34,7 +34,7 @@ export async function ingestParsedTransaction(
   let activities = 0;
   for (const wallet of wallets) {
     for (const normalizedActivity of solanaAdapter.normalize(transaction, wallet.address)) {
-      const activity = await enrichSwapActivity(normalizedActivity);
+      const activity = await enrichActivityMetadata(normalizedActivity);
       const transactionId = randomUUID();
       const saved = await db.transactions.updateOne(
         {

@@ -1,0 +1,200 @@
+import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react-native';
+import { useState } from 'react';
+import {
+  Image,
+  type ImageSourcePropType,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import { colors, typography } from '../theme';
+import type { Activity, YieldAsset, YieldMetadata } from '../types';
+
+const protocolLogos: Record<string, ImageSourcePropType> = {
+  kamino: require('../assets/yield/kamino.png'),
+  'jupiter-lend': require('../assets/dex/jupiter.png'),
+  perena: require('../assets/yield/perena.png'),
+  marginfi: require('../assets/yield/marginfi.png'),
+  drift: require('../assets/yield/drift.png'),
+  loopscale: require('../assets/yield/loopscale.png'),
+  exponent: require('../assets/yield/exponent.png'),
+  sanctum: require('../assets/yield/sanctum.png'),
+  hylo: require('../assets/yield/hylo.png'),
+  lulo: require('../assets/yield/lulo.png'),
+  'meteora-vault': require('../assets/dex/meteora.png'),
+};
+
+function relativeTime(value: string) {
+  const seconds = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return 'now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
+}
+
+function formatAmount(value: number) {
+  if (!Number.isFinite(value)) return '—';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}m`;
+  if (value >= 10_000) return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+  if (value >= 1) return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(value);
+  return new Intl.NumberFormat('en-US', { maximumSignificantDigits: 6 }).format(value);
+}
+
+function ProtocolIcon({ metadata }: { metadata: YieldMetadata }) {
+  const source = protocolLogos[metadata.protocol];
+  if (source) return <Image source={source} style={styles.protocolLogo} />;
+  return (
+    <View style={styles.protocolFallback}>
+      <Text style={styles.protocolFallbackText}>{metadata.protocolName.slice(0, 1).toUpperCase()}</Text>
+    </View>
+  );
+}
+
+function AssetIcon({ asset }: { asset: YieldAsset }) {
+  const [failed, setFailed] = useState(false);
+  if (!asset.iconUrl || failed) {
+    return (
+      <View style={styles.assetFallback}>
+        <Text style={styles.assetFallbackText}>{asset.symbol.slice(0, 1).toUpperCase()}</Text>
+      </View>
+    );
+  }
+  return <Image onError={() => setFailed(true)} source={{ uri: asset.iconUrl }} style={styles.assetIcon} />;
+}
+
+function AssetRow({ asset, action }: { asset: YieldAsset; action: YieldMetadata['action'] }) {
+  return (
+    <View style={styles.assetRow}>
+      <AssetIcon asset={asset} />
+      <View style={styles.assetCopy}>
+        <Text numberOfLines={1} style={styles.assetSymbol}>{asset.symbol}</Text>
+        {!!asset.name && <Text numberOfLines={1} style={styles.assetName}>{asset.name}</Text>}
+      </View>
+      <Text style={[styles.assetAmount, action === 'withdraw' && styles.withdrawAmount]}>
+        {action === 'deposit' ? '−' : '+'}{formatAmount(asset.amount)}
+      </Text>
+    </View>
+  );
+}
+
+export function YieldActivityCard({ activity, metadata }: { activity: Activity; metadata: YieldMetadata }) {
+  const isDeposit = metadata.action === 'deposit';
+  const ActionIcon = isDeposit ? ArrowDownToLine : ArrowUpFromLine;
+  return (
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <View style={styles.metaRow}>
+          <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
+          <View style={styles.dot} />
+          <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
+        </View>
+        <View style={styles.protocolBadge}>
+          <ProtocolIcon metadata={metadata} />
+          <Text numberOfLines={1} style={styles.protocolName}>{metadata.protocolName}</Text>
+        </View>
+      </View>
+
+      <View style={styles.actionRow}>
+        <View style={[styles.actionIcon, !isDeposit && styles.withdrawIcon]}>
+          <ActionIcon color={isDeposit ? colors.blue : colors.primary} size={20} strokeWidth={2.2} />
+        </View>
+        <View>
+          <Text style={styles.actionEyebrow}>YIELD POSITION</Text>
+          <Text style={styles.actionTitle}>{isDeposit ? 'Deposit' : 'Withdrawal'}</Text>
+        </View>
+        <View style={[styles.statusPill, !isDeposit && styles.withdrawPill]}>
+          <Text style={[styles.statusText, !isDeposit && styles.withdrawText]}>
+            {isDeposit ? 'SUPPLIED' : 'RECEIVED'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.assetsPanel}>
+        {metadata.assets.map((asset) => (
+          <AssetRow action={metadata.action} asset={asset} key={asset.mint} />
+        ))}
+      </View>
+
+      <View style={styles.footer}>
+        <View style={styles.confirmedDot} />
+        <Text style={styles.confirmed}>CONFIRMED ON SOLANA</Text>
+        <Text style={styles.protocolRoute}>{metadata.protocolName}</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    overflow: 'hidden',
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
+  metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  wallet: { maxWidth: 126, color: colors.textMuted, fontFamily: typography.medium, fontSize: 12 },
+  dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
+  time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
+  protocolBadge: {
+    maxWidth: 150,
+    height: 34,
+    marginLeft: 8,
+    paddingLeft: 5,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 17,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  protocolLogo: { width: 24, height: 24, borderRadius: 12 },
+  protocolFallback: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: colors.goldSoft,
+  },
+  protocolFallbackText: { color: colors.gold, fontFamily: typography.bold, fontSize: 11 },
+  protocolName: { flexShrink: 1, color: colors.text, fontFamily: typography.semibold, fontSize: 11 },
+  actionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 13 },
+  actionIcon: {
+    width: 42,
+    height: 42,
+    marginRight: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: 'rgba(112, 184, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(112, 184, 255, 0.20)',
+  },
+  withdrawIcon: { backgroundColor: colors.primarySoft, borderColor: colors.primaryBorderStrong },
+  actionEyebrow: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.05 },
+  actionTitle: { marginTop: 2, color: colors.text, fontFamily: typography.semibold, fontSize: 17 },
+  statusPill: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(112, 184, 255, 0.10)' },
+  withdrawPill: { backgroundColor: colors.primarySoft },
+  statusText: { color: colors.blue, fontFamily: typography.mono, fontSize: 8, letterSpacing: 0.85 },
+  withdrawText: { color: colors.primary },
+  assetsPanel: { paddingHorizontal: 13, borderRadius: 18, backgroundColor: 'rgba(5, 14, 15, 0.58)', borderWidth: 1, borderColor: colors.border },
+  assetRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  assetIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceRaised },
+  assetFallback: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorderStrong },
+  assetFallbackText: { color: colors.primary, fontFamily: typography.bold, fontSize: 15 },
+  assetCopy: { flex: 1, minWidth: 0, marginLeft: 10 },
+  assetSymbol: { color: colors.text, fontFamily: typography.semibold, fontSize: 14 },
+  assetName: { marginTop: 1, color: colors.textFaint, fontFamily: typography.regular, fontSize: 10 },
+  assetAmount: { marginLeft: 10, color: colors.blue, fontFamily: typography.mono, fontSize: 14 },
+  withdrawAmount: { color: colors.primary },
+  footer: { marginTop: 12, flexDirection: 'row', alignItems: 'center' },
+  confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.primary },
+  confirmed: { color: colors.primary, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.05 },
+  protocolRoute: { maxWidth: 125, marginLeft: 'auto', color: colors.textFaint, fontFamily: typography.mono, fontSize: 9 },
+});

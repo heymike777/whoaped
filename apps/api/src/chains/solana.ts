@@ -81,6 +81,41 @@ const DEXES: Array<{ id: SwapDex; name: string; aliases: string[] }> = [
   { id: 'raydium', name: 'Raydium', aliases: ['raydium'] },
 ];
 
+type YieldAction = 'deposit' | 'withdraw';
+
+const YIELD_PROTOCOLS: Array<{ id: string; name: string; aliases: string[]; programIds?: string[] }> = [
+  { id: 'kamino', name: 'Kamino', aliases: ['kamino', 'klend', 'kvault'] },
+  {
+    id: 'jupiter-lend',
+    name: 'Jupiter Lend',
+    aliases: ['jupiterlend', 'jup lend', 'lendamm'],
+    programIds: ['jupZ4m2GqUCJ5iueMfzQf8khFfH31d4XAQt3RzCT9Vd'],
+  },
+  { id: 'perena', name: 'Perena', aliases: ['perena', 'numeraire'] },
+  { id: 'save', name: 'Save', aliases: ['savefinance', 'solend'] },
+  { id: 'marginfi', name: 'marginfi', aliases: ['marginfi', 'mrgn'] },
+  { id: 'drift', name: 'Drift Earn', aliases: ['drift', 'driftearn'] },
+  { id: 'loopscale', name: 'Loopscale', aliases: ['loopscale'] },
+  { id: 'exponent', name: 'Exponent', aliases: ['exponent'] },
+  { id: 'ratex', name: 'RateX', aliases: ['ratex', 'rate-x'] },
+  { id: 'sanctum', name: 'Sanctum', aliases: ['sanctum', 'infinitypool'] },
+  { id: 'jito', name: 'Jito', aliases: ['jito'] },
+  { id: 'marinade', name: 'Marinade', aliases: ['marinade'] },
+  { id: 'solayer', name: 'Solayer', aliases: ['solayer'] },
+  { id: 'fragmetric', name: 'Fragmetric', aliases: ['fragmetric'] },
+  { id: 'hylo', name: 'Hylo', aliases: ['hylo'] },
+  { id: 'carrot', name: 'Carrot', aliases: ['carrot'] },
+  { id: 'lulo', name: 'Lulo', aliases: ['lulo', 'flexlend'] },
+  { id: 'meteora-vault', name: 'Meteora Vaults', aliases: ['meteoravault', 'dynamicvault'] },
+  { id: 'tulip', name: 'Tulip', aliases: ['tulip'] },
+  { id: 'francium', name: 'Francium', aliases: ['francium'] },
+  { id: 'port', name: 'Port Finance', aliases: ['portfinance', 'portlending'] },
+  { id: 'larix', name: 'Larix', aliases: ['larix'] },
+  { id: 'texture', name: 'Texture', aliases: ['texture'] },
+  { id: 'jpool', name: 'JPool', aliases: ['jpool'] },
+  { id: 'blaze', name: 'BlazeStake', aliases: ['blazestake', 'blaze stake'] },
+];
+
 function tokenSymbol(mint?: string) {
   if (!mint) return 'token';
   return KNOWN_SYMBOLS[mint] ?? `${mint.slice(0, 4)}…${mint.slice(-4)}`;
@@ -133,6 +168,111 @@ function swapDex(transaction: ParsedSolanaTransaction) {
   return DEXES.find((dex) => candidates.some((candidate) =>
     dex.aliases.some((alias) => candidate.includes(canonical(alias))),
   ));
+}
+
+function matchingYieldProtocol(transaction: ParsedSolanaTransaction) {
+  const programIds = new Set((transaction.instructions ?? []).map((instruction) => instruction.programId));
+  const candidates = [
+    parsedValue(transaction.summary?.parsedData, 'protocol', 'source', 'platform'),
+    transaction.summary?.description,
+    ...((transaction.instructions ?? []).flatMap((instruction) => [
+      instruction.programName,
+      instruction.summary?.description,
+    ])),
+  ].map((value) => canonical(value));
+  return YIELD_PROTOCOLS.find((protocol) =>
+    protocol.programIds?.some((programId) => programIds.has(programId))
+    || candidates.some((candidate) => protocol.aliases.some((alias) => candidate.includes(canonical(alias)))),
+  );
+}
+
+function yieldActionName(value?: string | null): YieldAction | null {
+  const name = canonical(value);
+  if (['withdraw', 'redeem', 'unstake', 'remove'].some((verb) => name.includes(verb))) return 'withdraw';
+  if (['deposit', 'supply', 'stake', 'addliquidity'].some((verb) => name.includes(verb))) return 'deposit';
+  return null;
+}
+
+function mintBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  const deltas = new Map<string, number>();
+  const add = (mint: string, amount: number) => {
+    if (!Number.isFinite(amount) || Math.abs(amount) < Number.EPSILON) return;
+    deltas.set(mint, (deltas.get(mint) ?? 0) + amount);
+  };
+  let found = false;
+  transaction.accountData?.forEach((account) => {
+    if (account.account === watchedAddress && account.nativeBalanceChange) {
+      found = true;
+      add('So11111111111111111111111111111111111111112', account.nativeBalanceChange / 1e9);
+    }
+    account.tokenBalanceChanges?.forEach((change) => {
+      if (change.userAccount !== watchedAddress || !change.mint) return;
+      found = true;
+      const raw = typeof change.rawTokenAmount === 'object'
+        ? change.rawTokenAmount.tokenAmount
+        : change.rawTokenAmount;
+      const decimals = typeof change.rawTokenAmount === 'object'
+        ? change.rawTokenAmount.decimals ?? change.decimals ?? 0
+        : change.decimals ?? 0;
+      add(change.mint, displayAmount(raw, decimals));
+    });
+  });
+  if (found) return deltas;
+  transaction.nativeTransfers?.forEach((transfer) => {
+    const amount = (transfer.amount ?? 0) / 1e9;
+    if (transfer.toUserAccount === watchedAddress) add('So11111111111111111111111111111111111111112', amount);
+    if (transfer.fromUserAccount === watchedAddress) add('So11111111111111111111111111111111111111112', -amount);
+  });
+  transaction.tokenTransfers?.forEach((transfer) => {
+    if (!transfer.mint) return;
+    const amount = displayAmount(transfer.rawTokenAmount, transfer.decimals);
+    if (transfer.toUserAccount === watchedAddress) add(transfer.mint, amount);
+    if (transfer.fromUserAccount === watchedAddress) add(transfer.mint, -amount);
+  });
+  return deltas;
+}
+
+function yieldActivity(
+  transaction: ParsedSolanaTransaction,
+  watchedAddress: string,
+  base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
+): NormalizedActivity | null {
+  const protocol = matchingYieldProtocol(transaction);
+  if (!protocol) return null;
+  const relevant = transaction.instructions?.filter((instruction) =>
+    instructionTouches(instruction, watchedAddress) || transaction.feePayer === watchedAddress,
+  ) ?? [];
+  const action = yieldActionName(transaction.summary?.type)
+    ?? yieldActionName(transaction.summary?.description)
+    ?? relevant.map((instruction) => yieldActionName(instruction.instructionName)).find(Boolean)
+    ?? relevant.map((instruction) => yieldActionName(instruction.summary?.type)).find(Boolean);
+  if (!action) return null;
+
+  const wantedSign = action === 'deposit' ? -1 : 1;
+  let assets = [...mintBalanceDeltas(transaction, watchedAddress).entries()]
+    .filter(([, amount]) => Math.sign(amount) === wantedSign)
+    .map(([mint, amount]) => ({ mint, symbol: tokenSymbol(mint), amount: Math.abs(amount) }))
+    .sort((left, right) => right.amount - left.amount);
+  if (assets.length > 1) {
+    assets = assets.filter((asset) => !(
+      asset.mint === 'So11111111111111111111111111111111111111112' && asset.amount < 0.01
+    ));
+  }
+  assets = assets.slice(0, 2);
+  if (!assets.length) return null;
+  const verb = action === 'deposit' ? 'Deposited' : 'Withdrew';
+  const titleAssets = assets.map((asset) => `${formatAmount(asset.amount, asset.symbol).slice(1)}`).join(' + ');
+  return {
+    ...base,
+    kind: 'yield',
+    title: `${verb} ${titleAssets}`,
+    detail: protocol.name,
+    source: protocol.name,
+    metadata: {
+      ...base.metadata,
+      yield: { action, protocol: protocol.id, protocolName: protocol.name, assets },
+    },
+  };
 }
 
 function decimalsForMint(transaction: ParsedSolanaTransaction, mint: string) {
@@ -396,6 +536,9 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
 
     const swap = swapActivity(transaction, watchedAddress, base);
     if (swap) return [swap];
+
+    const yieldEvent = yieldActivity(transaction, watchedAddress, base);
+    if (yieldEvent) return [yieldEvent];
 
     const semantic = semanticActivity(transaction, watchedAddress, base);
     const balance = balanceActivity(transaction, watchedAddress, base);
