@@ -124,11 +124,6 @@ export function SwapActivityCard({
         <TokenLeg label="Received" output token={swap.output} />
       </View>
 
-      <View style={styles.footer}>
-        <View style={styles.confirmedDot} />
-        <Text style={styles.confirmed}>Swap confirmed</Text>
-        <Text style={styles.routeText}>{swap.input.symbol} → {swap.output.symbol}</Text>
-      </View>
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
       {swap.tradeUrl && !activity.metadata?.tokenActions?.length && (
         <Pressable
@@ -212,10 +207,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderStrong,
   },
-  footer: { marginTop: 12, flexDirection: 'row', alignItems: 'center' },
-  confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.positive },
-  confirmed: { color: colors.positive, fontFamily: typography.regular, fontWeight: '700', fontSize: 10 },
-  routeText: { marginLeft: 'auto', color: colors.textFaint, fontFamily: typography.mono, fontSize: 9 },
   tradeButton: { marginTop: 12, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, backgroundColor: colors.text },
   tradeButtonPressed: { opacity: 0.75 },
   tradeButtonText: { color: colors.surface, fontFamily: typography.medium, fontWeight: '700', fontSize: 13 },

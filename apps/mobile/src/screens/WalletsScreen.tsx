@@ -190,7 +190,6 @@ function WalletRow({
       accessibilityLabel={`${wallet.name}, ${transactionCount24hLabel(wallet.transactionCount24h)}`}
       style={styles.walletCard}
     >
-      <View style={styles.walletAvatar}><Text style={styles.walletInitial}>{wallet.name[0]?.toUpperCase()}</Text></View>
       <View style={styles.walletCopy}>
         <Text numberOfLines={1} style={styles.walletName}>{wallet.name}</Text>
         <Text numberOfLines={1} style={styles.walletAddress}>{wallet.address.slice(0, 5)}…{wallet.address.slice(-5)}</Text>
@@ -324,9 +323,7 @@ const styles = StyleSheet.create({
   summary: { flexDirection: 'row', alignItems: 'baseline', minHeight: 46, paddingHorizontal: 4 },
   summaryNumber: { color: colors.text, fontFamily: typography.mono, fontSize: 16 },
   summaryLabel: { marginLeft: 7, color: colors.textMuted, fontFamily: typography.regular, fontSize: 13 },
-  walletCard: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong, backgroundColor: colors.surface },
-  walletAvatar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.surfaceRaised },
-  walletInitial: { color: colors.text, fontFamily: typography.semibold, fontSize: 16 },
+  walletCard: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong, backgroundColor: colors.surface },
   walletCopy: { flex: 1, minWidth: 0 },
   walletName: { color: colors.text, fontFamily: typography.semibold, fontSize: 15 },
   walletAddress: { marginTop: 4, color: colors.textMuted, fontFamily: typography.mono, fontSize: 10 },

@@ -45,15 +45,10 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
           <View style={styles.mark}><BrandMark size={22} /></View>
           <Text style={styles.brand}>WhoAped</Text>
         </View>
-        <View accessibilityLabel="Tracking is live" style={styles.liveStatus}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveText}>Live</Text>
-        </View>
       </View>
 
       <View style={styles.intro}>
         <Text style={styles.heading}>Activity</Text>
-        <Text style={styles.subheading}>A live record of every move across your watchlist.</Text>
       </View>
 
       <View style={styles.feedHeader}>
@@ -144,13 +139,9 @@ const styles = StyleSheet.create({
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.text },
   brand: { color: colors.text, fontFamily: typography.bold, fontSize: 16, letterSpacing: -0.3 },
-  liveStatus: { marginLeft: 'auto', minHeight: 32, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 16, backgroundColor: colors.surface },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary },
-  liveText: { color: colors.text, fontFamily: typography.medium, fontWeight: '600', fontSize: 12 },
   intro: { marginTop: 34, maxWidth: 340 },
   heading: { color: colors.text, fontFamily: typography.bold, fontSize: 46, lineHeight: 50, letterSpacing: -1.5 },
-  subheading: { marginTop: 10, maxWidth: 300, color: colors.textMuted, fontFamily: typography.regular, fontSize: 16, lineHeight: 23 },
-  feedHeader: { marginTop: 38, minHeight: 38, flexDirection: 'row', alignItems: 'baseline', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.text },
+  feedHeader: { marginTop: 28, minHeight: 38, flexDirection: 'row', alignItems: 'baseline', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.text },
   feedTitle: { color: colors.text, fontFamily: typography.semibold, fontSize: 20, letterSpacing: -0.35 },
   feedMeta: { marginLeft: 'auto', color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
   ledger: { backgroundColor: colors.surface },
