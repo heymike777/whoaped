@@ -43,9 +43,9 @@ export function LaunchActivityCard({ activity, metadata }: { activity: Activity;
 
   return (
     <View style={styles.card}>
-      <View style={styles.signal} />
       <View style={styles.header}>
         <View style={styles.metaRow}>
+          <View style={styles.signal} />
           <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
           <View style={styles.dot} />
           <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderStrong,
   },
-  signal: { position: 'absolute', top: 25, left: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: colors.primary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   wallet: { maxWidth: 120, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },

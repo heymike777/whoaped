@@ -45,13 +45,13 @@ export function ActivityCard({ activity }: { activity: Activity }) {
 
   return (
     <View style={styles.card}>
-      <View style={[styles.signal, { backgroundColor: accent }]} />
       <View style={styles.mainRow}>
         <View style={[styles.iconWrap, { backgroundColor: `${accent}12` }]}>
           <Icon color={accent} size={20} strokeWidth={2.2} />
         </View>
         <View style={styles.copy}>
           <View style={styles.metaRow}>
+            <View style={[styles.signal, { backgroundColor: accent }]} />
             <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
             <View style={styles.dot} />
             <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderStrong,
     backgroundColor: colors.surface,
   },
-  signal: { position: 'absolute', top: 22, left: 0, width: 8, height: 8, borderRadius: 4 },
+  signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
   mainRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   iconWrap: {
     width: 42,
