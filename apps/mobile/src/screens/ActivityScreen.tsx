@@ -37,7 +37,7 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
   return (
     <ScrollView
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]}
-      refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={false} onRefresh={feed.refresh} tintColor={colors.primary} />}
+      refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={feed.isRefreshing && !feed.isLoading} onRefresh={feed.refresh} tintColor={colors.primary} />}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.brandRow}>

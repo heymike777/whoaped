@@ -46,7 +46,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export async function getActivities(): Promise<Activity[]> {
   if (!API_URL) return [];
   const result = await apiFetch<{ data: Activity[] }>('/v1/activities?limit=50');
-  return result.data.filter((activity) => ['balance', 'nft', 'multisig', 'swap', 'yield'].includes(activity.kind));
+  return result.data.filter((activity) => ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'].includes(activity.kind));
 }
 
 export async function getWallets(): Promise<Wallet[]> {

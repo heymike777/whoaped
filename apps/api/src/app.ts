@@ -118,7 +118,7 @@ app.get('/v1/activities', async (context) => {
   const db = await collections();
   const transactions = await db.transactions.find({
     userId: context.get('userId'),
-    kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield'] },
+    kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'] },
   })
     .sort({ occurredAt: -1, createdAt: -1 }).limit(limit).toArray();
   const walletIds = [...new Set(transactions.map((transaction) => transaction.walletId))];

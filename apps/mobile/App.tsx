@@ -7,7 +7,7 @@ import { ConnectivityBanner } from './src/components/ConnectivityBanner';
 import { ActivityScreen } from './src/screens/ActivityScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { WalletsScreen } from './src/screens/WalletsScreen';
-import { observePushTokenRefresh } from './src/lib/notifications';
+import { observePushTokenRefresh, syncEnabledPushNotifications } from './src/lib/notifications';
 import { colors } from './src/theme';
 
 export default function App() {
@@ -23,7 +23,10 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
-  useEffect(() => observePushTokenRefresh(), []);
+  useEffect(() => {
+    syncEnabledPushNotifications().catch(() => undefined);
+    return observePushTokenRefresh();
+  }, []);
 
   return (
     <SafeAreaProvider>

@@ -1,7 +1,10 @@
 import { getApp } from '@react-native-firebase/app';
 import {
+  getInitialNotification,
   getMessaging,
   getToken,
+  onMessage,
+  onNotificationOpenedApp,
   onTokenRefresh,
   registerDeviceForRemoteMessages,
 } from '@react-native-firebase/messaging';
@@ -33,16 +36,62 @@ function messagingInstance() {
   }
 }
 
-export async function enablePushNotifications() {
-  if (!(await requestNotificationPermission())) {
-    throw new Error('Notification permission was not granted.');
+async function hasNotificationPermission() {
+  if (Platform.OS === 'android') {
+    if (Platform.Version < 33) return true;
+    return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
   }
 
+  const current = await checkNotifications();
+  return current.status === RESULTS.GRANTED || current.status === RESULTS.LIMITED;
+}
+
+async function registerCurrentPushToken() {
   const messaging = messagingInstance();
   if (Platform.OS === 'ios') await registerDeviceForRemoteMessages(messaging);
   const token = await getToken(messaging);
   await registerPushToken(token, Platform.OS);
   return token;
+}
+
+export async function enablePushNotifications() {
+  if (!(await requestNotificationPermission())) {
+    throw new Error('Notification permission was not granted.');
+  }
+
+  return registerCurrentPushToken();
+}
+
+export async function syncEnabledPushNotifications() {
+  try {
+    if (!(await hasNotificationPermission())) return false;
+    await registerCurrentPushToken();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function observeActivityNotifications(onActivity: () => void) {
+  try {
+    const messaging = messagingInstance();
+    const unsubscribeMessage = onMessage(messaging, () => {
+      onActivity();
+    });
+    const unsubscribeOpened = onNotificationOpenedApp(messaging, () => {
+      onActivity();
+    });
+    getInitialNotification(messaging)
+      .then((message) => { if (message) onActivity(); })
+      .catch(() => undefined);
+
+    return () => {
+      unsubscribeMessage();
+      unsubscribeOpened();
+    };
+  } catch {
+    return () => undefined;
+  }
 }
 
 export function observePushTokenRefresh() {

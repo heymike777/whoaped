@@ -84,6 +84,7 @@ export type Activity = {
 export type FeedState = {
   activities: Activity[];
   isLoading: boolean;
+  isRefreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 };
