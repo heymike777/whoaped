@@ -45,8 +45,9 @@ export function ActivityCard({ activity }: { activity: Activity }) {
 
   return (
     <View style={styles.card}>
+      <View style={[styles.signal, { backgroundColor: accent }]} />
       <View style={styles.mainRow}>
-        <View style={[styles.iconWrap, { backgroundColor: `${accent}18` }]}>
+        <View style={[styles.iconWrap, { backgroundColor: `${accent}12` }]}>
           <Icon color={accent} size={20} strokeWidth={2.2} />
         </View>
         <View style={styles.copy}>
@@ -74,26 +75,27 @@ export function ActivityCard({ activity }: { activity: Activity }) {
 const styles = StyleSheet.create({
   card: {
     minHeight: 112,
-    padding: 16,
-    borderRadius: 22,
-    backgroundColor: colors.glass,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderStrong,
+    backgroundColor: colors.surface,
   },
+  signal: { position: 'absolute', top: 22, left: 0, width: 8, height: 8, borderRadius: 4 },
   mainRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   iconWrap: {
     width: 42,
     height: 42,
-    borderRadius: 15,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   copy: { flex: 1, minWidth: 0 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
-  wallet: { maxWidth: 150, color: colors.textMuted, fontFamily: typography.medium, fontSize: 12 },
+  wallet: { maxWidth: 150, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
-  title: { color: colors.text, fontFamily: typography.semibold, fontSize: 15, lineHeight: 20 },
-  detail: { marginTop: 5, color: colors.textMuted, fontFamily: typography.regular, fontSize: 12 },
+  title: { color: colors.text, fontFamily: typography.regular, fontWeight: '600', fontSize: 16, lineHeight: 21 },
+  detail: { marginTop: 5, color: colors.textMuted, fontFamily: typography.regular, fontSize: 13, lineHeight: 18 },
   value: { color: colors.text, fontFamily: typography.mono, fontSize: 11, marginTop: 2 },
 });

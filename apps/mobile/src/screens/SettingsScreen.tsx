@@ -25,9 +25,8 @@ export function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]} showsVerticalScrollIndicator={false}>
-      <Text style={styles.eyebrow}>CONTROL ROOM</Text>
       <Text style={styles.heading}>Settings</Text>
-      <Text style={styles.subheading}>Quiet infrastructure. Useful alerts.</Text>
+      <Text style={styles.subheading}>Notifications, tracking and privacy.</Text>
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
@@ -82,7 +81,7 @@ function StackRow({ icon: Icon, label, value }: { icon: typeof Server; label: st
 const styles = StyleSheet.create({
   content: { paddingHorizontal: layout.gutter, paddingBottom: 124 },
   eyebrow: { color: colors.primary, fontFamily: typography.mono, fontSize: 10, letterSpacing: 1.35 },
-  heading: { marginTop: 5, color: colors.text, fontFamily: typography.semibold, fontSize: 32, letterSpacing: -1 },
+  heading: { color: colors.text, fontFamily: typography.bold, fontSize: 38, letterSpacing: -1.1 },
   subheading: { marginTop: 7, color: colors.textMuted, fontFamily: typography.regular, fontSize: 15 },
   section: { marginTop: 30, gap: 10 },
   sectionLabel: { marginLeft: 3, color: colors.textFaint, fontFamily: typography.mono, fontSize: 9, letterSpacing: 1.25 },

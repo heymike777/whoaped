@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T08:55:00+01:00",
+  "title": "Design System: WhoAped",
+  "extensions": {
+    "colorMeta": {
+      "signal-orange": { "role": "primary", "displayName": "Signal Orange", "canonical": "#F04B2F", "tonalRamp": ["#48130D", "#7B2117", "#B33524", "#F04B2F", "#F77A64", "#FBA99A", "#FDD5CE", "#FFF2EF"] },
+      "ledger-ink": { "role": "neutral", "displayName": "Ledger Ink", "canonical": "#111313", "tonalRamp": ["#111313", "#252827", "#414543", "#626765", "#858A87", "#ADB1AE", "#D5D7D4", "#F1F2EF"] },
+      "paper": { "role": "neutral", "displayName": "Warm Paper", "canonical": "#F4F4EF", "tonalRamp": ["#24241F", "#42423A", "#66665C", "#8D8D82", "#B4B4AA", "#D2D2C9", "#E8E8E1", "#F4F4EF"] },
+      "positive": { "role": "secondary", "displayName": "Confirmed Green", "canonical": "#137A52", "tonalRamp": ["#082D20", "#0A4931", "#0E6242", "#137A52", "#3F9876", "#76B8A0", "#B4D8CA", "#E7F3EE"] },
+      "route-blue": { "role": "tertiary", "displayName": "Route Blue", "canonical": "#4055D9", "tonalRamp": ["#141A4A", "#202A76", "#2F3DA5", "#4055D9", "#7180E5", "#A1ACEE", "#CCD1F6", "#F0F2FC"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Ledger Display", "purpose": "Page titles and high-confidence empty-state headlines." },
+      "body": { "displayName": "Native Body", "purpose": "Descriptions, metadata and controls." },
+      "label": { "displayName": "Operational Label", "purpose": "Compact status and action labels." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "press", "value": "opacity 120ms ease-out, transform 120ms ease-out", "purpose": "Direct touch feedback; disabled when Reduce Motion requires it." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single high-intent action on a surface.",
+      "html": "<button class=\"ds-primary\">Add wallet</button>",
+      "css": ".ds-primary{min-height:52px;padding:0 20px;border:0;border-radius:13px;background:#F04B2F;color:#fff;font:700 15px system-ui;transition:opacity .12s ease-out,transform .12s ease-out}.ds-primary:hover{opacity:.9}.ds-primary:active{transform:scale(.98)}.ds-primary:focus-visible{outline:3px solid rgba(240,75,47,.28);outline-offset:3px}"
+    },
+    {
+      "name": "Live Status",
+      "kind": "chip",
+      "description": "Compact proof that tracking is active.",
+      "html": "<span class=\"ds-live\"><i></i>Live</span>",
+      "css": ".ds-live{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 11px;border-radius:16px;background:#fff;color:#111313;font:700 12px system-ui}.ds-live i{width:7px;height:7px;border-radius:50%;background:#F04B2F}"
+    },
+    {
+      "name": "Activity Record",
+      "kind": "custom",
+      "refersTo": "activity-sheet",
+      "description": "A decoded event in the continuous live ledger.",
+      "html": "<article class=\"ds-record\"><i></i><div><strong>Arb Bot</strong><small>7m</small><p>Swapped 10 SOL for 1,420 USDC</p></div></article>",
+      "css": ".ds-record{position:relative;display:flex;min-height:112px;padding:18px 14px;border-bottom:1px solid rgba(17,19,19,.18);background:#fff;color:#111313;font-family:system-ui}.ds-record>i{width:8px;height:8px;margin:4px 12px 0 -14px;border-radius:50%;background:#4055D9}.ds-record strong{font-size:12px}.ds-record small{margin-left:8px;color:#858A87}.ds-record p{margin:8px 0 0;font-size:16px;line-height:1.35}"
+    },
+    {
+      "name": "Trade Link",
+      "kind": "button",
+      "description": "A secondary external destination for a token.",
+      "html": "<a class=\"ds-trade\" href=\"#\">GMGN ↗</a>",
+      "css": ".ds-trade{display:inline-flex;align-items:center;justify-content:space-between;min-height:48px;padding:0 12px;border:1px solid rgba(17,19,19,.18);border-radius:11px;background:#F4F4EF;color:#111313;text-decoration:none;font:700 12px system-ui}.ds-trade:hover{background:#E9EAE4}.ds-trade:focus-visible{outline:3px solid rgba(64,85,217,.2);outline-offset:2px}"
+    },
+    {
+      "name": "Native Tab Selection",
+      "kind": "nav",
+      "description": "Visual states used by native platform navigation.",
+      "html": "<nav class=\"ds-nav\"><b>Activity</b><span>Wallets</span><span>Settings</span></nav>",
+      "css": ".ds-nav{display:flex;gap:30px;padding:12px 24px;border:1px solid rgba(17,19,19,.12);border-radius:28px;background:rgba(255,255,255,.88);font:600 12px system-ui}.ds-nav b{color:#F04B2F}.ds-nav span{color:#5A605D}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Live Ledger",
+    "overview": "WhoAped feels like a calm financial record receiving signals in real time. Its personality comes from the tension between a warm paper field, sharp black typography, fine ledger rules, and small event markers. The interface prioritizes decoding over decoration.",
+    "keyCharacteristics": ["Warm paper and crisp white ledger sheets", "Rare signal orange", "Hairlines and event dots instead of decorative cards", "Native platform navigation"],
+    "rules": [
+      { "name": "Signal Rarity", "body": "Signal orange belongs to live state, event markers, and the single primary action.", "section": "colors" },
+      { "name": "Data-Only Mono", "body": "Use monospace only when character alignment or exact values matter.", "section": "typography" },
+      { "name": "Native Glass", "body": "Glass belongs to the OS-owned tab bar, not general content cards.", "section": "elevation" }
+    ],
+    "dos": ["Do make the decoded event and amounts the strongest content.", "Do use hairlines and spacing before adding a container.", "Do preserve useful protocol and token artwork."],
+    "donts": ["Don't add neon glows, crypto gradients, glass cards, or decorative dashboards.", "Don't place every block inside a rounded rectangle.", "Don't visually copy another product's identity."]
+  }
+}

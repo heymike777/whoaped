@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Platform, StatusBar, StyleSheet, View } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { AccessibilityInfo, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { GlassTabBar, TabKey } from './src/components/GlassTabBar';
@@ -29,14 +28,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.root}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-        <LinearGradient
-          colors={[colors.background, colors.backgroundMid, colors.background]}
-          locations={[0, 0.52, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.glowTop} pointerEvents="none" />
-        <View style={styles.glowBottom} pointerEvents="none" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
         <View style={styles.content}>
           <ConnectivityBanner />
@@ -62,22 +54,4 @@ export default function App() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1 },
-  glowTop: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: colors.glowMint,
-    top: Platform.OS === 'ios' ? -130 : -160,
-    right: -90,
-  },
-  glowBottom: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: colors.glowBlue,
-    bottom: 40,
-    left: -160,
-  },
 });

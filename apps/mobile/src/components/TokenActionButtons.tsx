@@ -10,7 +10,7 @@ export function TokenActionButtons({ actions }: { actions?: TokenAction[] }) {
     <View style={styles.wrap}>
       {actions.map((action) => (
         <View key={action.token.mint} style={styles.tokenBlock}>
-          <Text numberOfLines={1} style={styles.heading}>TRADE ${action.token.symbol}</Text>
+          <Text numberOfLines={1} style={styles.heading}>Trade ${action.token.symbol}</Text>
           <View style={styles.grid}>
             {action.links.map((link) => (
               <Pressable
@@ -22,7 +22,7 @@ export function TokenActionButtons({ actions }: { actions?: TokenAction[] }) {
                 style={({ pressed }) => [styles.button, pressed && styles.pressed]}
               >
                 <Text numberOfLines={1} style={styles.label}>{link.label}</Text>
-                <ExternalLink color={colors.primary} size={12} strokeWidth={2.2} />
+                <ExternalLink color={colors.text} size={13} strokeWidth={2.2} />
               </Pressable>
             ))}
           </View>
@@ -35,20 +35,20 @@ export function TokenActionButtons({ actions }: { actions?: TokenAction[] }) {
 const styles = StyleSheet.create({
   wrap: { marginTop: 12, gap: 10 },
   tokenBlock: { gap: 7 },
-  heading: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.05 },
+  heading: { color: colors.textMuted, fontFamily: typography.regular, fontWeight: '700', fontSize: 11 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   button: {
     width: '48.7%',
-    height: 36,
+    minHeight: 48,
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 12,
-    backgroundColor: colors.primarySoft,
+    borderRadius: 11,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: colors.primaryBorder,
+    borderColor: colors.borderStrong,
   },
   pressed: { opacity: 0.72 },
-  label: { flexShrink: 1, color: colors.primary, fontFamily: typography.semibold, fontSize: 10 },
+  label: { flexShrink: 1, color: colors.text, fontFamily: typography.regular, fontWeight: '700', fontSize: 12 },
 });

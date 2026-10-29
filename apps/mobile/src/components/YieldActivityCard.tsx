@@ -84,6 +84,7 @@ export function YieldActivityCard({ activity, metadata }: { activity: Activity; 
   const ActionIcon = isDeposit ? ArrowDownToLine : ArrowUpFromLine;
   return (
     <View style={styles.card}>
+      <View style={styles.signal} />
       <View style={styles.header}>
         <View style={styles.metaRow}>
           <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
@@ -101,12 +102,12 @@ export function YieldActivityCard({ activity, metadata }: { activity: Activity; 
           <ActionIcon color={isDeposit ? colors.blue : colors.primary} size={20} strokeWidth={2.2} />
         </View>
         <View>
-          <Text style={styles.actionEyebrow}>YIELD POSITION</Text>
+          <Text style={styles.actionEyebrow}>Yield position</Text>
           <Text style={styles.actionTitle}>{isDeposit ? 'Deposit' : 'Withdrawal'}</Text>
         </View>
         <View style={[styles.statusPill, !isDeposit && styles.withdrawPill]}>
           <Text style={[styles.statusText, !isDeposit && styles.withdrawText]}>
-            {isDeposit ? 'SUPPLIED' : 'RECEIVED'}
+            {isDeposit ? 'Supplied' : 'Received'}
           </Text>
         </View>
       </View>
@@ -119,7 +120,7 @@ export function YieldActivityCard({ activity, metadata }: { activity: Activity; 
 
       <View style={styles.footer}>
         <View style={styles.confirmedDot} />
-        <Text style={styles.confirmed}>CONFIRMED ON SOLANA</Text>
+        <Text style={styles.confirmed}>Confirmed on Solana</Text>
         <Text style={styles.protocolRoute}>{metadata.protocolName}</Text>
       </View>
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
@@ -129,16 +130,16 @@ export function YieldActivityCard({ activity, metadata }: { activity: Activity; 
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16,
-    borderRadius: 24,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    overflow: 'hidden',
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderStrong,
   },
+  signal: { position: 'absolute', top: 25, left: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.positive },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
   metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  wallet: { maxWidth: 126, color: colors.textMuted, fontFamily: typography.medium, fontSize: 12 },
+  wallet: { maxWidth: 126, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
   protocolBadge: {
@@ -150,10 +151,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    borderRadius: 17,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: colors.background,
   },
   protocolLogo: { width: 24, height: 24, borderRadius: 12 },
   protocolFallback: {
@@ -165,7 +164,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.goldSoft,
   },
   protocolFallbackText: { color: colors.gold, fontFamily: typography.bold, fontSize: 11 },
-  protocolName: { flexShrink: 1, color: colors.text, fontFamily: typography.semibold, fontSize: 11 },
+  protocolName: { flexShrink: 1, color: colors.text, fontFamily: typography.regular, fontWeight: '700', fontSize: 11 },
   actionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 13 },
   actionIcon: {
     width: 42,
@@ -173,19 +172,17 @@ const styles = StyleSheet.create({
     marginRight: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 15,
-    backgroundColor: 'rgba(112, 184, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(112, 184, 255, 0.20)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(64, 85, 217, 0.09)',
   },
-  withdrawIcon: { backgroundColor: colors.primarySoft, borderColor: colors.primaryBorderStrong },
-  actionEyebrow: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.05 },
+  withdrawIcon: { backgroundColor: colors.positiveSoft },
+  actionEyebrow: { color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 11 },
   actionTitle: { marginTop: 2, color: colors.text, fontFamily: typography.semibold, fontSize: 17 },
-  statusPill: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(112, 184, 255, 0.10)' },
-  withdrawPill: { backgroundColor: colors.primarySoft },
-  statusText: { color: colors.blue, fontFamily: typography.mono, fontSize: 8, letterSpacing: 0.85 },
-  withdrawText: { color: colors.primary },
-  assetsPanel: { paddingHorizontal: 13, borderRadius: 18, backgroundColor: 'rgba(5, 14, 15, 0.58)', borderWidth: 1, borderColor: colors.border },
+  statusPill: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: 'rgba(64, 85, 217, 0.09)' },
+  withdrawPill: { backgroundColor: colors.positiveSoft },
+  statusText: { color: colors.blue, fontFamily: typography.regular, fontWeight: '700', fontSize: 10 },
+  withdrawText: { color: colors.positive },
+  assetsPanel: { paddingHorizontal: 13, borderRadius: 14, backgroundColor: colors.background },
   assetRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   assetIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceRaised },
   assetFallback: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorderStrong },
@@ -194,9 +191,9 @@ const styles = StyleSheet.create({
   assetSymbol: { color: colors.text, fontFamily: typography.semibold, fontSize: 14 },
   assetName: { marginTop: 1, color: colors.textFaint, fontFamily: typography.regular, fontSize: 10 },
   assetAmount: { marginLeft: 10, color: colors.blue, fontFamily: typography.mono, fontSize: 14 },
-  withdrawAmount: { color: colors.primary },
+  withdrawAmount: { color: colors.positive },
   footer: { marginTop: 12, flexDirection: 'row', alignItems: 'center' },
-  confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.primary },
-  confirmed: { color: colors.primary, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.05 },
+  confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.positive },
+  confirmed: { color: colors.positive, fontFamily: typography.regular, fontWeight: '700', fontSize: 10 },
   protocolRoute: { maxWidth: 125, marginLeft: 'auto', color: colors.textFaint, fontFamily: typography.mono, fontSize: 9 },
 });

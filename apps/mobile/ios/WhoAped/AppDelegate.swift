@@ -26,15 +26,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     reactNativeDelegate = delegate
     reactNativeFactory = factory
 
-    window = UIWindow(frame: UIScreen.main.bounds)
+    return true
+  }
+}
+
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions
+  ) {
+    guard
+      let windowScene = scene as? UIWindowScene,
+      let appDelegate = UIApplication.shared.delegate as? AppDelegate,
+      let factory = appDelegate.reactNativeFactory
+    else { return }
+
+    let window = UIWindow(windowScene: windowScene)
+    self.window = window
+    appDelegate.window = window
 
     factory.startReactNative(
       withModuleName: "WhoAped",
       in: window,
-      launchOptions: launchOptions
+      launchOptions: nil
     )
-
-    return true
   }
 }
 
@@ -97,13 +115,13 @@ final class WhoApedTabBarView: UIView, UITabBarDelegate {
 
   private func configureTabBar() {
     backgroundColor = .clear
-    overrideUserInterfaceStyle = .dark
+    overrideUserInterfaceStyle = .light
 
     tabBar.items = tabItems
     tabBar.delegate = self
     tabBar.isTranslucent = true
-    tabBar.tintColor = UIColor(red: 0.4, green: 0.957, blue: 0.706, alpha: 1)
-    tabBar.unselectedItemTintColor = UIColor(red: 0.631, green: 0.718, blue: 0.69, alpha: 1)
+    tabBar.tintColor = UIColor(red: 0.941, green: 0.294, blue: 0.184, alpha: 1)
+    tabBar.unselectedItemTintColor = UIColor(red: 0.353, green: 0.376, blue: 0.365, alpha: 1)
     tabBar.accessibilityIdentifier = "main-tab-bar"
     addSubview(tabBar)
 

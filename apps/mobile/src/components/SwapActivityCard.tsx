@@ -99,6 +99,7 @@ export function SwapActivityCard({
   };
   return (
     <View style={styles.card}>
+      <View style={styles.signal} />
       <View style={styles.header}>
         <View style={styles.metaRow}>
           <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
@@ -112,7 +113,7 @@ export function SwapActivityCard({
       </View>
 
       <View style={styles.swapPanel}>
-        <TokenLeg label="YOU SENT" token={swap.input} />
+        <TokenLeg label="Sent" token={swap.input} />
         <View style={styles.route}>
           <View style={styles.routeLine} />
           <View style={styles.routeArrow}>
@@ -120,12 +121,12 @@ export function SwapActivityCard({
           </View>
           <View style={styles.routeLine} />
         </View>
-        <TokenLeg label="YOU RECEIVED" output token={swap.output} />
+        <TokenLeg label="Received" output token={swap.output} />
       </View>
 
       <View style={styles.footer}>
         <View style={styles.confirmedDot} />
-        <Text style={styles.confirmed}>SWAP CONFIRMED</Text>
+        <Text style={styles.confirmed}>Swap confirmed</Text>
         <Text style={styles.routeText}>{swap.input.symbol} → {swap.output.symbol}</Text>
       </View>
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
@@ -147,16 +148,16 @@ export function SwapActivityCard({
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16,
-    borderRadius: 24,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    overflow: 'hidden',
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderStrong,
   },
+  signal: { position: 'absolute', top: 25, left: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.blue },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  wallet: { maxWidth: 128, color: colors.textMuted, fontFamily: typography.medium, fontSize: 12 },
+  wallet: { maxWidth: 128, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
   dexBadge: {
@@ -167,28 +168,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: colors.background,
   },
   dexLogo: { width: 22, height: 22, borderRadius: 11 },
   dexFallback: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: colors.primarySoft },
   dexFallbackText: { color: colors.primary, fontFamily: typography.bold, fontSize: 10 },
-  dexName: { color: colors.text, fontFamily: typography.semibold, fontSize: 11 },
+  dexName: { color: colors.text, fontFamily: typography.regular, fontWeight: '700', fontSize: 11 },
   swapPanel: {
-    padding: 14,
-    borderRadius: 19,
-    backgroundColor: 'rgba(5, 14, 15, 0.58)',
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: colors.background,
   },
   leg: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   legCopy: { flex: 1, minWidth: 0 },
-  legLabel: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.1 },
-  amount: { marginTop: 4, color: colors.text, fontFamily: typography.semibold, fontSize: 23, letterSpacing: -0.6 },
-  outputAmount: { color: colors.primary },
-  symbol: { marginTop: 1, color: colors.textMuted, fontFamily: typography.medium, fontSize: 12 },
+  legLabel: { color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 11 },
+  amount: { marginTop: 4, color: colors.text, fontFamily: typography.semibold, fontSize: 24, letterSpacing: -0.6 },
+  outputAmount: { color: colors.positive },
+  symbol: { marginTop: 1, color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
   tokenIcon: { width: 48, height: 48, marginLeft: 14, borderRadius: 24, backgroundColor: colors.surfaceRaised },
   tokenFallback: {
     width: 48,
@@ -197,11 +195,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 24,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.primaryBorderStrong,
+    borderColor: colors.borderStrong,
   },
-  tokenFallbackText: { color: colors.primary, fontFamily: typography.bold, fontSize: 18 },
+  tokenFallbackText: { color: colors.text, fontFamily: typography.bold, fontSize: 18 },
   route: { height: 22, flexDirection: 'row', alignItems: 'center', gap: 8 },
   routeLine: { flex: 1, height: 1, backgroundColor: colors.border },
   routeArrow: {
@@ -210,15 +208,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 13,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.primaryBorderStrong,
+    borderColor: colors.borderStrong,
   },
   footer: { marginTop: 12, flexDirection: 'row', alignItems: 'center' },
-  confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.primary },
-  confirmed: { color: colors.primary, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.05 },
+  confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.positive },
+  confirmed: { color: colors.positive, fontFamily: typography.regular, fontWeight: '700', fontSize: 10 },
   routeText: { marginLeft: 'auto', color: colors.textFaint, fontFamily: typography.mono, fontSize: 9 },
-  tradeButton: { marginTop: 12, height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorderStrong },
+  tradeButton: { marginTop: 12, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, backgroundColor: colors.text },
   tradeButtonPressed: { opacity: 0.75 },
-  tradeButtonText: { color: colors.primary, fontFamily: typography.semibold, fontSize: 12 },
+  tradeButtonText: { color: colors.surface, fontFamily: typography.medium, fontWeight: '700', fontSize: 13 },
 });

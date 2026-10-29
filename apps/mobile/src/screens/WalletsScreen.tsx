@@ -77,8 +77,7 @@ export function WalletsScreen() {
       >
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.eyebrow}>WATCHLIST</Text>
-            <Text style={styles.heading}>Your wallets</Text>
+            <Text style={styles.heading}>Wallets</Text>
           </View>
           <Pressable
             accessibilityLabel="Add wallet"
@@ -148,18 +147,14 @@ function WalletEmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <View style={styles.onboardingCard}>
       <View style={styles.walletVisual}>
-        <View style={styles.walletOrbitOuter} />
-        <View style={styles.walletOrbitInner} />
         <View style={styles.walletVisualIcon}>
-          <WalletCards color={colors.primary} size={30} strokeWidth={1.9} />
+          <WalletCards color={colors.text} size={28} strokeWidth={1.9} />
         </View>
-        <View style={[styles.orbitDot, styles.orbitDotTop]} />
-        <View style={[styles.orbitDot, styles.orbitDotBottom]} />
       </View>
 
       <View style={styles.watchOnlyBadge}>
-        <ShieldCheck color={colors.primary} size={13} />
-        <Text style={styles.watchOnlyText}>WATCH ONLY</Text>
+        <ShieldCheck color={colors.positive} size={13} />
+        <Text style={styles.watchOnlyText}>Watch only</Text>
       </View>
       <Text style={styles.onboardingTitle}>Your wallet.{`\n`}Every move.</Text>
       <Text style={styles.onboardingBody}>Add a public Solana address. We’ll watch for new activity and let you know the moment it lands.</Text>
@@ -319,44 +314,44 @@ function AddWalletModal({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: layout.gutter, paddingBottom: 124, gap: 12 },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 14 },
-  eyebrow: { color: colors.primary, fontFamily: typography.mono, fontSize: 10, letterSpacing: 1.35 },
-  heading: { marginTop: 5, color: colors.text, fontFamily: typography.semibold, fontSize: 32, letterSpacing: -1 },
-  addButton: { marginLeft: 'auto', width: 48, height: 48, borderRadius: 17, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  eyebrow: { color: colors.primary, fontFamily: typography.regular, fontWeight: '700', fontSize: 11 },
+  heading: { color: colors.text, fontFamily: typography.bold, fontSize: 38, letterSpacing: -1.1 },
+  addButton: { marginLeft: 'auto', width: 48, height: 48, borderRadius: 13, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
   searchBox: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 15, borderRadius: 18, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
   searchInput: { flex: 1, minHeight: 48, color: colors.text, fontFamily: typography.regular, fontSize: 14 },
   summary: { flexDirection: 'row', alignItems: 'baseline', minHeight: 46, paddingHorizontal: 4 },
   summaryNumber: { color: colors.text, fontFamily: typography.mono, fontSize: 16 },
   summaryLabel: { marginLeft: 7, color: colors.textMuted, fontFamily: typography.regular, fontSize: 13 },
-  walletCard: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 21, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
-  walletAvatar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surfaceRaised },
-  walletInitial: { color: colors.primary, fontFamily: typography.semibold, fontSize: 16 },
+  walletCard: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong, backgroundColor: colors.surface },
+  walletAvatar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.surfaceRaised },
+  walletInitial: { color: colors.text, fontFamily: typography.semibold, fontSize: 16 },
   walletCopy: { flex: 1, minWidth: 0 },
   walletName: { color: colors.text, fontFamily: typography.semibold, fontSize: 15 },
   walletAddress: { marginTop: 4, color: colors.textMuted, fontFamily: typography.mono, fontSize: 10 },
-  walletActivity: { marginTop: 6, color: colors.primary, fontFamily: typography.medium, fontSize: 11 },
+  walletActivity: { marginTop: 6, color: colors.positive, fontFamily: typography.medium, fontWeight: '700', fontSize: 11 },
   removeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: colors.surfaceRaised },
   walletSkeleton: { height: 88, borderRadius: 21, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
   empty: { minHeight: 170, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
   emptyTitle: { marginTop: 12, color: colors.text, fontFamily: typography.semibold, fontSize: 16 },
   emptyBody: { marginTop: 7, maxWidth: 260, textAlign: 'center', color: colors.textMuted, fontFamily: typography.regular, fontSize: 13, lineHeight: 19 },
-  onboardingCard: { minHeight: 450, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32, borderRadius: 28, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  walletVisual: { width: 136, height: 136, alignItems: 'center', justifyContent: 'center' },
+  onboardingCard: { minHeight: 420, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32, backgroundColor: colors.surface },
+  walletVisual: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center' },
   walletOrbitOuter: { position: 'absolute', width: 136, height: 136, borderRadius: 68, borderWidth: 1, borderColor: colors.primaryBorder },
   walletOrbitInner: { position: 'absolute', width: 94, height: 94, borderRadius: 47, borderWidth: 1, borderColor: colors.primaryBorderStrong, backgroundColor: colors.primarySoft },
-  walletVisualIcon: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.primaryBorderStrong },
+  walletVisualIcon: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surfaceRaised },
   orbitDot: { position: 'absolute', width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary },
   orbitDotTop: { top: 8, right: 31 },
   orbitDotBottom: { bottom: 17, left: 20, opacity: 0.5 },
-  watchOnlyBadge: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, minHeight: 28, borderRadius: 14, backgroundColor: colors.primarySoft },
-  watchOnlyText: { color: colors.primary, fontFamily: typography.mono, fontSize: 8, letterSpacing: 1.2 },
-  onboardingTitle: { marginTop: 16, color: colors.text, fontFamily: typography.semibold, fontSize: 28, lineHeight: 31, letterSpacing: -0.8, textAlign: 'center' },
-  onboardingBody: { marginTop: 10, maxWidth: 300, color: colors.textMuted, fontFamily: typography.regular, fontSize: 14, lineHeight: 21, textAlign: 'center' },
-  onboardingAction: { minHeight: 54, marginTop: 24, paddingHorizontal: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 18, backgroundColor: colors.primary },
+  watchOnlyBadge: { marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, minHeight: 28, borderRadius: 9, backgroundColor: colors.positiveSoft },
+  watchOnlyText: { color: colors.positive, fontFamily: typography.regular, fontWeight: '700', fontSize: 10 },
+  onboardingTitle: { marginTop: 16, color: colors.text, fontFamily: typography.semibold, fontSize: 28, lineHeight: 31, letterSpacing: -0.8 },
+  onboardingBody: { marginTop: 10, maxWidth: 300, color: colors.textMuted, fontFamily: typography.regular, fontSize: 14, lineHeight: 21 },
+  onboardingAction: { minHeight: 54, marginTop: 24, paddingHorizontal: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 13, backgroundColor: colors.primary },
   onboardingActionText: { color: colors.primaryInk, fontFamily: typography.semibold, fontSize: 15 },
-  onboardingNote: { marginTop: 18, maxWidth: 285, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  onboardingNoteText: { flexShrink: 1, color: colors.textFaint, fontFamily: typography.regular, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+  onboardingNote: { marginTop: 18, maxWidth: 285, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  onboardingNoteText: { flexShrink: 1, color: colors.textFaint, fontFamily: typography.regular, fontSize: 11, lineHeight: 16 },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: colors.scrim },
   sheet: { paddingHorizontal: 20, paddingTop: 10, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong },
