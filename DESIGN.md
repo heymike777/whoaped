@@ -71,6 +71,7 @@ The interface prioritizes decoding over decoration. Protocol and token imagery e
 - Space Grotesk for decisive headings; native system typography for long-form clarity.
 - Signal orange is rare and identifies live state or the primary action.
 - Hairlines, event dots, and ordered records replace decorative cards.
+- The sonar `W` mark pairs two listening arcs with one orange detected-event point.
 - Native platform navigation and controls remain native.
 
 ## Colors
@@ -122,6 +123,10 @@ Live/listening status uses a small semantic dot with a short plain-language labe
 ### Navigation
 
 iOS uses the native liquid-glass `UITabBar`; Android uses Material navigation. Selected state uses signal orange, while unselected items use quiet ink. Never recreate either platform's navigation in JavaScript for visual consistency.
+
+### Brand mark
+
+The primary mark is a simplified sonar signal whose inner path forms a `W`. Warm-paper strokes sit on ledger ink with one signal-orange point. Preserve its geometry and colors; never add gradients, shadows, extra rings, radar crosshairs, or crypto motifs.
 
 ## Do's and Don'ts
 

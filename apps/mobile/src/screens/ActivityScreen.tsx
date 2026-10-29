@@ -1,10 +1,11 @@
-import { BellRing, Plus, RefreshCw, ShieldCheck, WalletCards, Waves } from 'lucide-react-native';
+import { BellRing, Plus, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
+import { BrandMark } from '../components/BrandMark';
 import { LaunchActivityCard } from '../components/LaunchActivityCard';
 import { SwapActivityCard } from '../components/SwapActivityCard';
 import { YieldActivityCard } from '../components/YieldActivityCard';
@@ -41,7 +42,7 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
     >
       <View style={styles.brandRow}>
         <View style={styles.wordmark}>
-          <View style={styles.mark}><Waves color={colors.primaryInk} size={17} strokeWidth={2.6} /></View>
+          <View style={styles.mark}><BrandMark size={22} /></View>
           <Text style={styles.brand}>WhoAped</Text>
         </View>
         <View accessibilityLabel="Tracking is live" style={styles.liveStatus}>

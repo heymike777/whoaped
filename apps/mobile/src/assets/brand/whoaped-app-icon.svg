@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped app icon</title>
+  <rect width="1024" height="1024" fill="#111313" />
+  <path
+    d="M260 286C120 426 120 598 260 738"
+    stroke="#F4F4EF"
+    stroke-width="82"
+    stroke-linecap="round"
+  />
+  <path
+    d="M764 286C904 426 904 598 764 738"
+    stroke="#F4F4EF"
+    stroke-width="82"
+    stroke-linecap="round"
+  />
+  <path
+    d="M370 354C286 438 286 554 370 638L446 714L512 644L578 714L654 638C738 554 738 438 654 354"
+    stroke="#F4F4EF"
+    stroke-width="82"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="512" cy="500" r="54" fill="#F04B2F" />
+</svg>
