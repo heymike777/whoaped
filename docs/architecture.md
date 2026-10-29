@@ -15,7 +15,8 @@ flowchart LR
   P -->|"active address set"| W["Parsed Streams worker"]
   S["Solana"] --> H["Helius Parsed Streams"]
   H -->|"decoded confirmed transaction"| W
-  W -->|"gap recovery"| R["Helius Parsed Events REST"]
+  W -->|"wait for finalized"| R["Helius RPC"]
+  W -->|"gap recovery"| B["Helius Parsed Events REST"]
   W --> D["Idempotency + chain adapter"]
   D --> P
   P --> J["Notification jobs"]
@@ -30,7 +31,7 @@ The mobile contract only knows `Wallet`, `Activity`, and `Chain`. Provider paylo
 - Short-lived ingestion events are unique on `(provider, externalId)`.
 - Feed events are unique on `(walletId, chain, txHash, eventIndex)`.
 - Notification jobs are unique on `(deviceTokenId, transactionId)`.
-- Every new Solana transaction stores its slot. Each stream connection persists its last completely processed slot in `pipeline_checkpoints`.
+- Every new Solana transaction stores its slot. Each stream connection persists its last completely finalized slot in `pipeline_checkpoints`.
 - Feed reads use `(user_id, occurred_at desc)` and should move from offset to cursor pagination before public launch.
 
 MongoDB upserts make duplicate stream deliveries and REST backfill overlap harmless. `findOneAndUpdate` atomically leases pending push jobs so concurrent drain calls cannot claim the same job. A transfer between two watched wallets intentionally creates one feed event per watched wallet because the user-facing direction differs.
@@ -51,7 +52,7 @@ Do not introduce Redis initially. MongoDB provides the required uniqueness const
 
 The worker polls the distinct active Solana address set every five seconds. It creates one subscription per 100 addresses, up to 25 subscriptions (2,500 addresses) on each WebSocket connection, matching Helius's beta limits. Address changes rebuild the connection set. MongoDB remains the source of truth, so API instances never need to coordinate socket state.
 
-Parsed Streams delivers at most once and has no replay. Each connection sends JSON-RPC `ping` messages to survive the ten-minute idle timeout. On reconnect, the worker compares its persisted slot checkpoint with the current slot and queries Parsed Events history for every address in that connection over the missing slot range. Writes and notifications remain idempotent.
+Parsed Streams delivers at most once and has no replay. It currently accepts only confirmed commitment, so the worker checks every received signature through Helius RPC and does not ingest or notify until it is finalized. Each connection sends JSON-RPC `ping` messages to survive the ten-minute idle timeout. On reconnect, the worker compares its persisted finalized-slot checkpoint with the current slot and queries finalized Parsed Events history for every address in that connection over the missing slot range. Writes and notifications remain idempotent.
 
 Run one worker replica initially. Multiple replicas are data-safe but waste Helius connections and database writes. At higher scale, assign stable address shards to workers with MongoDB lease documents rather than relying on process-local connection indexes.
 

@@ -16,6 +16,7 @@
     "ingestion_method": "websocket",
     "data_types": ["transactions", "token-transfers", "decoded-instructions"],
     "storage": "mongodb",
+    "commitment": "finalized-rpc-gate",
     "backfill_implemented": true
   }
 }

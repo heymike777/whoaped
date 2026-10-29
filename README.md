@@ -1,6 +1,6 @@
 # WhoAped
 
-Watch-only wallet activity for humans. Add a Solana public address and get a plain-language push alert after its next confirmed transaction.
+Watch-only wallet activity for humans. Add a Solana public address and get a plain-language push alert after its next finalized transaction.
 
 This repository contains a React Native Community CLI mobile client with checked-in iOS and Android projects, plus a Hono/MongoDB API and a persistent Solana ingestion worker. Without `API_URL`, wallets are stored locally and no live tracking occurs.
 
@@ -10,7 +10,7 @@ This repository contains a React Native Community CLI mobile client with checked
 - Native UI: React Native Blur, Linear Gradient, native haptics, Keychain/Keystore
 - Push: Firebase Cloud Messaging through React Native Firebase
 - API: Hono on Node 22
-- Ingestion: Helius Parsed Streams (confirmed WebSocket) with Parsed Events REST backfill
+- Ingestion: Helius Parsed Streams with an RPC finality gate and finalized Parsed Events REST backfill
 - Database: MongoDB with automatic indexes and seven-day raw-ingestion retention
 
 ## Run the mobile app
@@ -75,7 +75,7 @@ npm run dev
 npm run dev:stream
 ```
 
-The first API or worker connection creates the required MongoDB indexes automatically. The worker reads active wallet addresses from MongoDB every five seconds, opens `parsedTransactionSubscribe` subscriptions at confirmed commitment, and persists the last completely processed slot. Helius Parsed Streams is at-most-once, so reconnects use the Parsed Events transaction-history endpoint to backfill the missed slot window before live processing resumes.
+The first API or worker connection creates the required MongoDB indexes automatically. The worker reads active wallet addresses from MongoDB every five seconds and opens `parsedTransactionSubscribe` subscriptions at confirmed commitment, the only commitment currently accepted by Parsed Streams. Every decoded transaction is held until Helius RPC reports it as finalized; only then is it stored and allowed to create a push notification. The worker persists the last completely finalized slot. Helius Parsed Streams is at-most-once, so reconnects use finalized Parsed Events transaction history to backfill the missed slot window before live processing resumes.
 
 Run exactly one worker replica initially. It needs an always-on runtime. The repository includes a DigitalOcean App Platform spec at `.do/app.yaml`; deployment and Managed MongoDB setup are covered in [docs/deployment-digitalocean.md](docs/deployment-digitalocean.md).
 
