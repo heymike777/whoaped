@@ -70,15 +70,101 @@ const KNOWN_SYMBOLS: Record<string, string> = {
 const METAPLEX_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
 const SQUADS_V4_PROGRAM = 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf';
 
-type SwapDex = 'jupiter' | 'pumpfun' | 'meteora' | 'orca' | 'titan' | 'raydium';
+type SwapDex = string;
 
-const DEXES: Array<{ id: SwapDex; name: string; aliases: string[] }> = [
-  { id: 'jupiter', name: 'Jupiter', aliases: ['jupiter', 'metis'] },
-  { id: 'pumpfun', name: 'Pump.fun', aliases: ['pumpfun', 'pumpswap', 'pumpamm', 'pump'] },
-  { id: 'meteora', name: 'Meteora', aliases: ['meteora', 'dlmm', 'damm'] },
+const DEXES: Array<{ id: SwapDex; name: string; aliases: string[]; programIds?: string[] }> = [
+  { id: 'jupiter', name: 'Jupiter', aliases: ['jupiter', 'metis', 'juplend', 'jupiterrfq'] },
+  { id: 'pumpfun', name: 'Pump.fun', aliases: ['pumpfun', 'pumpswap', 'pumpamm', 'pumpdotfun'] },
+  { id: 'meteora', name: 'Meteora', aliases: ['meteora', 'dlmm', 'damm', 'dynamicbondingcurve'] },
   { id: 'orca', name: 'Orca', aliases: ['orca', 'whirlpool'] },
   { id: 'titan', name: 'Titan', aliases: ['titan'] },
   { id: 'raydium', name: 'Raydium', aliases: ['raydium'] },
+  { id: 'phoenix', name: 'Phoenix', aliases: ['phoenix', 'phoenixv1', 'phoenixflight'] },
+  { id: 'openbook', name: 'OpenBook', aliases: ['openbook', 'openbookv2'] },
+  { id: 'manifest', name: 'Manifest', aliases: ['manifest'] },
+  { id: 'lifinity', name: 'Lifinity', aliases: ['lifinity'] },
+  { id: 'saber', name: 'Saber', aliases: ['saber'] },
+  { id: 'saros', name: 'Saros', aliases: ['saros'] },
+  { id: 'aldrin', name: 'Aldrin', aliases: ['aldrin'] },
+  { id: 'crema', name: 'Crema', aliases: ['crema'] },
+  { id: 'invariant', name: 'Invariant', aliases: ['invariant'] },
+  { id: 'fluxbeam', name: 'FluxBeam', aliases: ['fluxbeam', 'flux beam'] },
+  { id: 'cropper', name: 'Cropper', aliases: ['cropper'] },
+  { id: 'mercurial', name: 'Mercurial', aliases: ['mercurial'] },
+  { id: 'obric', name: 'Obric', aliases: ['obric'] },
+  { id: 'goosefx', name: 'GooseFX', aliases: ['goosefx', 'goose fx'] },
+  { id: 'dflow', name: 'DFlow', aliases: ['dflow'] },
+  { id: 'okx', name: 'OKX DEX', aliases: ['okxdex', 'okxrouter', 'okx dex'] },
+  {
+    id: 'byreal',
+    name: 'Byreal',
+    aliases: ['byreal'],
+    programIds: ['REALQqNEomY6cQGZJUGwywTBD2UmDT32rZcNnfxQ5N2', 'REALp6iMBDTctQqpmhBo4PumwJGcybbnDpxtax3ara3'],
+  },
+  { id: 'humidifi', name: 'HumidiFi', aliases: ['humidifi'] },
+  { id: 'tessera', name: 'Tessera', aliases: ['tessera'] },
+  { id: 'goonfi', name: 'GoonFi', aliases: ['goonfi', 'goon fi'] },
+  { id: 'solfi', name: 'SolFi', aliases: ['solfi', 'sol fi'] },
+  { id: 'zerofi', name: 'ZeroFi', aliases: ['zerofi', 'zero fi'] },
+  { id: 'bisonfi', name: 'BisonFi', aliases: ['bisonfi', 'bison fi'] },
+  { id: 'heaven', name: 'Heaven', aliases: ['heaven'] },
+  { id: 'moonit', name: 'Moonit', aliases: ['moonit'] },
+  { id: 'boop', name: 'Boop', aliases: ['boop'] },
+  { id: 'bonkswap', name: 'BONKswap', aliases: ['bonkswap', 'bonk swap'] },
+  { id: 'dexlab', name: 'Dexlab', aliases: ['dexlab'] },
+  { id: 'balansol', name: 'Balansol', aliases: ['balansol'] },
+  { id: 'sanctum', name: 'Sanctum', aliases: ['sanctum'] },
+  { id: 'cykura', name: 'Cykura', aliases: ['cykura'] },
+  { id: 'dradex', name: 'Dradex', aliases: ['dradex'] },
+  { id: 'penguin', name: 'Penguin', aliases: ['penguinfinance', 'penguin dex'] },
+  { id: 'onedex', name: '1DEX', aliases: ['1dex'] },
+  { id: 'alphaq', name: 'AlphaQ', aliases: ['alphaq'] },
+  { id: 'aquifer', name: 'Aquifer', aliases: ['aquifer'] },
+  { id: 'archer', name: 'Archer', aliases: ['archer'] },
+  { id: 'binaryfi', name: 'BinaryFi', aliases: ['binaryfi'] },
+  { id: 'carrot', name: 'Carrot', aliases: ['carrot'] },
+  { id: 'defituna', name: 'DefiTuna', aliases: ['defituna'] },
+  { id: 'denali', name: 'Denali', aliases: ['denali'] },
+  { id: 'deriverse', name: 'Deriverse', aliases: ['deriverse'] },
+  { id: 'flint', name: 'Flint', aliases: ['flint'] },
+  { id: 'flux', name: 'Flux', aliases: ['flux'] },
+  { id: 'gatorswap', name: 'GatorSwap', aliases: ['gatorswap'] },
+  { id: 'gavel', name: 'Gavel', aliases: ['gavel'] },
+  { id: 'guacswap', name: 'Guacswap', aliases: ['guacswap'] },
+  { id: 'hadron', name: 'Hadron', aliases: ['hadron'] },
+  { id: 'helium', name: 'Helium Network', aliases: ['heliumnetwork'] },
+  { id: 'huma', name: 'Huma', aliases: ['huma'] },
+  { id: 'hylo', name: 'Hylo Exchange', aliases: ['hyloexchange'] },
+  { id: 'kipseli', name: 'Kipseli', aliases: ['kipseli'] },
+  { id: 'lemmingsfi', name: 'LemmingsFi', aliases: ['lemmingsfi'] },
+  { id: 'mswap', name: 'M Swap', aliases: ['mswap'] },
+  { id: 'memefun', name: 'MemeFun', aliases: ['memefun'] },
+  { id: 'metadao', name: 'MetaDAO', aliases: ['metadao'] },
+  { id: 'metric', name: 'Metric', aliases: ['metric'] },
+  { id: 'obsidian', name: 'Obsidian', aliases: ['obsidian'] },
+  { id: 'omnipair', name: 'Omnipair', aliases: ['omnipair'] },
+  { id: 'pancakeswap', name: 'PancakeSwap', aliases: ['pancakeswap'] },
+  { id: 'perena', name: 'Perena', aliases: ['perena', 'perenastar'] },
+  { id: 'quantum', name: 'Quantum', aliases: ['quantum'] },
+  { id: 'quay', name: 'Quay', aliases: ['quay'] },
+  { id: 'riptide', name: 'Riptide', aliases: ['riptide'] },
+  { id: 'runnerrodeo', name: 'RunnerRodeo', aliases: ['runnerrodeo'] },
+  { id: 'scale', name: 'Scale', aliases: ['scaleamm', 'scalevmm'] },
+  { id: 'scorch', name: 'Scorch', aliases: ['scorch'] },
+  { id: 'solayer', name: 'Solayer', aliases: ['solayer'] },
+  { id: 'stabble', name: 'Stabble', aliases: ['stabble', 'stablestable', 'stabbleweighted'] },
+  { id: 'stableswap', name: 'Stableswap', aliases: ['stableswap'] },
+  { id: 'stepn', name: 'StepN', aliases: ['stepn'] },
+  { id: 'taurusfi', name: 'TaurusFi', aliases: ['taurusfi'] },
+  { id: 'fantastical', name: 'Fantastical Finance', aliases: ['thefantasticalfinancefactory'] },
+  { id: 'tokenswap', name: 'Token Swap', aliases: ['tokenswap'] },
+  { id: 'trench', name: 'Trench', aliases: ['trench'] },
+  { id: 'trends', name: 'Trends', aliases: ['trends'] },
+  { id: 'virtuals', name: 'Virtuals', aliases: ['virtuals'] },
+  { id: 'voltr', name: 'Voltr', aliases: ['voltr'] },
+  { id: 'whalestreet', name: 'WhaleStreet', aliases: ['whalestreet'] },
+  { id: 'woofi', name: 'Woofi', aliases: ['woofi'] },
+  { id: 'vault-unstake', name: 'Vault Liquid Unstake', aliases: ['vaultliquidunstake'] },
 ];
 
 type YieldAction = 'deposit' | 'withdraw';
@@ -156,16 +242,26 @@ function parsedValue(parsedData: Record<string, unknown> | null | undefined, ...
 }
 
 function swapDex(transaction: ParsedSolanaTransaction) {
-  const candidates = [
+  const programIds = new Set((transaction.instructions ?? []).map((instruction) => instruction.programId));
+  const strongCandidates = [
     parsedValue(transaction.summary?.parsedData, 'protocol', 'source', 'platform', 'dex'),
-    transaction.summary?.description,
     ...((transaction.instructions ?? []).flatMap((instruction) => [
+      parsedValue(instruction.summary?.parsedData, 'protocol', 'source', 'platform', 'dex'),
       instruction.programName,
       instruction.instructionName,
-      instruction.summary?.description,
     ])),
   ].map((value) => canonical(value));
-  return DEXES.find((dex) => candidates.some((candidate) =>
+  const descriptionCandidates = [
+    transaction.summary?.description,
+    ...((transaction.instructions ?? []).map((instruction) => instruction.summary?.description)),
+  ].map((value) => canonical(value));
+  const byProgram = DEXES.find((dex) =>
+    dex.programIds?.some((programId) => programIds.has(programId))
+    || strongCandidates.some((candidate) =>
+      dex.aliases.some((alias) => candidate.includes(canonical(alias))),
+    ));
+  if (byProgram) return byProgram;
+  return DEXES.find((dex) => descriptionCandidates.some((candidate) =>
     dex.aliases.some((alias) => candidate.includes(canonical(alias))),
   ));
 }
@@ -313,15 +409,24 @@ function swapActivity(
   watchedAddress: string,
   base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
 ): NormalizedActivity | null {
-  const summaryType = canonical(transaction.summary?.type);
-  const description = canonical(transaction.summary?.description);
+  const summaries = [transaction.summary, ...((transaction.instructions ?? []).map((instruction) => instruction.summary))]
+    .filter((summary): summary is ParsedSummary => Boolean(summary));
+  const tradeSummary = summaries.find((summary) => {
+    const type = canonical(summary.type);
+    const description = canonical(summary.description);
+    return ['swap', 'buy', 'sell'].some((value) => type.includes(value))
+      || ['swap', 'bought', 'sold'].some((value) => description.includes(value));
+  });
   const dex = swapDex(transaction);
   if (!dex) return null;
-  const isTrade = ['swap', 'buy', 'sell'].some((type) => summaryType.includes(type))
-    || ['swap', 'bought', 'sold'].some((verb) => description.includes(verb));
+  const isTradeInstruction = transaction.instructions?.some((instruction) =>
+    ['swap', 'trade', 'exchange', 'route', 'fillorder'].some((verb) =>
+      canonical(instruction.instructionName).includes(verb),
+    )) ?? false;
+  const isTrade = Boolean(tradeSummary) || isTradeInstruction;
   if (!isTrade) return null;
 
-  const data = transaction.summary?.parsedData;
+  const data = tradeSummary?.parsedData ?? transaction.summary?.parsedData;
   const inferred = inferredSwapLegs(transaction, watchedAddress);
   const inputMint = parsedValue(data, 'input_mint', 'inputMint', 'source_mint', 'sourceMint', 'token_in_mint')
     ?? inferred.find((leg) => leg.amount < 0)?.mint;

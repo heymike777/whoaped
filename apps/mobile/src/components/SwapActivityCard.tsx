@@ -11,14 +11,34 @@ import {
 import { colors, typography } from '../theme';
 import type { Activity, SwapDex, SwapMetadata, SwapToken } from '../types';
 
-const dexLogos: Record<SwapDex, ImageSourcePropType> = {
+const dexLogos: Partial<Record<SwapDex, ImageSourcePropType>> = {
   jupiter: require('../assets/dex/jupiter.png'),
   pumpfun: require('../assets/dex/pumpfun.png'),
   meteora: require('../assets/dex/meteora.png'),
   orca: require('../assets/dex/orca.png'),
   titan: require('../assets/dex/titan.png'),
   raydium: require('../assets/dex/raydium.png'),
+  phoenix: require('../assets/dex/phoenix.png'),
+  openbook: require('../assets/dex/openbook.png'),
+  manifest: require('../assets/dex/manifest.png'),
+  lifinity: require('../assets/dex/lifinity.png'),
+  saber: require('../assets/dex/saber.png'),
+  saros: require('../assets/dex/saros.png'),
+  invariant: require('../assets/dex/invariant.png'),
+  goosefx: require('../assets/dex/goosefx.png'),
+  dflow: require('../assets/dex/dflow.png'),
+  byreal: require('../assets/dex/byreal.png'),
 };
+
+function DexIcon({ swap }: { swap: SwapMetadata }) {
+  const source = dexLogos[swap.dex];
+  if (source) return <Image source={source} style={styles.dexLogo} />;
+  return (
+    <View style={styles.dexFallback}>
+      <Text style={styles.dexFallbackText}>{swap.dexName.slice(0, 1).toUpperCase()}</Text>
+    </View>
+  );
+}
 
 function relativeTime(value: string) {
   const seconds = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 1000));
@@ -80,7 +100,7 @@ export function SwapActivityCard({
           <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
         </View>
         <View style={styles.dexBadge}>
-          <Image source={dexLogos[swap.dex]} style={styles.dexLogo} />
+          <DexIcon swap={swap} />
           <Text style={styles.dexName}>{swap.dexName}</Text>
         </View>
       </View>
@@ -134,6 +154,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   dexLogo: { width: 22, height: 22, borderRadius: 11 },
+  dexFallback: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: colors.primarySoft },
+  dexFallbackText: { color: colors.primary, fontFamily: typography.bold, fontSize: 10 },
   dexName: { color: colors.text, fontFamily: typography.semibold, fontSize: 11 },
   swapPanel: {
     padding: 14,

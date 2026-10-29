@@ -21,7 +21,7 @@ export type ActivityKind =
   | 'nft'
   | 'unknown';
 
-export type SwapDex = 'jupiter' | 'pumpfun' | 'meteora' | 'orca' | 'titan' | 'raydium';
+export type SwapDex = string;
 
 export type SwapToken = {
   mint: string;

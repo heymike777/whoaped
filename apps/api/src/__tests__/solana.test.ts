@@ -114,6 +114,87 @@ describe('solanaAdapter balance changes', () => {
     ['Orca Whirlpool', 'orca', 'Orca'],
     ['Titan', 'titan', 'Titan'],
     ['Raydium CPMM', 'raydium', 'Raydium'],
+    ['Phoenix', 'phoenix', 'Phoenix'],
+    ['OpenBook v2', 'openbook', 'OpenBook'],
+    ['Manifest', 'manifest', 'Manifest'],
+    ['Lifinity', 'lifinity', 'Lifinity'],
+    ['Saber', 'saber', 'Saber'],
+    ['Saros', 'saros', 'Saros'],
+    ['Aldrin', 'aldrin', 'Aldrin'],
+    ['Crema', 'crema', 'Crema'],
+    ['Invariant', 'invariant', 'Invariant'],
+    ['FluxBeam', 'fluxbeam', 'FluxBeam'],
+    ['Cropper', 'cropper', 'Cropper'],
+    ['Mercurial', 'mercurial', 'Mercurial'],
+    ['Obric', 'obric', 'Obric'],
+    ['GooseFX', 'goosefx', 'GooseFX'],
+    ['DFlow', 'dflow', 'DFlow'],
+    ['OKX DEX Router', 'okx', 'OKX DEX'],
+    ['Byreal', 'byreal', 'Byreal'],
+    ['HumidiFi', 'humidifi', 'HumidiFi'],
+    ['Tessera', 'tessera', 'Tessera'],
+    ['GoonFi', 'goonfi', 'GoonFi'],
+    ['SolFi', 'solfi', 'SolFi'],
+    ['ZeroFi', 'zerofi', 'ZeroFi'],
+    ['BisonFi', 'bisonfi', 'BisonFi'],
+    ['Heaven', 'heaven', 'Heaven'],
+    ['Moonit', 'moonit', 'Moonit'],
+    ['Boop', 'boop', 'Boop'],
+    ['BONKswap', 'bonkswap', 'BONKswap'],
+    ['Dexlab', 'dexlab', 'Dexlab'],
+    ['Balansol', 'balansol', 'Balansol'],
+    ['Sanctum Router', 'sanctum', 'Sanctum'],
+    ['Cykura', 'cykura', 'Cykura'],
+    ['Dradex', 'dradex', 'Dradex'],
+    ['Penguin Finance', 'penguin', 'Penguin'],
+    ['1DEX', 'onedex', '1DEX'],
+    ['AlphaQ', 'alphaq', 'AlphaQ'],
+    ['Aquifer', 'aquifer', 'Aquifer'],
+    ['Archer', 'archer', 'Archer'],
+    ['BinaryFi', 'binaryfi', 'BinaryFi'],
+    ['Carrot', 'carrot', 'Carrot'],
+    ['DefiTuna', 'defituna', 'DefiTuna'],
+    ['Denali', 'denali', 'Denali'],
+    ['Deriverse', 'deriverse', 'Deriverse'],
+    ['Flint', 'flint', 'Flint'],
+    ['Flux', 'flux', 'Flux'],
+    ['GatorSwap', 'gatorswap', 'GatorSwap'],
+    ['Gavel', 'gavel', 'Gavel'],
+    ['Guacswap', 'guacswap', 'Guacswap'],
+    ['Hadron', 'hadron', 'Hadron'],
+    ['Helium Network', 'helium', 'Helium Network'],
+    ['Huma', 'huma', 'Huma'],
+    ['Hylo Exchange', 'hylo', 'Hylo Exchange'],
+    ['Kipseli', 'kipseli', 'Kipseli'],
+    ['LemmingsFi', 'lemmingsfi', 'LemmingsFi'],
+    ['M Swap', 'mswap', 'M Swap'],
+    ['MemeFun', 'memefun', 'MemeFun'],
+    ['MetaDAO', 'metadao', 'MetaDAO'],
+    ['Metric', 'metric', 'Metric'],
+    ['Obsidian', 'obsidian', 'Obsidian'],
+    ['Omnipair', 'omnipair', 'Omnipair'],
+    ['PancakeSwap', 'pancakeswap', 'PancakeSwap'],
+    ['Perena Star V2', 'perena', 'Perena'],
+    ['Quantum', 'quantum', 'Quantum'],
+    ['Quay', 'quay', 'Quay'],
+    ['Riptide', 'riptide', 'Riptide'],
+    ['RunnerRodeo', 'runnerrodeo', 'RunnerRodeo'],
+    ['Scale AMM', 'scale', 'Scale'],
+    ['Scorch', 'scorch', 'Scorch'],
+    ['Solayer', 'solayer', 'Solayer'],
+    ['Stabble CLMM', 'stabble', 'Stabble'],
+    ['Stableswap', 'stableswap', 'Stableswap'],
+    ['StepN', 'stepn', 'StepN'],
+    ['TaurusFi', 'taurusfi', 'TaurusFi'],
+    ['The Fantastical Finance Factory', 'fantastical', 'Fantastical Finance'],
+    ['Token Swap', 'tokenswap', 'Token Swap'],
+    ['Trench', 'trench', 'Trench'],
+    ['Trends', 'trends', 'Trends'],
+    ['Virtuals', 'virtuals', 'Virtuals'],
+    ['Voltr', 'voltr', 'Voltr'],
+    ['WhaleStreet', 'whalestreet', 'WhaleStreet'],
+    ['Woofi', 'woofi', 'Woofi'],
+    ['VaultLiquidUnstake', 'vault-unstake', 'Vault Liquid Unstake'],
   ])('creates structured swap metadata for %s', (protocol, dex, dexName) => {
     const payload = parsedTransaction({
       summary: {
@@ -145,6 +226,55 @@ describe('solanaAdapter balance changes', () => {
           output: { mint: usdc, symbol: 'USDC', amount: 25 },
         },
       },
+    });
+  });
+
+  it('does not mistake a PUMP token swap on Phoenix for Pump.fun', () => {
+    const payload = parsedTransaction({
+      summary: {
+        type: 'swap',
+        description: `${wallet} swapped SOL for PUMP via Phoenix`,
+        parsedData: {
+          protocol: 'phoenix',
+          input_mint: sol,
+          output_mint: usdc,
+          in_amount: '100000000',
+          actual_out_amount: '5000000',
+        },
+      },
+      tokenTransfers: [{ mint: sol, decimals: 9 }, { mint: usdc, decimals: 6 }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'swap',
+      source: 'Phoenix',
+      metadata: { swap: { dex: 'phoenix' } },
+    });
+  });
+
+  it('recognizes an Orca Whirlpool swap from decoded instructions without a transaction summary', () => {
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      accountData: [
+        { account: wallet, nativeBalanceChange: -250_000_000 },
+        { account: 'usdc-account', tokenBalanceChanges: [{
+          userAccount: wallet,
+          mint: usdc,
+          rawTokenAmount: { tokenAmount: 6_000_000, decimals: 6 },
+        }] },
+      ],
+      instructions: [{
+        programName: 'orca_whirlpool',
+        instructionName: 'swap_v2',
+        decoded: { accounts: [{ name: 'token_authority', pubkey: wallet }] },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'swap',
+      title: 'Swapped 0.25 SOL → 6 USDC',
+      detail: 'Orca',
+      metadata: { swap: { dex: 'orca' } },
     });
   });
 
