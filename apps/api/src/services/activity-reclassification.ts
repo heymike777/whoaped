@@ -32,7 +32,9 @@ export async function reclassifyStoredActivities(
 
     const normalized = solanaAdapter.normalize(payload, wallet.address)
       .find((activity) => activity.eventIndex === transaction.eventIndex);
-    if (!normalized || (normalized.kind === transaction.kind && normalized.source === transaction.source)) return transaction;
+    if (!normalized) return transaction;
+    if (transaction.kind === 'balance' && normalized.kind === 'balance') return transaction;
+    if (transaction.kind === 'swap' && (normalized.kind !== 'swap' || normalized.source === transaction.source)) return transaction;
 
     const mutableFields = {
       kind: normalized.kind,
