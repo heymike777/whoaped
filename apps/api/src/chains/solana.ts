@@ -76,7 +76,12 @@ const SOL_MINT = 'So11111111111111111111111111111111111111112';
 type SwapDex = string;
 
 const DEXES: Array<{ id: SwapDex; name: string; aliases: string[]; programIds?: string[] }> = [
-  { id: 'jupiter', name: 'Jupiter', aliases: ['jupiter', 'metis', 'juplend', 'jupiterrfq'] },
+  {
+    id: 'jupiter',
+    name: 'Jupiter',
+    aliases: ['jupiter', 'metis', 'juplend', 'jupiterrfq', 'jupiterz', 'orderengine'],
+    programIds: ['61DFfeTKM7trxYcPQCM78bJ794ddZprZpAwAnLiwTpYH'],
+  },
   { id: 'pumpfun', name: 'Pump.fun', aliases: ['pumpfun', 'pumpswap', 'pumpamm', 'pumpdotfun'] },
   { id: 'meteora', name: 'Meteora', aliases: ['meteora', 'dlmm', 'damm', 'dynamicbondingcurve'] },
   { id: 'orca', name: 'Orca', aliases: ['orca', 'whirlpool'] },
@@ -521,6 +526,30 @@ function decimalsForMint(transaction: ParsedSolanaTransaction, mint: string) {
 }
 
 function inferredSwapLegs(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  const orderInstruction = transaction.instructions?.find((instruction) => {
+    const name = canonical(instruction.instructionName);
+    return ['fill', 'fillexactin', 'fillorder'].includes(name)
+      && namedAccount(instruction, 'input_mint', 'inputMint')
+      && namedAccount(instruction, 'output_mint', 'outputMint');
+  });
+  if (orderInstruction) {
+    const inputMint = namedAccount(orderInstruction, 'input_mint', 'inputMint');
+    const outputMint = namedAccount(orderInstruction, 'output_mint', 'outputMint');
+    const inputRaw = decodedValue(orderInstruction, 'input_amount', 'inputAmount', 'in_amount', 'amount_in');
+    const outputRaw = decodedValue(orderInstruction, 'output_amount', 'outputAmount', 'out_amount', 'amount_out');
+    const taker = namedAccount(orderInstruction, 'taker');
+    const maker = namedAccount(orderInstruction, 'maker');
+    if (inputMint && outputMint && inputRaw && outputRaw && (watchedAddress === taker || watchedAddress === maker)) {
+      const inputAmount = displayAmount(inputRaw, decimalsForMint(transaction, inputMint));
+      const outputAmount = displayAmount(outputRaw, decimalsForMint(transaction, outputMint));
+      if (inputAmount && outputAmount) {
+        return watchedAddress === taker
+          ? [{ mint: inputMint, amount: -inputAmount }, { mint: outputMint, amount: outputAmount }]
+          : [{ mint: outputMint, amount: -outputAmount }, { mint: inputMint, amount: inputAmount }];
+      }
+    }
+  }
+
   const legs: Array<{ mint: string; amount: number }> = [];
   const native = transaction.accountData?.find((account) => account.account === watchedAddress)?.nativeBalanceChange;
   if (native) legs.push({ mint: 'So11111111111111111111111111111111111111112', amount: native / 1e9 });
@@ -554,7 +583,7 @@ function swapActivity(
   const dex = swapDex(transaction);
   if (!dex) return null;
   const isTradeInstruction = transaction.instructions?.some((instruction) =>
-    ['swap', 'trade', 'exchange', 'route', 'fillorder'].some((verb) =>
+    ['swap', 'trade', 'exchange', 'route', 'fill'].some((verb) =>
       canonical(instruction.instructionName).includes(verb),
     )) ?? false;
   const isTrade = Boolean(tradeSummary) || isTradeInstruction;

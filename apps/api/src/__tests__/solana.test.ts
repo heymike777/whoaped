@@ -375,6 +375,67 @@ describe('solanaAdapter balance changes', () => {
     });
   });
 
+  it('recognizes a Jupiter Z order-engine fill for both sides of the swap', () => {
+    const taker = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      accountData: undefined,
+      summary: {
+        type: 'transfer',
+        description: `${taker} transferred 20 USDC to ${wallet}`,
+        parsedData: null,
+      },
+      tokenTransfers: [
+        {
+          fromUserAccount: taker,
+          toUserAccount: wallet,
+          mint: usdc,
+          rawTokenAmount: 20_000_000,
+          decimals: 6,
+        },
+        {
+          fromUserAccount: wallet,
+          toUserAccount: wallet,
+          mint: sol,
+          rawTokenAmount: 207_447_926,
+          decimals: 9,
+        },
+      ],
+      instructions: [{
+        programId: '61DFfeTKM7trxYcPQCM78bJ794ddZprZpAwAnLiwTpYH',
+        programName: 'order_engine',
+        instructionName: 'fill',
+        decoded: {
+          args: { input_amount: '20000000', output_amount: '207447926' },
+          accounts: [
+            { name: 'taker', pubkey: taker },
+            { name: 'maker', pubkey: wallet },
+            { name: 'input_mint', pubkey: usdc },
+            { name: 'output_mint', pubkey: sol },
+          ],
+        },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'swap',
+      title: 'Swapped 0.207447926 SOL → 20 USDC',
+      detail: 'Jupiter',
+      metadata: {
+        swap: {
+          dex: 'jupiter',
+          input: { mint: sol, amount: 0.207447926 },
+          output: { mint: usdc, amount: 20 },
+        },
+      },
+    });
+    expect(solanaAdapter.normalize(payload, taker)[0]).toMatchObject({
+      kind: 'swap',
+      title: 'Swapped 20 USDC → 0.207447926 SOL',
+      detail: 'Jupiter',
+    });
+  });
+
   it('prefers the watched wallet balance deltas for exact swap amounts', () => {
     const payload = parsedTransaction({
       summary: {
