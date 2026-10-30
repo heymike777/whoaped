@@ -11,9 +11,9 @@ WhoAped is an existing React Native Community CLI Android app. It is watch-only;
 
 Back up **both** the keystore and the Keychain password in a secure vault. Losing either prevents app updates with this package/signing identity. Keep this signing key separate from any Google Play signing key.
 
-## Firebase file (user action)
+## Firebase configuration
 
-In the existing WhoAped Firebase project, register an Android app with package name `com.whoaped.app`. Download its `google-services.json` and put it at `apps/mobile/android/app/google-services.json`. It is ignored by Git. Ensure Firebase Cloud Messaging is enabled for the project.
+The existing WhoAped Firebase project now has an Android app with package name `com.whoaped.app`. Its `google-services.json` is installed at `apps/mobile/android/app/google-services.json` and ignored by Git. Keep this file available locally for subsequent builds. Firebase Cloud Messaging initializes and obtains a token in the Android emulator; actual push delivery still needs an end-to-end test.
 
 Release signing certificate SHA-256 (useful when adding the Android app in Firebase): `D1:AB:A8:B9:6F:C6:F9:9B:16:8D:BA:35:4A:DC:B6:D3:A9:D6:C1:75:38:6E:D2:04:B6:17:98:96:F1:D8:6D:09`.
 
@@ -23,4 +23,4 @@ From `apps/mobile`, run `zsh scripts/build-android-dapp-store.sh`. The resulting
 
 For each subsequent release, increase `versionCode` in `android/app/build.gradle` before building. Then submit the signed APK through the [Solana dApp Store publishing flow](https://docs.solanamobile.com/dapp-store/build-and-sign-an-apk).
 
-The local Android SDK has an API 36 Google APIs arm64 system image and a `WhoAped_API_36` emulator. Use it for UI smoke tests; it does not replace a test on a physical Solana Mobile device. The APK cannot be considered ready for publishing before Firebase configuration and push-notification verification.
+The local Android SDK has an API 36 Google APIs arm64 system image and a `WhoAped_API_36` emulator. The signed release APK was installed there and its Activity, Wallets, and Settings screens launched successfully. The Settings screen showed push alerts connected to the device. This smoke test does not replace a test on a physical Solana Mobile device, including a real tracked transaction and push delivery, before publishing.
