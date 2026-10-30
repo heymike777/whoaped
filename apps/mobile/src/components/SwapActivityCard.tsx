@@ -1,9 +1,7 @@
-import { ArrowDown, ExternalLink } from 'lucide-react-native';
+import { ArrowDown } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   Image,
-  Linking,
-  Pressable,
   type ImageSourcePropType,
   StyleSheet,
   Text,
@@ -97,9 +95,6 @@ export function SwapActivityCard({
   onOpenSolscan: () => void;
   swap: SwapMetadata;
 }) {
-  const openTrade = () => {
-    if (swap.tradeUrl) Linking.openURL(swap.tradeUrl).catch(() => undefined);
-  };
   return (
     <View style={styles.card}>
       <View style={styles.solscanAction}><SolscanButton onPress={onOpenSolscan} /></View>
@@ -129,18 +124,6 @@ export function SwapActivityCard({
       </View>
 
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
-      {swap.tradeUrl && !activity.metadata?.tokenActions?.length && (
-        <Pressable
-          accessibilityHint="Opens this token pair in an external exchange"
-          accessibilityLabel={`Trade on ${swap.tradeProviderName ?? swap.dexName}`}
-          accessibilityRole="link"
-          onPress={openTrade}
-          style={({ pressed }) => [styles.tradeButton, pressed && styles.tradeButtonPressed]}
-        >
-          <Text style={styles.tradeButtonText}>Trade on {swap.tradeProviderName ?? swap.dexName}</Text>
-          <ExternalLink color={colors.primary} size={15} strokeWidth={2.3} />
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -211,7 +194,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderStrong,
   },
-  tradeButton: { marginTop: 12, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, backgroundColor: colors.text },
-  tradeButtonPressed: { opacity: 0.75 },
-  tradeButtonText: { color: colors.surface, fontFamily: typography.medium, fontWeight: '700', fontSize: 13 },
 });
