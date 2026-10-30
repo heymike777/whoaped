@@ -118,11 +118,6 @@ export function YieldActivityCard({ activity, metadata }: { activity: Activity; 
         ))}
       </View>
 
-      <View style={styles.footer}>
-        <View style={styles.confirmedDot} />
-        <Text style={styles.confirmed}>Confirmed on Solana</Text>
-        <Text style={styles.protocolRoute}>{metadata.protocolName}</Text>
-      </View>
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
     </View>
   );
@@ -190,8 +185,4 @@ const styles = StyleSheet.create({
   assetName: { marginTop: 1, color: colors.textFaint, fontFamily: typography.regular, fontSize: 10 },
   assetAmount: { marginLeft: 10, color: colors.blue, fontFamily: typography.mono, fontSize: 14 },
   withdrawAmount: { color: colors.positive },
-  footer: { marginTop: 12, flexDirection: 'row', alignItems: 'center' },
-  confirmedDot: { width: 5, height: 5, marginRight: 7, borderRadius: 3, backgroundColor: colors.positive },
-  confirmed: { color: colors.positive, fontFamily: typography.regular, fontWeight: '700', fontSize: 10 },
-  protocolRoute: { maxWidth: 125, marginLeft: 'auto', color: colors.textFaint, fontFamily: typography.mono, fontSize: 9 },
 });
