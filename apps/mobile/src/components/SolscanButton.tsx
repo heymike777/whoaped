@@ -13,19 +13,19 @@ export function SolscanButton({ onPress }: { onPress: () => void }) {
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
     >
-      <SolscanMark size={17} />
+      <SolscanMark size={22} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 11,
-    backgroundColor: colors.background,
+    borderRadius: 12,
+    backgroundColor: colors.text,
   },
   pressed: { opacity: 0.55 },
 });

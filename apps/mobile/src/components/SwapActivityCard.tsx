@@ -102,6 +102,7 @@ export function SwapActivityCard({
   };
   return (
     <View style={styles.card}>
+      <View style={styles.solscanAction}><SolscanButton onPress={onOpenSolscan} /></View>
       <View style={styles.header}>
         <View style={styles.metaRow}>
           <View style={styles.signal} />
@@ -109,12 +110,9 @@ export function SwapActivityCard({
           <View style={styles.dot} />
           <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
         </View>
-        <View style={styles.headerActions}>
-          <View style={styles.dexBadge}>
-            <DexIcon swap={swap} />
-            <Text style={styles.dexName}>{swap.dexName}</Text>
-          </View>
-          <SolscanButton onPress={onOpenSolscan} />
+        <View style={styles.dexBadge}>
+          <DexIcon swap={swap} />
+          <Text style={styles.dexName}>{swap.dexName}</Text>
         </View>
       </View>
 
@@ -149,19 +147,21 @@ export function SwapActivityCard({
 
 const styles = StyleSheet.create({
   card: {
+    position: 'relative',
     paddingVertical: 18,
     paddingHorizontal: 14,
     backgroundColor: colors.surface,
   },
+  solscanAction: { position: 'absolute', zIndex: 2, right: 14, top: 16 },
   signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: colors.blue },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  headerActions: { marginLeft: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  header: { paddingRight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   wallet: { maxWidth: 180, flexShrink: 1, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
   dexBadge: {
     height: 32,
+    marginLeft: 8,
     paddingLeft: 5,
     paddingRight: 10,
     flexDirection: 'row',

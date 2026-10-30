@@ -46,6 +46,7 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
 
   return (
     <View style={styles.card}>
+      <View style={styles.solscanAction}><SolscanButton onPress={onOpenSolscan} /></View>
       <View style={styles.mainRow}>
         <View style={[styles.iconWrap, { backgroundColor: `${accent}12` }]}>
           <Icon color={accent} size={20} strokeWidth={2.2} />
@@ -67,7 +68,6 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
               : activity.valueUsd.toFixed(0)}
           </Text>
         )}
-        <SolscanButton onPress={onOpenSolscan} />
       </View>
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
     </View>
@@ -76,12 +76,14 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
 
 const styles = StyleSheet.create({
   card: {
+    position: 'relative',
     paddingVertical: 12,
     paddingHorizontal: 12,
     backgroundColor: colors.surface,
   },
+  solscanAction: { position: 'absolute', zIndex: 2, right: 12, top: 12 },
   signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
-  mainRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  mainRow: { paddingRight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconWrap: {
     width: 38,
     height: 38,
