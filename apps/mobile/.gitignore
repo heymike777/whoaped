@@ -19,6 +19,7 @@ DerivedData/
 *.ipa
 *.xcuserstate
 *.keystore
+google-services.json
 *.orig.*
 *.jks
 *.p8

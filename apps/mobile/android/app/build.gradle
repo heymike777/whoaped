@@ -88,7 +88,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "0.1.0"
     }
     signingConfigs {
         debug {
@@ -97,17 +97,36 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        dappStore {
+            def keystorePath = System.getenv('WHOAPED_ANDROID_KEYSTORE_FILE')
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv('WHOAPED_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('WHOAPED_ANDROID_KEY_ALIAS') ?: 'whoaped-dapp-store'
+                keyPassword System.getenv('WHOAPED_ANDROID_KEY_PASSWORD') ?: storePassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.dappStore
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name == 'assembleRelease' || it.name == 'bundleRelease' }) {
+        def signing = android.signingConfigs.dappStore
+        if (!signing.storeFile?.isFile() || !signing.storePassword || !signing.keyPassword) {
+            throw new GradleException('Release signing requires WHOAPED_ANDROID_KEYSTORE_FILE and WHOAPED_ANDROID_KEYSTORE_PASSWORD (and optionally WHOAPED_ANDROID_KEY_PASSWORD).')
+        }
+        if (!file('google-services.json').isFile()) {
+            throw new GradleException('Android release requires app/google-services.json for Firebase push notifications.')
         }
     }
 }
