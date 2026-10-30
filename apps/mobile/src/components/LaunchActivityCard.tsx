@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   headerActions: { marginLeft: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  wallet: { maxWidth: 120, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
+  wallet: { maxWidth: 180, flexShrink: 1, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
   platformBadge: {

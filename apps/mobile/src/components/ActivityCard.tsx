@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   copy: { flex: 1, minWidth: 0 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  wallet: { maxWidth: 130, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
+  wallet: { maxWidth: 210, flexShrink: 1, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
   title: { color: colors.text, fontFamily: typography.regular, fontWeight: '600', fontSize: 15, lineHeight: 19 },
