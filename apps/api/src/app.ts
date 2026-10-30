@@ -8,6 +8,7 @@ import { MongoServerError } from 'mongodb';
 import { createAnonymousSession, requireSession, type Variables } from './auth.js';
 import { collections, getDatabase, hasDatabase } from './db.js';
 import { activityView } from './services/activity-view.js';
+import { reclassifyStoredActivities } from './services/activity-reclassification.js';
 import { drainNotificationJobs } from './services/push.js';
 import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
 
@@ -118,14 +119,15 @@ app.delete('/v1/wallets/:walletId', async (context) => {
 app.get('/v1/activities', async (context) => {
   const limit = Math.min(Number(context.req.query('limit') ?? 50) || 50, 100);
   const db = await collections();
-  const transactions = await db.transactions.find({
+  const storedTransactions = await db.transactions.find({
     userId: context.get('userId'),
     kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'] },
   })
     .sort({ occurredAt: -1, createdAt: -1 }).limit(limit).toArray();
-  const walletIds = [...new Set(transactions.map((transaction) => transaction.walletId))];
+  const walletIds = [...new Set(storedTransactions.map((transaction) => transaction.walletId))];
   const wallets = await db.wallets.find({ _id: { $in: walletIds } }).toArray();
   const walletById = new Map(wallets.map((wallet) => [wallet._id, wallet]));
+  const transactions = await reclassifyStoredActivities(storedTransactions, walletById, db);
   await warmActivityTokenMetadata(transactions);
   const enrichedTransactions = await Promise.all(transactions.map(async (transaction) => ({
     ...transaction,
