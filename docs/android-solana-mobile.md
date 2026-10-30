@@ -23,4 +23,4 @@ From `apps/mobile`, run `zsh scripts/build-android-dapp-store.sh`. The resulting
 
 For each subsequent release, increase `versionCode` in `android/app/build.gradle` before building. Then submit the signed APK through the [Solana dApp Store publishing flow](https://docs.solanamobile.com/dapp-store/build-and-sign-an-apk).
 
-The local Android SDK currently has incomplete emulator system images (no `system.img`), so an emulator smoke test cannot run on this machine until a complete image is installed. The APK also cannot be considered ready for publishing before Firebase configuration and on-device verification.
+The local Android SDK has an API 36 Google APIs arm64 system image and a `WhoAped_API_36` emulator. Use it for UI smoke tests; it does not replace a test on a physical Solana Mobile device. The APK cannot be considered ready for publishing before Firebase configuration and push-notification verification.
