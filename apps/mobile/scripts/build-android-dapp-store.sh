@@ -9,6 +9,10 @@ if [[ ! -f "$firebase_file" ]]; then
   print -u2 "Missing $firebase_file. Download the Android Firebase config for com.whoaped.app first."
   exit 1
 fi
+if ! node -e 'const fs=require("fs"); const config=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if (!config.client?.some(client=>client.client_info?.android_client_info?.package_name==="com.whoaped.app")) process.exit(1)' "$firebase_file"; then
+  print -u2 "Firebase config does not contain the Android app com.whoaped.app."
+  exit 1
+fi
 if [[ ! -f "$keystore_file" ]]; then
   print -u2 "Missing release keystore at $keystore_file. Do not substitute the debug keystore."
   exit 1

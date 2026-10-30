@@ -15,8 +15,12 @@ Back up **both** the keystore and the Keychain password in a secure vault. Losin
 
 In the existing WhoAped Firebase project, register an Android app with package name `com.whoaped.app`. Download its `google-services.json` and put it at `apps/mobile/android/app/google-services.json`. It is ignored by Git. Ensure Firebase Cloud Messaging is enabled for the project.
 
+Release signing certificate SHA-256 (useful when adding the Android app in Firebase): `D1:AB:A8:B9:6F:C6:F9:9B:16:8D:BA:35:4A:DC:B6:D3:A9:D6:C1:75:38:6E:D2:04:B6:17:98:96:F1:D8:6D:09`.
+
 ## Build and test
 
 From `apps/mobile`, run `zsh scripts/build-android-dapp-store.sh`. The resulting APK is `android/app/build/outputs/apk/release/app-release.apk`. The script verifies its signature and prints the certificate. Install on an Android emulator or device and test wallet addition, Activity, tabs, links, realtime updates, and background/foreground push delivery before publishing.
 
 For each subsequent release, increase `versionCode` in `android/app/build.gradle` before building. Then submit the signed APK through the [Solana dApp Store publishing flow](https://docs.solanamobile.com/dapp-store/build-and-sign-an-apk).
+
+The local Android SDK currently has incomplete emulator system images (no `system.img`), so an emulator smoke test cannot run on this machine until a complete image is installed. The APK also cannot be considered ready for publishing before Firebase configuration and on-device verification.
