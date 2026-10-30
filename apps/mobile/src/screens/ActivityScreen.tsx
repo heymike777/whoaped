@@ -7,6 +7,8 @@ import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
 import { BrandMark } from '../components/BrandMark';
 import { LaunchActivityCard } from '../components/LaunchActivityCard';
+import { SolscanButton } from '../components/SolscanButton';
+import { SolscanWebView } from '../components/SolscanWebView';
 import { SwapActivityCard } from '../components/SwapActivityCard';
 import { YieldActivityCard } from '../components/YieldActivityCard';
 import { useActivityFeed } from '../hooks/useActivityFeed';
@@ -18,6 +20,7 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
   const feed = useActivityFeed();
   const [walletCount, setWalletCount] = useState<number | null>(null);
   const [walletsLoaded, setWalletsLoaded] = useState(false);
+  const [solscanSignature, setSolscanSignature] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -35,7 +38,8 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
     : `${walletCount} ${walletCount === 1 ? 'wallet' : 'wallets'} on watch`;
 
   return (
-    <ScrollView
+    <>
+      <ScrollView
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]}
       refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={feed.isRefreshing && !feed.isLoading} onRefresh={feed.refresh} tintColor={colors.primary} />}
       showsVerticalScrollIndicator={false}
@@ -69,6 +73,9 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
                 : activity.kind === 'launch' && activity.metadata?.launch
                   ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} />
                   : <ActivityCard activity={activity} />}
+            <View style={styles.explorerFooter}>
+              <SolscanButton onPress={() => setSolscanSignature(activity.signature)} />
+            </View>
           </View>
         ))}
       </View>
@@ -77,7 +84,9 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
         <ShieldCheck color={colors.textFaint} size={14} />
         <Text style={styles.footerNote}>{reduceMotion ? 'Reduced motion · ' : ''}Shown after on-chain finality</Text>
       </View>
-    </ScrollView>
+      </ScrollView>
+      <SolscanWebView onClose={() => setSolscanSignature(null)} signature={solscanSignature} />
+    </>
   );
 }
 
@@ -154,6 +163,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  explorerFooter: {
+    minHeight: 44,
+    alignItems: 'flex-end',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
   skeletonRow: { minHeight: 116, flexDirection: 'row', paddingVertical: 18, paddingHorizontal: 14 },
