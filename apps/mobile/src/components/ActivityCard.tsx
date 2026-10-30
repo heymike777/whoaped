@@ -77,8 +77,6 @@ const styles = StyleSheet.create({
     minHeight: 112,
     paddingVertical: 18,
     paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderStrong,
     backgroundColor: colors.surface,
   },
   signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },

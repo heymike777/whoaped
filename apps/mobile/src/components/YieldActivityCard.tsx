@@ -133,8 +133,6 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 14,
     backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderStrong,
   },
   signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: colors.positive },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },

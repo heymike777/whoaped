@@ -61,13 +61,15 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
         {feed.error && <ErrorState message={feed.error} onRetry={feed.refresh} />}
         {!feed.isLoading && !waitingForState && !feed.error && feed.activities.length === 0 && <EmptyState onAddWallet={onAddWallet} walletCount={walletCount} />}
         {!feed.error && feed.activities.map((activity) => (
-          activity.kind === 'swap' && activity.metadata?.swap
-            ? <SwapActivityCard activity={activity} key={activity.id} swap={activity.metadata.swap} />
-            : activity.kind === 'yield' && activity.metadata?.yield
-              ? <YieldActivityCard activity={activity} key={activity.id} metadata={activity.metadata.yield} />
-              : activity.kind === 'launch' && activity.metadata?.launch
-                ? <LaunchActivityCard activity={activity} key={activity.id} metadata={activity.metadata.launch} />
-                : <ActivityCard activity={activity} key={activity.id} />
+          <View accessibilityLabel={`${activity.walletName}: ${activity.title}`} key={activity.id} style={styles.activityItem}>
+            {activity.kind === 'swap' && activity.metadata?.swap
+              ? <SwapActivityCard activity={activity} swap={activity.metadata.swap} />
+              : activity.kind === 'yield' && activity.metadata?.yield
+                ? <YieldActivityCard activity={activity} metadata={activity.metadata.yield} />
+                : activity.kind === 'launch' && activity.metadata?.launch
+                  ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} />
+                  : <ActivityCard activity={activity} />}
+          </View>
         ))}
       </View>
 
@@ -83,12 +85,14 @@ function LoadingState() {
   return (
     <View accessibilityLabel="Loading wallet activity">
       {[0, 1, 2].map((item) => (
-        <View key={item} style={styles.skeletonRow}>
-          <View style={styles.signalColumn}><View style={styles.skeletonSignal} /></View>
-          <View style={styles.skeletonCopy}>
-            <View style={[styles.skeletonLine, styles.skeletonShort]} />
-            <View style={[styles.skeletonLine, styles.skeletonLong]} />
-            <View style={[styles.skeletonLine, styles.skeletonMedium]} />
+        <View key={item} style={styles.activityItem}>
+          <View style={styles.skeletonRow}>
+            <View style={styles.signalColumn}><View style={styles.skeletonSignal} /></View>
+            <View style={styles.skeletonCopy}>
+              <View style={[styles.skeletonLine, styles.skeletonShort]} />
+              <View style={[styles.skeletonLine, styles.skeletonLong]} />
+              <View style={[styles.skeletonLine, styles.skeletonMedium]} />
+            </View>
           </View>
         </View>
       ))}
@@ -144,8 +148,15 @@ const styles = StyleSheet.create({
   feedHeader: { marginTop: 28, minHeight: 38, flexDirection: 'row', alignItems: 'baseline', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.text },
   feedTitle: { color: colors.text, fontFamily: typography.semibold, fontSize: 20, letterSpacing: -0.35 },
   feedMeta: { marginLeft: 'auto', color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
-  ledger: { backgroundColor: colors.surface },
-  skeletonRow: { minHeight: 116, flexDirection: 'row', paddingVertical: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong },
+  ledger: { gap: 12, paddingTop: 16 },
+  activityItem: {
+    overflow: 'hidden',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  skeletonRow: { minHeight: 116, flexDirection: 'row', paddingVertical: 18, paddingHorizontal: 14 },
   signalColumn: { width: 34, alignItems: 'flex-start', paddingTop: 2 },
   skeletonSignal: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.surfaceRaised },
   skeletonCopy: { flex: 1, gap: 11 },
