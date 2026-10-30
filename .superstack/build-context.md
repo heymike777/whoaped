@@ -19,5 +19,15 @@
     "storage": "mongodb",
     "commitment": "confirmed",
     "backfill_implemented": true
+  },
+  "debug": {
+    "issues_resolved": [
+      {
+        "error": "Meteora DLMM add-liquidity transaction was normalized as a generic balance change",
+        "cause": "The yield protocol registry only covered Meteora Vaults and did not map the DLMM lb_clmm program ID",
+        "fix": "Recognize Meteora DLMM by program ID and parsed protocol, and use Helius liquidity summary amounts for both deposited assets"
+      }
+    ],
+    "last_debug_session": "2026-10-30T13:31:00.000Z"
   }
 }

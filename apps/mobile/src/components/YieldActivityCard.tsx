@@ -25,6 +25,7 @@ const protocolLogos: Record<string, ImageSourcePropType> = {
   sanctum: require('../assets/yield/sanctum.png'),
   hylo: require('../assets/yield/hylo.png'),
   lulo: require('../assets/yield/lulo.png'),
+  'meteora-dlmm': require('../assets/dex/meteora.png'),
   'meteora-vault': require('../assets/dex/meteora.png'),
 };
 
@@ -90,6 +91,7 @@ function AssetRow({ asset, action }: { asset: YieldAsset; action: YieldMetadata[
 
 export function YieldActivityCard({ activity, metadata, onOpenSolscan }: { activity: Activity; metadata: YieldMetadata; onOpenSolscan: () => void }) {
   const isDeposit = metadata.action === 'deposit';
+  const isLiquidity = metadata.positionType === 'liquidity';
   const ActionIcon = isDeposit ? ArrowDownToLine : ArrowUpFromLine;
   return (
     <View style={styles.card}>
@@ -112,8 +114,10 @@ export function YieldActivityCard({ activity, metadata, onOpenSolscan }: { activ
           <ActionIcon color={isDeposit ? colors.blue : colors.primary} size={20} strokeWidth={2.2} />
         </View>
         <View>
-          <Text style={styles.actionEyebrow}>Yield position</Text>
-          <Text style={styles.actionTitle}>{isDeposit ? 'Deposit' : 'Withdrawal'}</Text>
+          <Text style={styles.actionEyebrow}>{isLiquidity ? 'Liquidity position' : 'Yield position'}</Text>
+          <Text style={styles.actionTitle}>
+            {isLiquidity ? isDeposit ? 'Added liquidity' : 'Removed liquidity' : isDeposit ? 'Deposit' : 'Withdrawal'}
+          </Text>
         </View>
         <View style={[styles.statusPill, !isDeposit && styles.withdrawPill]}>
           <Text style={[styles.statusText, !isDeposit && styles.withdrawText]}>

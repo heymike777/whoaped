@@ -219,6 +219,12 @@ const YIELD_PROTOCOLS: Array<{ id: string; name: string; aliases: string[]; prog
   { id: 'hylo', name: 'Hylo', aliases: ['hylo'] },
   { id: 'carrot', name: 'Carrot', aliases: ['carrot'] },
   { id: 'lulo', name: 'Lulo', aliases: ['lulo', 'flexlend'] },
+  {
+    id: 'meteora-dlmm',
+    name: 'Meteora DLMM',
+    aliases: ['meteora dlmm', 'meteora_dlmm', 'lb clmm', 'lb_clmm'],
+    programIds: ['LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo'],
+  },
   { id: 'meteora-vault', name: 'Meteora Vaults', aliases: ['meteoravault', 'dynamicvault'] },
   { id: 'tulip', name: 'Tulip', aliases: ['tulip'] },
   { id: 'francium', name: 'Francium', aliases: ['francium'] },
@@ -412,6 +418,29 @@ function yieldActionName(value?: string | null): YieldAction | null {
   return null;
 }
 
+function liquidityAssets(transaction: ParsedSolanaTransaction) {
+  const parsedData = transaction.summary?.parsedData;
+  const isLiquidity = canonical(parsedValue(parsedData, 'type')).includes('liquidity')
+    || canonical(parsedValue(parsedData, 'kind')).includes('liquidity')
+    || canonical(transaction.summary?.type).includes('liquidity');
+  if (!isLiquidity) return [];
+
+  return [
+    {
+      mint: parsedValue(parsedData, 'token_a_mint', 'tokenAMint', 'token_x_mint', 'tokenXMint'),
+      rawAmount: parsedValue(parsedData, 'token_a_amount', 'tokenAAmount', 'token_x_amount', 'tokenXAmount'),
+    },
+    {
+      mint: parsedValue(parsedData, 'token_b_mint', 'tokenBMint', 'token_y_mint', 'tokenYMint'),
+      rawAmount: parsedValue(parsedData, 'token_b_amount', 'tokenBAmount', 'token_y_amount', 'tokenYAmount'),
+    },
+  ].flatMap(({ mint, rawAmount }) => {
+    if (!mint || rawAmount == null) return [];
+    const amount = displayAmount(rawAmount, decimalsForMint(transaction, mint));
+    return amount > 0 ? [{ mint, symbol: tokenSymbol(mint), amount }] : [];
+  });
+}
+
 function mintBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress: string) {
   const deltas = new Map<string, number>();
   const add = (mint: string, amount: number) => {
@@ -479,15 +508,20 @@ function yieldActivity(
   ) ?? [];
   const action = yieldActionName(transaction.summary?.type)
     ?? yieldActionName(transaction.summary?.description)
+    ?? yieldActionName(parsedValue(transaction.summary?.parsedData, 'operation', 'kind', 'type'))
     ?? relevant.map((instruction) => yieldActionName(instruction.instructionName)).find(Boolean)
     ?? relevant.map((instruction) => yieldActionName(instruction.summary?.type)).find(Boolean);
   if (!action) return null;
 
+  const parsedLiquidityAssets = liquidityAssets(transaction);
+  const positionType = parsedLiquidityAssets.length ? 'liquidity' : 'yield';
   const wantedSign = action === 'deposit' ? -1 : 1;
-  let assets = [...mintBalanceDeltas(transaction, watchedAddress).entries()]
-    .filter(([, amount]) => Math.sign(amount) === wantedSign)
-    .map(([mint, amount]) => ({ mint, symbol: tokenSymbol(mint), amount: Math.abs(amount) }))
-    .sort((left, right) => right.amount - left.amount);
+  let assets = parsedLiquidityAssets.length
+    ? parsedLiquidityAssets
+    : [...mintBalanceDeltas(transaction, watchedAddress).entries()]
+      .filter(([, amount]) => Math.sign(amount) === wantedSign)
+      .map(([mint, amount]) => ({ mint, symbol: tokenSymbol(mint), amount: Math.abs(amount) }))
+      .sort((left, right) => right.amount - left.amount);
   if (assets.length > 1) {
     assets = assets.filter((asset) => !(
       asset.mint === 'So11111111111111111111111111111111111111112' && asset.amount < 0.01
@@ -495,7 +529,9 @@ function yieldActivity(
   }
   assets = assets.slice(0, 2);
   if (!assets.length) return null;
-  const verb = action === 'deposit' ? 'Deposited' : 'Withdrew';
+  const verb = positionType === 'liquidity'
+    ? action === 'deposit' ? 'Added liquidity' : 'Removed liquidity'
+    : action === 'deposit' ? 'Deposited' : 'Withdrew';
   const titleAssets = assets.map((asset) => `${formatAmount(asset.amount, asset.symbol).slice(1)}`).join(' + ');
   return {
     ...base,
@@ -505,7 +541,7 @@ function yieldActivity(
     source: protocol.name,
     metadata: {
       ...base.metadata,
-      yield: { action, protocol: protocol.id, protocolName: protocol.name, assets },
+      yield: { action, positionType, protocol: protocol.id, protocolName: protocol.name, assets },
     },
   };
 }

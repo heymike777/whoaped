@@ -48,6 +48,7 @@ export type YieldAsset = SwapToken;
 
 export type YieldMetadata = {
   action: 'deposit' | 'withdraw';
+  positionType?: 'yield' | 'liquidity';
   protocol: string;
   protocolName: string;
   assets: YieldAsset[];

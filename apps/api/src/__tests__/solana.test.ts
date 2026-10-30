@@ -204,6 +204,55 @@ describe('solanaAdapter balance changes', () => {
     });
   });
 
+  it('recognizes a Meteora DLMM add-liquidity transaction and uses the parsed liquidity amounts', () => {
+    const met = 'METvsvVRapdj9cFLzq4Tr43xK4tAjQfwX76z3n6mWQL';
+    const payload = parsedTransaction({
+      signature: '5gd69toC169WBCN9Nq2ygKDYP1Wxfb8g2T8Xer6kLVPLj4Yk7P6Ard967rSt3P9eK6MNikUG71nyvV4ebh9GxFC3',
+      feePayer: wallet,
+      summary: {
+        type: 'add_liquidity',
+        description: `${wallet} added liquidity to Meteora DLMM`,
+        parsedData: {
+          type: 'liquidity',
+          protocol: 'meteora_dlmm',
+          kind: 'add_liquidity_by_strategy2',
+          operation: 'add',
+          token_a_mint: met,
+          token_a_amount: '17121298',
+          token_b_mint: sol,
+          token_b_amount: '49850605',
+        },
+      },
+      tokenTransfers: [
+        { fromUserAccount: wallet, mint: met, rawTokenAmount: 17_121_298, decimals: 6 },
+        { fromUserAccount: wallet, mint: sol, rawTokenAmount: 49_850_605, decimals: 9 },
+      ],
+      instructions: [{
+        programId: 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo',
+        programName: 'lb_clmm',
+        instructionName: 'add_liquidity_by_strategy2',
+        decoded: { accounts: [{ name: 'sender', pubkey: wallet }] },
+      }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'yield',
+      title: 'Added liquidity 17.12 METv…mWQL + 0.049850605 SOL',
+      detail: 'Meteora DLMM',
+      source: 'Meteora DLMM',
+      metadata: { yield: {
+        action: 'deposit',
+        positionType: 'liquidity',
+        protocol: 'meteora-dlmm',
+        protocolName: 'Meteora DLMM',
+        assets: [
+          { mint: met, symbol: 'METv…mWQL', amount: 17.121298 },
+          { mint: sol, symbol: 'SOL', amount: 0.049850605 },
+        ],
+      } },
+    });
+  });
+
   it.each([
     ['Jupiter', 'jupiter', 'Jupiter'],
     ['PumpSwap', 'pumpfun', 'Pump.fun'],
