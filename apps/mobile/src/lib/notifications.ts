@@ -72,17 +72,19 @@ export async function syncEnabledPushNotifications() {
   }
 }
 
-export function observeActivityNotifications(onActivity: () => void) {
+export function observeActivityNotifications(onActivity: (transactionId?: string) => void) {
   try {
     const messaging = messagingInstance();
-    const unsubscribeMessage = onMessage(messaging, () => {
-      onActivity();
+    const unsubscribeMessage = onMessage(messaging, (message) => {
+      onActivity(typeof message.data?.transactionId === 'string' ? message.data.transactionId : undefined);
     });
-    const unsubscribeOpened = onNotificationOpenedApp(messaging, () => {
-      onActivity();
+    const unsubscribeOpened = onNotificationOpenedApp(messaging, (message) => {
+      onActivity(typeof message.data?.transactionId === 'string' ? message.data.transactionId : undefined);
     });
     getInitialNotification(messaging)
-      .then((message) => { if (message) onActivity(); })
+      .then((message) => {
+        if (message) onActivity(typeof message.data?.transactionId === 'string' ? message.data.transactionId : undefined);
+      })
       .catch(() => undefined);
 
     return () => {

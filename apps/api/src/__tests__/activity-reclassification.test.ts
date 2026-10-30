@@ -64,4 +64,44 @@ describe('activity reclassification', () => {
       expect.objectContaining({ $set: expect.objectContaining({ kind: 'yield' }) }),
     );
   });
+
+  it('corrects a stored swap venue when Helius identifies Meteora over a Pump AMM cleanup instruction', async () => {
+    const transaction = {
+      _id: 'transaction-2', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
+      txHash: signature, eventIndex: 0, slot: 463_373_296, kind: 'swap',
+      title: 'Swapped token → SOL', detail: 'Pump.fun', source: 'Pump.fun',
+      occurredAt: new Date('2026-10-30T17:42:23.000Z'), metadata: { swap: { dex: 'pumpfun' } }, createdAt: new Date(),
+    } as TransactionDocument;
+    const wallet = {
+      _id: 'wallet-1', userId: 'user-1', name: 'Wallet', address: walletAddress,
+      chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+    } as WalletDocument;
+    const payload = {
+      signature, slot: transaction.slot, blockTime: 1_793_382_143, feePayer: walletAddress,
+      summary: { type: 'swap', parsedData: {
+        protocol: 'meteora_damm_v2', input_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        output_mint: 'So11111111111111111111111111111111111111112',
+        in_amount: '1000000', actual_out_amount: '10000000',
+      } },
+      instructions: [{ programName: 'pump_amm', instructionName: 'close_user_volume_accumulator' }],
+      tokenTransfers: [
+        { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6 },
+        { mint: 'So11111111111111111111111111111111111111112', decimals: 9 },
+      ],
+    };
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    const db = {
+      ingestionEvents: { find: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([
+          { externalId: signature, payload, receivedAt: new Date() },
+        ]) }),
+      }) },
+      transactions: { updateOne },
+    };
+
+    const [result] = await reclassifyStoredActivities([transaction], new Map([[wallet._id, wallet]]), db as never);
+
+    expect(result).toMatchObject({ kind: 'swap', source: 'Meteora', metadata: { swap: { dex: 'meteora' } } });
+    expect(updateOne).toHaveBeenCalledOnce();
+  });
 });

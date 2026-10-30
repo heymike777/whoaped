@@ -371,6 +371,14 @@ function launchActivity(
 }
 
 function swapDex(transaction: ParsedSolanaTransaction) {
+  // The transaction-level parser identifies the actual swap venue. Other
+  // instructions may belong to routers or cleanup programs from another DEX.
+  const summaryProtocol = canonical(parsedValue(
+    transaction.summary?.parsedData, 'protocol', 'source', 'platform', 'dex',
+  ));
+  const bySummary = DEXES.find((dex) => summaryProtocol
+    && dex.aliases.some((alias) => summaryProtocol.includes(canonical(alias))));
+  if (bySummary) return bySummary;
   const programIds = new Set((transaction.instructions ?? []).map((instruction) => instruction.programId));
   const strongCandidates = [
     parsedValue(transaction.summary?.parsedData, 'protocol', 'source', 'platform', 'dex'),

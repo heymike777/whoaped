@@ -74,6 +74,14 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
                   : <ActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} />}
           </View>
         ))}
+        {!feed.error && feed.hasMore && (
+          <View style={styles.loadMoreWrap}>
+            <Pressable accessibilityRole="button" disabled={feed.isLoadingMore} onPress={feed.loadMore} style={styles.loadMoreButton}>
+              <Text style={styles.loadMoreText}>{feed.isLoadingMore ? 'Loading…' : 'Load older activity'}</Text>
+            </Pressable>
+            {feed.loadMoreError && <Text style={styles.loadMoreError}>{feed.loadMoreError}</Text>}
+          </View>
+        )}
       </View>
 
       <View style={styles.finalityRow}>
@@ -161,6 +169,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  loadMoreWrap: { alignItems: 'center', paddingVertical: 16 },
+  loadMoreButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: colors.borderStrong },
+  loadMoreText: { color: colors.text, fontFamily: typography.medium, fontSize: 13 },
+  loadMoreError: { marginTop: 8, color: colors.destructive, fontFamily: typography.regular, fontSize: 12 },
   skeletonRow: { minHeight: 116, flexDirection: 'row', paddingVertical: 18, paddingHorizontal: 14 },
   signalColumn: { width: 34, alignItems: 'flex-start', paddingTop: 2 },
   skeletonSignal: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.surfaceRaised },

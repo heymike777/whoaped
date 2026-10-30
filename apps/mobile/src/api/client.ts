@@ -43,10 +43,17 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function getActivities(): Promise<Activity[]> {
-  if (!API_URL) return [];
-  const result = await apiFetch<{ data: Activity[] }>('/v1/activities?limit=50');
-  return result.data.filter((activity) => ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'].includes(activity.kind));
+export type ActivityPage = { data: Activity[]; nextCursor: string | null };
+
+export async function getActivities(cursor?: string): Promise<ActivityPage> {
+  if (!API_URL) return { data: [], nextCursor: null };
+  const path = `/v1/activities?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+  return apiFetch<ActivityPage>(path);
+}
+
+export async function getActivity(activityId: string): Promise<Activity> {
+  const result = await apiFetch<{ data: Activity }>(`/v1/activities/${encodeURIComponent(activityId)}`);
+  return result.data;
 }
 
 export function observeActivityStream(

@@ -126,7 +126,7 @@ async function ensureIndexes(database: Db) {
       { walletId: 1, chain: 1, txHash: 1, eventIndex: 1 },
       { unique: true },
     ),
-    db.transactions.createIndex({ userId: 1, occurredAt: -1, createdAt: -1 }),
+    db.transactions.createIndex({ userId: 1, occurredAt: -1, createdAt: -1, _id: -1 }),
     db.transactions.createIndex({ walletId: 1, occurredAt: -1 }),
     db.transactions.createIndex({ chain: 1, slot: -1 }),
     db.deviceTokens.createIndex({ token: 1 }, { unique: true }),

@@ -88,6 +88,10 @@ export type FeedState = {
   activities: Activity[];
   isLoading: boolean;
   isRefreshing: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
+  loadMoreError: string | null;
   error: string | null;
   refresh: () => Promise<void>;
+  loadMore: () => Promise<void>;
 };

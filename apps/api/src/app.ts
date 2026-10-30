@@ -7,6 +7,7 @@ import { MongoServerError } from 'mongodb';
 
 import { createAnonymousSession, requireSession, type Variables } from './auth.js';
 import { collections, getDatabase, hasDatabase } from './db.js';
+import { activityBeforeCursor, decodeActivityCursor, encodeActivityCursor } from './services/activity-pagination.js';
 import { activityView } from './services/activity-view.js';
 import { reclassifyStoredActivities } from './services/activity-reclassification.js';
 import { drainNotificationJobs } from './services/push.js';
@@ -117,17 +118,24 @@ app.delete('/v1/wallets/:walletId', async (context) => {
 });
 
 app.get('/v1/activities', async (context) => {
-  const limit = Math.min(Number(context.req.query('limit') ?? 50) || 50, 100);
+  const requestedLimit = Number(context.req.query('limit') ?? 50);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.floor(requestedLimit), 100)) : 50;
+  const rawCursor = context.req.query('cursor');
+  const cursor = rawCursor ? decodeActivityCursor(rawCursor) : null;
+  if (rawCursor && !cursor) return context.json({ error: 'Invalid activity cursor.' }, 400);
   const db = await collections();
   const storedTransactions = await db.transactions.find({
     userId: context.get('userId'),
     kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'] },
+    ...(cursor ? activityBeforeCursor(cursor) : {}),
   })
-    .sort({ occurredAt: -1, createdAt: -1 }).limit(limit).toArray();
-  const walletIds = [...new Set(storedTransactions.map((transaction) => transaction.walletId))];
+    .sort({ occurredAt: -1, createdAt: -1, _id: -1 }).limit(limit + 1).toArray();
+  const hasMore = storedTransactions.length > limit;
+  const page = storedTransactions.slice(0, limit);
+  const walletIds = [...new Set(page.map((transaction) => transaction.walletId))];
   const wallets = await db.wallets.find({ _id: { $in: walletIds } }).toArray();
   const walletById = new Map(wallets.map((wallet) => [wallet._id, wallet]));
-  const transactions = await reclassifyStoredActivities(storedTransactions, walletById, db);
+  const transactions = await reclassifyStoredActivities(page, walletById, db);
   await warmActivityTokenMetadata(transactions);
   const enrichedTransactions = await Promise.all(transactions.map(async (transaction) => ({
     ...transaction,
@@ -137,7 +145,22 @@ app.get('/v1/activities', async (context) => {
     transaction,
     walletById.get(transaction.walletId),
   ));
-  return context.json({ data: rows });
+  return context.json({ data: rows, nextCursor: hasMore ? encodeActivityCursor(page[page.length - 1]) : null });
+});
+
+app.get('/v1/activities/:activityId', async (context) => {
+  const db = await collections();
+  const transaction = await db.transactions.findOne({
+    _id: context.req.param('activityId'),
+    userId: context.get('userId'),
+  });
+  if (!transaction) return context.json({ error: 'Activity not found.' }, 404);
+  const wallet = await db.wallets.findOne({ _id: transaction.walletId });
+  const [classified] = await reclassifyStoredActivities(
+    [transaction], new Map(wallet ? [[wallet._id, wallet]] : []), db,
+  );
+  const enriched = await enrichActivityMetadata(classified);
+  return context.json({ data: activityView({ ...classified, ...enriched }, wallet ?? undefined) });
 });
 
 app.post('/v1/devices', async (context) => {

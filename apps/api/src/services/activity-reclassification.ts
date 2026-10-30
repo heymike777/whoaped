@@ -12,7 +12,8 @@ export async function reclassifyStoredActivities(
   walletById: Map<string, WalletDocument>,
   db: Pick<Collections, 'ingestionEvents' | 'transactions'>,
 ) {
-  const stale = transactions.filter((transaction) => transaction.chain === 'solana' && transaction.kind === 'balance');
+  const stale = transactions.filter((transaction) => transaction.chain === 'solana'
+    && (transaction.kind === 'balance' || transaction.kind === 'swap'));
   if (!stale.length) return transactions;
 
   const events = await db.ingestionEvents.find({
@@ -24,14 +25,14 @@ export async function reclassifyStoredActivities(
   });
 
   return Promise.all(transactions.map(async (transaction) => {
-    if (transaction.chain !== 'solana' || transaction.kind !== 'balance') return transaction;
+    if (transaction.chain !== 'solana' || (transaction.kind !== 'balance' && transaction.kind !== 'swap')) return transaction;
     const wallet = walletById.get(transaction.walletId);
     const payload = eventBySignature.get(transaction.txHash);
     if (!wallet || !isParsedSolanaTransaction(payload)) return transaction;
 
     const normalized = solanaAdapter.normalize(payload, wallet.address)
       .find((activity) => activity.eventIndex === transaction.eventIndex);
-    if (!normalized || normalized.kind === 'balance') return transaction;
+    if (!normalized || (normalized.kind === transaction.kind && normalized.source === transaction.source)) return transaction;
 
     const mutableFields = {
       kind: normalized.kind,

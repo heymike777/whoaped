@@ -375,6 +375,27 @@ describe('solanaAdapter balance changes', () => {
     });
   });
 
+  it('uses the parsed Meteora venue even when a Pump AMM cleanup instruction is present', () => {
+    const payload = parsedTransaction({
+      summary: {
+        type: 'swap',
+        parsedData: {
+          protocol: 'meteora_damm_v2',
+          input_mint: sol,
+          output_mint: usdc,
+          in_amount: '1000000000',
+          actual_out_amount: '20000000',
+        },
+      },
+      instructions: [{ programName: 'pump_amm', instructionName: 'close_user_volume_accumulator' }],
+      tokenTransfers: [{ mint: sol, decimals: 9 }, { mint: usdc, decimals: 6 }],
+    });
+
+    expect(solanaAdapter.normalize(payload, wallet)[0]).toMatchObject({
+      kind: 'swap', source: 'Meteora', metadata: { swap: { dex: 'meteora' } },
+    });
+  });
+
   it('does not mistake a PUMP token swap on Phoenix for Pump.fun', () => {
     const payload = parsedTransaction({
       summary: {
