@@ -25,15 +25,20 @@ export async function createAnonymousSession() {
   return { token, userId };
 }
 
+export async function authenticateSessionToken(token: string) {
+  if (!token) return null;
+  const db = await collections();
+  return db.sessions.findOne({
+    tokenHash: hashToken(token),
+    expiresAt: { $gt: new Date() },
+  });
+}
+
 export async function requireSession(context: Context<{ Variables: Variables }>, next: Next) {
   const header = context.req.header('authorization');
   if (!header?.startsWith('Bearer ')) return context.json({ error: 'Authentication required.' }, 401);
 
-  const db = await collections();
-  const session = await db.sessions.findOne({
-    tokenHash: hashToken(header.slice(7)),
-    expiresAt: { $gt: new Date() },
-  });
+  const session = await authenticateSessionToken(header.slice(7));
   if (!session) return context.json({ error: 'Session expired.' }, 401);
   context.set('userId', session.userId);
   await next();

@@ -9,6 +9,7 @@
     "runtime": "node-22-hono",
     "database": "mongodb",
     "solana_ingestion": "helius-parsed-streams",
+    "mobile_realtime": "authenticated-websocket-over-mongodb-change-streams",
     "push": "firebase-cloud-messaging",
     "multichain_boundary": "ChainAdapter"
   },

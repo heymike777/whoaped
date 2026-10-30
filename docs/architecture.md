@@ -18,12 +18,16 @@ flowchart LR
   W -->|"gap recovery"| B["Helius Parsed Events REST"]
   W --> D["Idempotency + chain adapter"]
   D --> P
+  P -->|"transaction change stream"| A
+  A -->|"authenticated activity WebSocket"| M
   P --> J["Notification jobs"]
   J --> E["Firebase Cloud Messaging"]
   E --> M
 ```
 
 The mobile contract only knows `Wallet`, `Activity`, and `Chain`. Provider payloads never leak into the app. The backend's `ChainAdapter` extracts watched addresses and maps decoded provider events into the shared activity vocabulary. An EVM adapter can therefore consume Alchemy, QuickNode, or another provider later without changing the feed UI or transaction tables.
+
+The foreground Activity feed is event-driven rather than polled. Each API instance watches new transaction inserts and fans an activity only to WebSocket clients authenticated for that transaction's user. The app reconciles once after connecting or returning to the foreground to cover disconnect gaps. FCM handles background notification delivery and also triggers a silent reconciliation when a notification is received or opened. Only an explicit user pull displays the native refresh indicator.
 
 ## Idempotency and ordering
 

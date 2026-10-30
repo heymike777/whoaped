@@ -49,6 +49,70 @@ export async function getActivities(): Promise<Activity[]> {
   return result.data.filter((activity) => ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'].includes(activity.kind));
 }
 
+export function observeActivityStream(
+  onActivity: (activity: Activity) => void,
+  onReady: () => void,
+) {
+  if (!API_URL) return () => undefined;
+
+  let stopped = false;
+  let socket: WebSocket | undefined;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let reconnectDelay = 1_000;
+
+  const scheduleReconnect = () => {
+    if (stopped || reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = undefined;
+      connect();
+    }, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+  };
+
+  const connect = async () => {
+    try {
+      const token = await getSessionToken();
+      if (stopped || !token) return;
+      const realtimeUrl = `${API_URL.replace(/^http/, 'ws')}/realtime/activities`;
+      socket = new WebSocket(realtimeUrl);
+      socket.onopen = () => {
+        socket?.send(JSON.stringify({ type: 'auth', token }));
+      };
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(String(event.data)) as {
+            type?: string;
+            data?: Activity;
+          };
+          if (message.type === 'ready' || message.type === 'sync') {
+            reconnectDelay = 1_000;
+            onReady();
+          } else if (message.type === 'activity' && message.data) {
+            onActivity(message.data);
+          } else if (message.type === 'ping') {
+            socket?.send(JSON.stringify({ type: 'pong' }));
+          }
+        } catch {
+          // Ignore malformed realtime frames; the next valid event can still be handled.
+        }
+      };
+      socket.onerror = () => socket?.close();
+      socket.onclose = scheduleReconnect;
+    } catch {
+      scheduleReconnect();
+    }
+  };
+
+  connect();
+  return () => {
+    stopped = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+    socket?.close(1000, 'Activity screen inactive');
+    socket = undefined;
+  };
+}
+
 export async function getWallets(): Promise<Wallet[]> {
   if (!API_URL) {
     const saved = await AsyncStorage.getItem(LOCAL_WALLETS_KEY);

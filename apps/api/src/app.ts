@@ -7,6 +7,7 @@ import { MongoServerError } from 'mongodb';
 
 import { createAnonymousSession, requireSession, type Variables } from './auth.js';
 import { collections, getDatabase, hasDatabase } from './db.js';
+import { activityView } from './services/activity-view.js';
 import { drainNotificationJobs } from './services/push.js';
 
 const walletSchema = z.object({
@@ -124,24 +125,10 @@ app.get('/v1/activities', async (context) => {
   const walletIds = [...new Set(transactions.map((transaction) => transaction.walletId))];
   const wallets = await db.wallets.find({ _id: { $in: walletIds } }).toArray();
   const walletById = new Map(wallets.map((wallet) => [wallet._id, wallet]));
-  const rows = transactions.map((transaction) => {
-    const wallet = walletById.get(transaction.walletId);
-    return {
-      id: transaction._id,
-      walletId: transaction.walletId,
-      walletName: wallet?.name ?? 'Wallet',
-      walletAddress: wallet?.address ?? '',
-      chain: transaction.chain,
-      kind: transaction.kind,
-      title: transaction.title,
-      detail: transaction.detail,
-      source: transaction.source,
-      valueUsd: transaction.valueUsd,
-      signature: transaction.txHash,
-      occurredAt: transaction.occurredAt,
-      metadata: transaction.metadata,
-    };
-  });
+  const rows = transactions.map((transaction) => activityView(
+    transaction,
+    walletById.get(transaction.walletId),
+  ));
   return context.json({ data: rows });
 });
 

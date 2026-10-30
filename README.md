@@ -11,6 +11,7 @@ This repository contains a React Native Community CLI mobile client with checked
 - Push: Firebase Cloud Messaging through React Native Firebase
 - API: Hono on Node 22
 - Ingestion: Helius Parsed Streams (confirmed WebSocket) with Parsed Events REST backfill
+- Live feed: authenticated app WebSocket backed by MongoDB change streams; FCM remains the background fallback
 - Database: MongoDB with automatic indexes and seven-day raw-ingestion retention
 
 ## Run the mobile app
@@ -76,6 +77,8 @@ npm run dev:stream
 ```
 
 The first API or worker connection creates the required MongoDB indexes automatically. The worker reads active wallet addresses from MongoDB every five seconds, opens `parsedTransactionSubscribe` subscriptions at confirmed commitment, and persists the last completely processed slot. Helius Parsed Streams is at-most-once, so reconnects use the Parsed Events transaction-history endpoint to backfill the missed slot window before live processing resumes.
+
+While Activity is open, the mobile app keeps one authenticated WebSocket to the API. New transaction inserts are delivered through a MongoDB change stream and merged into the feed without polling or showing a refresh spinner. Reconnects and foreground resumes perform a silent reconciliation fetch; pull-to-refresh remains available only as a manual action.
 
 Run exactly one worker replica initially. It needs an always-on runtime. The repository includes a DigitalOcean App Platform spec at `.do/app.yaml`; deployment and Managed MongoDB setup are covered in [docs/deployment-digitalocean.md](docs/deployment-digitalocean.md).
 
