@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../db.js', () => ({
+  hasDatabase: () => false,
   collections: async () => ({
     ingestionEvents: { updateOne: mocks.ingestionUpdateOne },
     wallets: { find: mocks.walletFind },

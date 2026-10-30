@@ -37,6 +37,18 @@ export type TransactionDocument = {
   metadata: Record<string, unknown>;
   createdAt: Date;
 };
+export type TokenMetadataDocument = {
+  _id: string;
+  chain: 'solana';
+  symbol?: string;
+  name?: string;
+  iconUrl?: string;
+  decimals?: number;
+  isVerified?: boolean;
+  source: 'jupiter' | 'onchain' | 'missing';
+  refreshAfter: Date;
+  updatedAt: Date;
+};
 export type PipelineCheckpointDocument = { _id: string; lastSlot: number; updatedAt: Date };
 export type DeviceTokenDocument = {
   _id: string;
@@ -69,6 +81,7 @@ export type Collections = {
   wallets: Collection<WalletDocument>;
   ingestionEvents: Collection<IngestionEventDocument>;
   transactions: Collection<TransactionDocument>;
+  tokenMetadata: Collection<TokenMetadataDocument>;
   pipelineCheckpoints: Collection<PipelineCheckpointDocument>;
   deviceTokens: Collection<DeviceTokenDocument>;
   notificationJobs: Collection<NotificationJobDocument>;
@@ -90,6 +103,7 @@ function databaseCollections(database: Db): Collections {
     wallets: database.collection<WalletDocument>('wallets'),
     ingestionEvents: database.collection<IngestionEventDocument>('ingestion_events'),
     transactions: database.collection<TransactionDocument>('transactions'),
+    tokenMetadata: database.collection<TokenMetadataDocument>('token_metadata'),
     pipelineCheckpoints: database.collection<PipelineCheckpointDocument>('pipeline_checkpoints'),
     deviceTokens: database.collection<DeviceTokenDocument>('device_tokens'),
     notificationJobs: database.collection<NotificationJobDocument>('notification_jobs'),

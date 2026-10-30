@@ -1,5 +1,6 @@
 import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react-native';
 import { useState } from 'react';
+import { SvgUri } from 'react-native-svg';
 import {
   Image,
   type ImageSourcePropType,
@@ -59,6 +60,13 @@ function AssetIcon({ asset }: { asset: YieldAsset }) {
     return (
       <View style={styles.assetFallback}>
         <Text style={styles.assetFallbackText}>{asset.symbol.slice(0, 1).toUpperCase()}</Text>
+      </View>
+    );
+  }
+  if (/\.svg(?:\?|$)/i.test(asset.iconUrl)) {
+    return (
+      <View style={styles.assetIcon}>
+        <SvgUri height="100%" onError={() => setFailed(true)} uri={asset.iconUrl} width="100%" />
       </View>
     );
   }
@@ -181,7 +189,7 @@ const styles = StyleSheet.create({
   withdrawText: { color: colors.positive },
   assetsPanel: { paddingHorizontal: 13, borderRadius: 14, backgroundColor: colors.background },
   assetRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  assetIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceRaised },
+  assetIcon: { width: 38, height: 38, overflow: 'hidden', borderRadius: 19, backgroundColor: colors.surfaceRaised },
   assetFallback: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorderStrong },
   assetFallbackText: { color: colors.primary, fontFamily: typography.bold, fontSize: 15 },
   assetCopy: { flex: 1, minWidth: 0, marginLeft: 10 },

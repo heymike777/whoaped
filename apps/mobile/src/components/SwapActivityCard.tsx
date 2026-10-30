@@ -1,5 +1,6 @@
 import { ArrowDown } from 'lucide-react-native';
 import { useState } from 'react';
+import { SvgUri } from 'react-native-svg';
 import {
   Image,
   type ImageSourcePropType,
@@ -65,6 +66,13 @@ function TokenIcon({ token }: { token: SwapToken }) {
     return (
       <View style={styles.tokenFallback}>
         <Text style={styles.tokenFallbackText}>{token.symbol.slice(0, 1).toUpperCase()}</Text>
+      </View>
+    );
+  }
+  if (/\.svg(?:\?|$)/i.test(token.iconUrl)) {
+    return (
+      <View style={styles.tokenIcon}>
+        <SvgUri height="100%" onError={() => setFailed(true)} uri={token.iconUrl} width="100%" />
       </View>
     );
   }
@@ -169,7 +177,7 @@ const styles = StyleSheet.create({
   amount: { marginTop: 4, color: colors.text, fontFamily: typography.semibold, fontSize: 24, letterSpacing: -0.6 },
   outputAmount: { color: colors.positive },
   symbol: { marginTop: 1, color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
-  tokenIcon: { width: 48, height: 48, marginLeft: 14, borderRadius: 24, backgroundColor: colors.surfaceRaised },
+  tokenIcon: { width: 48, height: 48, marginLeft: 14, overflow: 'hidden', borderRadius: 24, backgroundColor: colors.surfaceRaised },
   tokenFallback: {
     width: 48,
     height: 48,

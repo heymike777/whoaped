@@ -30,6 +30,8 @@ export type SwapToken = {
   name?: string;
   amount: number;
   iconUrl?: string;
+  decimals?: number;
+  isVerified?: boolean;
 };
 
 export type SwapMetadata = {

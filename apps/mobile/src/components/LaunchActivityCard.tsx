@@ -1,6 +1,7 @@
 import { ExternalLink, Rocket } from 'lucide-react-native';
 import { useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 
 import { colors, typography } from '../theme';
 import type { Activity, LaunchMetadata } from '../types';
@@ -22,6 +23,13 @@ function compactAddress(value: string) {
 function TokenArtwork({ metadata }: { metadata: LaunchMetadata }) {
   const [failed, setFailed] = useState(false);
   if (metadata.token.iconUrl && !failed) {
+    if (/\.svg(?:\?|$)/i.test(metadata.token.iconUrl)) {
+      return (
+        <View style={styles.tokenImage}>
+          <SvgUri height="100%" onError={() => setFailed(true)} uri={metadata.token.iconUrl} width="100%" />
+        </View>
+      );
+    }
     return (
       <Image
         accessibilityIgnoresInvertColors
@@ -125,7 +133,7 @@ const styles = StyleSheet.create({
   launchBody: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
   artworkWrap: { width: 84, height: 84, alignItems: 'center', justifyContent: 'center' },
   artworkHalo: { position: 'absolute', width: 78, height: 78, borderRadius: 39, backgroundColor: colors.primarySoft },
-  tokenImage: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.surfaceRaised },
+  tokenImage: { width: 68, height: 68, overflow: 'hidden', borderRadius: 34, backgroundColor: colors.surfaceRaised },
   tokenFallback: { width: 68, height: 68, alignItems: 'center', justifyContent: 'center', borderRadius: 34, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorderStrong },
   tokenFallbackText: { color: colors.primary, fontFamily: typography.bold, fontSize: 25 },
   rocketBadge: { position: 'absolute', right: 3, bottom: 3, width: 27, height: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface },

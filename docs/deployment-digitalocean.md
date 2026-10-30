@@ -37,6 +37,7 @@ Set these as **Encrypted** and **Run Time**:
 
 - [ ] `MONGODB_URI` — the MongoDB bindable URL described above.
 - [ ] `HELIUS_API_KEY` — the paid Helius project API key.
+- [ ] `JUPITER_API_KEY` — optional but recommended for production token metadata limits; create it in Jupiter Portal. Keyless requests still work at a lower rate.
 - [ ] `FIREBASE_SERVICE_ACCOUNT_BASE64` — Base64 encoding of the complete Firebase Admin service-account JSON.
 - [ ] `INTERNAL_JOB_SECRET` — a new unrelated long random secret.
 - [ ] `DEX_LINK_CONFIG_BASE64` — optional Base64-encoded DEX link/referral configuration described below.

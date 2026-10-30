@@ -1,7 +1,24 @@
 import type { NormalizedActivity } from '../chains/types.js';
 import { buildTokenActionLinks } from '../config/token-actions.js';
+import { collections, hasDatabase, type TokenMetadataDocument } from '../db.js';
 
-type TokenMetadata = { symbol?: string; name?: string; iconUrl?: string };
+type TokenMetadata = {
+  symbol?: string;
+  name?: string;
+  iconUrl?: string;
+  decimals?: number;
+  isVerified?: boolean;
+};
+
+type JupiterToken = {
+  id?: string;
+  symbol?: string;
+  name?: string;
+  icon?: string;
+  decimals?: number;
+  isVerified?: boolean;
+  tags?: string[];
+};
 
 type DasAsset = {
   id?: string;
@@ -13,7 +30,9 @@ type DasAsset = {
   token_info?: { symbol?: string };
 };
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
+const JUPITER_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
+const ONCHAIN_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
+const MISSING_CACHE_TTL_MS = 60 * 60 * 1_000;
 const cache = new Map<string, { value: TokenMetadata; expiresAt: number }>();
 
 function imageUrl(asset: DasAsset) {
@@ -24,7 +43,34 @@ function imageUrl(asset: DasAsset) {
   return candidate?.startsWith('https://') ? candidate : undefined;
 }
 
-async function fetchTokenMetadata(mints: string[]) {
+function secureUrl(candidate?: string) {
+  return candidate?.startsWith('https://') ? candidate : undefined;
+}
+
+async function fetchJupiterMetadata(mints: string[]) {
+  if (!mints.length) return new Map<string, TokenMetadata>();
+  const apiKey = process.env.JUPITER_API_KEY;
+  const response = await fetch(`https://api.jup.ag/tokens/v2/search?query=${encodeURIComponent(mints.join(','))}`, {
+    headers: apiKey ? { 'x-api-key': apiKey } : undefined,
+    signal: AbortSignal.timeout(4_000),
+  });
+  if (!response.ok) throw new Error(`Jupiter Tokens failed (${response.status})`);
+  const body = await response.json() as JupiterToken[];
+  const requested = new Set(mints);
+  return new Map(body.flatMap((token) => {
+    const verified = token.isVerified === true || token.tags?.includes('verified');
+    if (!token.id || !requested.has(token.id) || !verified) return [];
+    return [[token.id, {
+      symbol: token.symbol,
+      name: token.name,
+      iconUrl: secureUrl(token.icon),
+      decimals: token.decimals,
+      isVerified: true,
+    } satisfies TokenMetadata] as const];
+  }));
+}
+
+async function fetchOnchainMetadata(mints: string[]) {
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey || !mints.length) return new Map<string, TokenMetadata>();
   const response = await fetch(`https://mainnet.helius-rpc.com/?api-key=${encodeURIComponent(apiKey)}`, {
@@ -42,22 +88,114 @@ async function fetchTokenMetadata(mints: string[]) {
   } satisfies TokenMetadata] as const] : []));
 }
 
+async function readPersistentCache(mints: string[], now: Date) {
+  if (!hasDatabase() || !mints.length) return new Map<string, TokenMetadataDocument>();
+  try {
+    const db = await collections();
+    const rows = await db.tokenMetadata.find({
+      _id: { $in: mints },
+      refreshAfter: { $gt: now },
+    }).toArray();
+    return new Map(rows.map((row) => [row._id, row]));
+  } catch (error) {
+    console.warn('Could not read token metadata cache', error);
+    return new Map<string, TokenMetadataDocument>();
+  }
+}
+
+async function writePersistentCache(entries: Array<{
+  mint: string;
+  value: TokenMetadata;
+  source: TokenMetadataDocument['source'];
+  refreshAfter: Date;
+}>) {
+  if (!hasDatabase() || !entries.length) return;
+  try {
+    const db = await collections();
+    await db.tokenMetadata.bulkWrite(entries.map(({ mint, value, source, refreshAfter }) => {
+      const definedValue = Object.fromEntries(
+        Object.entries(value).filter(([, field]) => field != null),
+      ) as TokenMetadata;
+      return {
+        updateOne: {
+          filter: { _id: mint },
+          update: {
+            $set: {
+              chain: 'solana' as const,
+              ...definedValue,
+              source,
+              refreshAfter,
+              updatedAt: new Date(),
+            },
+            $unset: {
+              ...(value.symbol ? {} : { symbol: '' as const }),
+              ...(value.name ? {} : { name: '' as const }),
+              ...(value.iconUrl ? {} : { iconUrl: '' as const }),
+              ...(value.decimals == null ? { decimals: '' as const } : {}),
+              ...(value.isVerified == null ? { isVerified: '' as const } : {}),
+            },
+          },
+          upsert: true,
+        },
+      };
+    }), { ordered: false });
+  } catch (error) {
+    console.warn('Could not persist token metadata cache', error);
+  }
+}
+
 async function resolveTokenMetadata(mints: string[]) {
   const now = Date.now();
   const unique = [...new Set(mints)];
-  const missing = unique.filter((mint) => (cache.get(mint)?.expiresAt ?? 0) <= now);
+  let missing = unique.filter((mint) => (cache.get(mint)?.expiresAt ?? 0) <= now);
   if (missing.length) {
+    const persisted = await readPersistentCache(missing, new Date(now));
+    persisted.forEach((row, mint) => cache.set(mint, {
+      value: {
+        symbol: row.symbol,
+        name: row.name,
+        iconUrl: row.iconUrl,
+        decimals: row.decimals,
+        isVerified: row.isVerified,
+      },
+      expiresAt: row.refreshAfter.getTime(),
+    }));
+    missing = missing.filter((mint) => !persisted.has(mint));
+  }
+  if (missing.length) {
+    let jupiter = new Map<string, TokenMetadata>();
     try {
-      const fetched = await fetchTokenMetadata(missing);
-      missing.forEach((mint) => cache.set(mint, {
-        value: fetched.get(mint) ?? {},
-        expiresAt: now + CACHE_TTL_MS,
-      }));
+      jupiter = await fetchJupiterMetadata(missing);
     } catch (error) {
-      console.warn('Could not enrich activity token metadata', error);
+      console.warn('Could not fetch Jupiter token metadata', error);
     }
+    const needsOnchain = missing.filter((mint) => {
+      const token = jupiter.get(mint);
+      return !token || !token.symbol || !token.name || !token.iconUrl;
+    });
+    let onchain = new Map<string, TokenMetadata>();
+    try {
+      onchain = await fetchOnchainMetadata(needsOnchain);
+    } catch (error) {
+      console.warn('Could not fetch on-chain token metadata', error);
+    }
+    const entries = missing.map((mint) => {
+      const verified = jupiter.get(mint);
+      const fallback = onchain.get(mint);
+      const value = { ...fallback, ...verified } satisfies TokenMetadata;
+      const source: TokenMetadataDocument['source'] = verified ? 'jupiter' : fallback ? 'onchain' : 'missing';
+      const ttl = verified ? JUPITER_CACHE_TTL_MS : fallback ? ONCHAIN_CACHE_TTL_MS : MISSING_CACHE_TTL_MS;
+      const refreshAfter = new Date(now + ttl);
+      cache.set(mint, { value, expiresAt: refreshAfter.getTime() });
+      return { mint, value, source, refreshAfter };
+    });
+    await writePersistentCache(entries);
   }
   return new Map(unique.map((mint) => [mint, cache.get(mint)?.value ?? {}]));
+}
+
+export async function warmActivityTokenMetadata(activities: NormalizedActivity[]) {
+  await resolveTokenMetadata(activities.flatMap((activity) => candidateTokens(activity).map((token) => token.mint)));
 }
 
 export async function enrichSwapActivity(activity: NormalizedActivity) {
@@ -92,12 +230,16 @@ export async function enrichSwapActivity(activity: NormalizedActivity) {
           symbol: inputSymbol,
           ...(inputMetadata.name ? { name: inputMetadata.name } : {}),
           ...(inputMetadata.iconUrl ? { iconUrl: inputMetadata.iconUrl } : {}),
+          ...(inputMetadata.decimals == null ? {} : { decimals: inputMetadata.decimals }),
+          ...(inputMetadata.isVerified == null ? {} : { isVerified: inputMetadata.isVerified }),
         },
         output: {
           ...typedSwap.output,
           symbol: outputSymbol,
           ...(outputMetadata.name ? { name: outputMetadata.name } : {}),
           ...(outputMetadata.iconUrl ? { iconUrl: outputMetadata.iconUrl } : {}),
+          ...(outputMetadata.decimals == null ? {} : { decimals: outputMetadata.decimals }),
+          ...(outputMetadata.isVerified == null ? {} : { isVerified: outputMetadata.isVerified }),
         },
       },
     },
@@ -124,6 +266,8 @@ async function enrichYieldActivity(activity: NormalizedActivity) {
       symbol: token.symbol ?? asset.symbol ?? 'token',
       ...(token.name ? { name: token.name } : {}),
       ...(token.iconUrl ? { iconUrl: token.iconUrl } : {}),
+      ...(token.decimals == null ? {} : { decimals: token.decimals }),
+      ...(token.isVerified == null ? {} : { isVerified: token.isVerified }),
     };
   });
   const amount = (value?: number) => new Intl.NumberFormat('en-US', {
@@ -164,6 +308,8 @@ async function enrichLaunchActivity(activity: NormalizedActivity) {
           symbol,
           ...(name ? { name } : {}),
           ...(token.iconUrl ? { iconUrl: token.iconUrl } : {}),
+          ...(token.decimals == null ? {} : { decimals: token.decimals }),
+          ...(token.isVerified == null ? {} : { isVerified: token.isVerified }),
         },
       },
     },
@@ -211,6 +357,8 @@ async function enrichTokenActions(activity: NormalizedActivity) {
       symbol: symbol ?? `${token.mint.slice(0, 4)}…${token.mint.slice(-4)}`,
       ...(resolved.name ?? token.name ? { name: resolved.name ?? token.name } : {}),
       ...(resolved.iconUrl ?? token.iconUrl ? { iconUrl: resolved.iconUrl ?? token.iconUrl } : {}),
+      ...(resolved.decimals == null ? {} : { decimals: resolved.decimals }),
+      ...(resolved.isVerified == null ? {} : { isVerified: resolved.isVerified }),
     }, links }];
   }).slice(0, 2);
   if (!tokenActions.length) return activity;

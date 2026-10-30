@@ -1,32 +1,49 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dbMocks = vi.hoisted(() => ({
+  enabled: false,
+  find: vi.fn(),
+  bulkWrite: vi.fn(),
+}));
+
+vi.mock('../db.js', () => ({
+  hasDatabase: () => dbMocks.enabled,
+  collections: async () => ({
+    tokenMetadata: { find: dbMocks.find, bulkWrite: dbMocks.bulkWrite },
+  }),
+}));
 
 import type { NormalizedActivity } from '../chains/types.js';
 import { enrichActivityMetadata, enrichSwapActivity } from '../services/token-metadata.js';
 
 describe('swap token metadata enrichment', () => {
+  beforeEach(() => {
+    dbMocks.enabled = false;
+    dbMocks.find.mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) });
+    dbMocks.bulkWrite.mockResolvedValue({ ok: 1 });
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.HELIUS_API_KEY;
+    delete process.env.JUPITER_API_KEY;
+    vi.clearAllMocks();
   });
 
-  it('adds token symbols, names, and secure icon URLs from Helius DAS', async () => {
-    process.env.HELIUS_API_KEY = 'test-key';
+  it('prefers verified Jupiter metadata, including SVG token icons', async () => {
+    process.env.JUPITER_API_KEY = 'jupiter-key';
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ result: [
+      json: async () => ([
         {
           id: 'input-mint-test',
-          token_info: { symbol: 'IN' },
-          content: { metadata: { name: 'Input Token' }, links: { image: 'https://cdn.example/input.png' } },
+          symbol: 'IN', name: 'Input Token', icon: 'https://cdn.example/input.svg', decimals: 6, isVerified: true,
         },
         {
           id: 'output-mint-test',
-          content: {
-            metadata: { name: 'Output Token', symbol: 'OUT' },
-            files: [{ mime: 'image/png', cdn_uri: 'https://cdn.example/output.png' }],
-          },
+          symbol: 'OUT', name: 'Output Token', icon: 'https://cdn.example/output.png', decimals: 9, tags: ['verified'],
         },
-      ] }),
+      ]),
     });
     vi.stubGlobal('fetch', fetchMock);
     const activity: NormalizedActivity = {
@@ -49,20 +66,23 @@ describe('swap token metadata enrichment', () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(enriched.metadata.swap).toMatchObject({
-      input: { symbol: 'IN', name: 'Input Token', iconUrl: 'https://cdn.example/input.png' },
-      output: { symbol: 'OUT', name: 'Output Token', iconUrl: 'https://cdn.example/output.png' },
+      input: { symbol: 'IN', name: 'Input Token', iconUrl: 'https://cdn.example/input.svg', decimals: 6, isVerified: true },
+      output: { symbol: 'OUT', name: 'Output Token', iconUrl: 'https://cdn.example/output.png', decimals: 9, isVerified: true },
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('https://api.jup.ag/tokens/v2/search?query='),
+      expect.objectContaining({ headers: { 'x-api-key': 'jupiter-key' } }),
+    );
   });
 
   it('enriches yield assets and rewrites the notification title', async () => {
-    process.env.HELIUS_API_KEY = 'test-key';
+    process.env.JUPITER_API_KEY = 'test-key';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ result: [{
+      json: async () => ([{
         id: 'yield-mint-test',
-        token_info: { symbol: 'USDC' },
-        content: { metadata: { name: 'USD Coin' }, links: { image: 'https://cdn.example/usdc.png' } },
-      }] }),
+        symbol: 'USDC', name: 'USD Coin', icon: 'https://cdn.example/usdc.png', isVerified: true,
+      }]),
     }));
     const activity: NormalizedActivity = {
       chain: 'solana',
@@ -89,14 +109,13 @@ describe('swap token metadata enrichment', () => {
   });
 
   it('enriches a launched token while preserving its buy link', async () => {
-    process.env.HELIUS_API_KEY = 'test-key';
+    process.env.JUPITER_API_KEY = 'test-key';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ result: [{
+      json: async () => ([{
         id: 'launch-mint-test',
-        token_info: { symbol: 'LAUNCH' },
-        content: { metadata: { name: 'Launch Token' }, links: { image: 'https://cdn.example/launch.png' } },
-      }] }),
+        symbol: 'LAUNCH', name: 'Launch Token', icon: 'https://cdn.example/launch.png', isVerified: true,
+      }]),
     }));
     const activity: NormalizedActivity = {
       chain: 'solana',
@@ -134,6 +153,79 @@ describe('swap token metadata enrichment', () => {
         { id: 'dexscreener', label: 'DexScreener' },
       ],
     }]);
+  });
+
+  it('falls back to Helius DAS when Jupiter has no verified metadata', async () => {
+    process.env.HELIUS_API_KEY = 'helius-key';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [] })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ result: [{
+          id: 'onchain-only-mint',
+          token_info: { symbol: 'CHAIN' },
+          content: {
+            metadata: { name: 'On-chain Token' },
+            links: { image: 'https://cdn.example/onchain.png' },
+          },
+        }] }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+    const activity: NormalizedActivity = {
+      chain: 'solana',
+      txHash: 'onchain-fallback',
+      eventIndex: 0,
+      kind: 'swap',
+      title: 'Swap',
+      detail: 'Meteora',
+      occurredAt: new Date(),
+      metadata: { swap: {
+        dex: 'meteora',
+        dexName: 'Meteora',
+        input: { mint: 'So11111111111111111111111111111111111111112', symbol: 'SOL', amount: 1 },
+        output: { mint: 'onchain-only-mint', symbol: 'unknown', amount: 2 },
+      } },
+    };
+
+    const enriched = await enrichSwapActivity(activity);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(enriched.metadata.swap).toMatchObject({
+      output: { symbol: 'CHAIN', name: 'On-chain Token', iconUrl: 'https://cdn.example/onchain.png' },
+    });
+  });
+
+  it('persists resolved metadata in the backend Mongo cache by mint', async () => {
+    dbMocks.enabled = true;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ([{
+        id: 'mongo-cache-mint',
+        symbol: 'CACHE',
+        name: 'Cached Token',
+        icon: 'https://cdn.example/cache.svg',
+        decimals: 6,
+        isVerified: true,
+      }]),
+    }));
+    const activity: NormalizedActivity = {
+      chain: 'solana', txHash: 'cache', eventIndex: 0, kind: 'balance', title: 'Cache', detail: '', occurredAt: new Date(),
+      metadata: { tokenCandidates: [{ mint: 'mongo-cache-mint', decimals: 6 }] },
+    };
+
+    await enrichActivityMetadata(activity);
+
+    expect(dbMocks.bulkWrite).toHaveBeenCalledWith([
+      expect.objectContaining({
+        updateOne: expect.objectContaining({
+          filter: { _id: 'mongo-cache-mint' },
+          update: expect.objectContaining({
+            $set: expect.objectContaining({ source: 'jupiter', symbol: 'CACHE', iconUrl: 'https://cdn.example/cache.svg' }),
+          }),
+          upsert: true,
+        }),
+      }),
+    ], { ordered: false });
   });
 
   it('does not add trade actions for SOL, stablecoins, or NFTs', async () => {

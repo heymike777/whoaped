@@ -71,5 +71,6 @@ The first dollars should go to reliable ingestion, backups, and database observa
 
 - Only public wallet addresses are accepted. No wallet connection or key custody exists.
 - Anonymous sessions store only a SHA-256 token hash server-side.
-- Secrets remain server-side; `HELIUS_API_KEY` and Firebase Admin credentials are never shipped in the mobile binary.
+- Secrets remain server-side; `HELIUS_API_KEY`, optional `JUPITER_API_KEY`, and Firebase Admin credentials are never shipped in the mobile binary.
+- Solana token metadata resolves from Jupiter's verified token data first, falls back to Helius DAS/on-chain metadata, and is cached per mint in MongoDB.
 - Before launch: add rate limits, device attestation, secret rotation, webhook IP/auth validation where supported, and account recovery.

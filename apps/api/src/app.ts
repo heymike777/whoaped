@@ -9,6 +9,7 @@ import { createAnonymousSession, requireSession, type Variables } from './auth.j
 import { collections, getDatabase, hasDatabase } from './db.js';
 import { activityView } from './services/activity-view.js';
 import { drainNotificationJobs } from './services/push.js';
+import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
 
 const walletSchema = z.object({
   name: z.string().trim().min(2).max(40),
@@ -125,7 +126,12 @@ app.get('/v1/activities', async (context) => {
   const walletIds = [...new Set(transactions.map((transaction) => transaction.walletId))];
   const wallets = await db.wallets.find({ _id: { $in: walletIds } }).toArray();
   const walletById = new Map(wallets.map((wallet) => [wallet._id, wallet]));
-  const rows = transactions.map((transaction) => activityView(
+  await warmActivityTokenMetadata(transactions);
+  const enrichedTransactions = await Promise.all(transactions.map(async (transaction) => ({
+    ...transaction,
+    ...await enrichActivityMetadata(transaction),
+  })));
+  const rows = enrichedTransactions.map((transaction) => activityView(
     transaction,
     walletById.get(transaction.walletId),
   ));
