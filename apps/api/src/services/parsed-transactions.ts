@@ -36,6 +36,19 @@ export async function ingestParsedTransaction(
     for (const normalizedActivity of solanaAdapter.normalize(transaction, wallet.address)) {
       const activity = await enrichActivityMetadata(normalizedActivity);
       const transactionId = randomUUID();
+      const mutableFields = {
+        kind: activity.kind,
+        title: activity.title,
+        detail: activity.detail,
+        occurredAt: activity.occurredAt,
+        metadata: activity.metadata,
+        ...(activity.source ? { source: activity.source } : {}),
+        ...(activity.valueUsd == null ? {} : { valueUsd: activity.valueUsd }),
+      };
+      const unsetFields: Partial<Record<'source' | 'valueUsd', ''>> = {
+        ...(activity.source ? {} : { source: '' }),
+        ...(activity.valueUsd == null ? { valueUsd: '' } : {}),
+      };
       const saved = await db.transactions.updateOne(
         {
           walletId: wallet._id,
@@ -45,6 +58,8 @@ export async function ingestParsedTransaction(
         },
         {
           $max: { slot: transaction.slot },
+          $set: mutableFields,
+          ...(Object.keys(unsetFields).length ? { $unset: unsetFields } : {}),
           $setOnInsert: {
             _id: transactionId,
             userId: wallet.userId,
@@ -52,13 +67,6 @@ export async function ingestParsedTransaction(
             chain: activity.chain,
             txHash: activity.txHash,
             eventIndex: activity.eventIndex,
-            kind: activity.kind,
-            title: activity.title,
-            detail: activity.detail,
-            ...(activity.source ? { source: activity.source } : {}),
-            ...(activity.valueUsd == null ? {} : { valueUsd: activity.valueUsd }),
-            occurredAt: activity.occurredAt,
-            metadata: activity.metadata,
             createdAt: new Date(),
           },
         },

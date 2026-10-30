@@ -59,7 +59,11 @@ describe('parsed transaction ingestion', () => {
     );
     expect(mocks.transactionUpdateOne).toHaveBeenCalledWith(
       expect.objectContaining({ walletId: 'wallet-1', txHash: 'stream-signature' }),
-      expect.objectContaining({ $max: { slot: 433_950_192 } }),
+      expect.objectContaining({
+        $max: { slot: 433_950_192 },
+        $set: expect.objectContaining({ kind: 'balance', title: '−1 SOL' }),
+        $setOnInsert: expect.objectContaining({ _id: expect.any(String), userId: 'user-1' }),
+      }),
       { upsert: true },
     );
     expect(mocks.notificationUpdateOne).toHaveBeenCalledWith(
@@ -75,6 +79,11 @@ describe('parsed transaction ingestion', () => {
     await ingestParsedTransaction(transaction(), { provider: 'helius-parsed-events' });
 
     expect(mocks.notificationUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.transactionUpdateOne).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ $set: expect.objectContaining({ kind: 'balance' }) }),
+      { upsert: true },
+    );
   });
 
   it('ignores failed transactions before touching storage', async () => {
