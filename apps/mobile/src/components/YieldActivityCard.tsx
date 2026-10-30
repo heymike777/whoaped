@@ -11,6 +11,7 @@ import {
 import { colors, typography } from '../theme';
 import type { Activity, YieldAsset, YieldMetadata } from '../types';
 import { TokenActionButtons } from './TokenActionButtons';
+import { SolscanButton } from './SolscanButton';
 
 const protocolLogos: Record<string, ImageSourcePropType> = {
   kamino: require('../assets/yield/kamino.png'),
@@ -79,7 +80,7 @@ function AssetRow({ asset, action }: { asset: YieldAsset; action: YieldMetadata[
   );
 }
 
-export function YieldActivityCard({ activity, metadata }: { activity: Activity; metadata: YieldMetadata }) {
+export function YieldActivityCard({ activity, metadata, onOpenSolscan }: { activity: Activity; metadata: YieldMetadata; onOpenSolscan: () => void }) {
   const isDeposit = metadata.action === 'deposit';
   const ActionIcon = isDeposit ? ArrowDownToLine : ArrowUpFromLine;
   return (
@@ -91,9 +92,12 @@ export function YieldActivityCard({ activity, metadata }: { activity: Activity; 
           <View style={styles.dot} />
           <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
         </View>
-        <View style={styles.protocolBadge}>
-          <ProtocolIcon metadata={metadata} />
-          <Text numberOfLines={1} style={styles.protocolName}>{metadata.protocolName}</Text>
+        <View style={styles.headerActions}>
+          <View style={styles.protocolBadge}>
+            <ProtocolIcon metadata={metadata} />
+            <Text numberOfLines={1} style={styles.protocolName}>{metadata.protocolName}</Text>
+          </View>
+          <SolscanButton onPress={onOpenSolscan} />
         </View>
       </View>
 
@@ -131,6 +135,7 @@ const styles = StyleSheet.create({
   },
   signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: colors.positive },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
+  headerActions: { marginLeft: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   wallet: { maxWidth: 126, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
@@ -138,7 +143,6 @@ const styles = StyleSheet.create({
   protocolBadge: {
     maxWidth: 150,
     height: 34,
-    marginLeft: 8,
     paddingLeft: 5,
     paddingRight: 10,
     flexDirection: 'row',

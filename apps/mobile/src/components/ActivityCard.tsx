@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, typography } from '../theme';
 import { Activity, ActivityKind } from '../types';
 import { TokenActionButtons } from './TokenActionButtons';
+import { SolscanButton } from './SolscanButton';
 
 const iconByKind = {
   balance: ArrowUpDown,
@@ -39,7 +40,7 @@ function relativeTime(value: string) {
   return `${Math.floor(seconds / 86_400)}d`;
 }
 
-export function ActivityCard({ activity }: { activity: Activity }) {
+export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; onOpenSolscan: () => void }) {
   const Icon = iconByKind[activity.kind];
   const accent = colorByKind[activity.kind];
 
@@ -66,6 +67,7 @@ export function ActivityCard({ activity }: { activity: Activity }) {
               : activity.valueUsd.toFixed(0)}
           </Text>
         )}
+        <SolscanButton onPress={onOpenSolscan} />
       </View>
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
     </View>
@@ -74,26 +76,25 @@ export function ActivityCard({ activity }: { activity: Activity }) {
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 112,
-    paddingVertical: 18,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     backgroundColor: colors.surface,
   },
   signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
-  mainRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  mainRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
   copy: { flex: 1, minWidth: 0 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
-  wallet: { maxWidth: 150, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  wallet: { maxWidth: 130, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
-  title: { color: colors.text, fontFamily: typography.regular, fontWeight: '600', fontSize: 16, lineHeight: 21 },
-  detail: { marginTop: 5, color: colors.textMuted, fontFamily: typography.regular, fontSize: 13, lineHeight: 18 },
+  title: { color: colors.text, fontFamily: typography.regular, fontWeight: '600', fontSize: 15, lineHeight: 19 },
+  detail: { marginTop: 3, color: colors.textMuted, fontFamily: typography.regular, fontSize: 12, lineHeight: 16 },
   value: { color: colors.text, fontFamily: typography.mono, fontSize: 11, marginTop: 2 },
 });

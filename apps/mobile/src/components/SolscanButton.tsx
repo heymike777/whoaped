@@ -1,7 +1,6 @@
-import { ChevronRight } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
-import { colors, typography } from '../theme';
+import { colors } from '../theme';
 import { SolscanMark } from './SolscanMark';
 
 export function SolscanButton({ onPress }: { onPress: () => void }) {
@@ -10,30 +9,23 @@ export function SolscanButton({ onPress }: { onPress: () => void }) {
       accessibilityHint="Opens this transaction inside WhoAped"
       accessibilityLabel="View transaction on Solscan"
       accessibilityRole="button"
+      hitSlop={4}
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
     >
-      <SolscanMark size={18} />
-      <Text style={styles.label}>View on Solscan</Text>
-      <ChevronRight color={colors.textFaint} size={15} strokeWidth={2.2} />
+      <SolscanMark size={17} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    alignSelf: 'flex-end',
-    minHeight: 44,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
     alignItems: 'center',
-    gap: 8,
-  },
-  label: {
-    color: colors.textMuted,
-    fontFamily: typography.medium,
-    fontWeight: '700',
-    fontSize: 11,
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: colors.background,
   },
   pressed: { opacity: 0.55 },
 });

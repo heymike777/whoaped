@@ -7,7 +7,6 @@ import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
 import { BrandMark } from '../components/BrandMark';
 import { LaunchActivityCard } from '../components/LaunchActivityCard';
-import { SolscanButton } from '../components/SolscanButton';
 import { SolscanWebView } from '../components/SolscanWebView';
 import { SwapActivityCard } from '../components/SwapActivityCard';
 import { YieldActivityCard } from '../components/YieldActivityCard';
@@ -67,15 +66,12 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
         {!feed.error && feed.activities.map((activity) => (
           <View accessibilityLabel={`${activity.walletName}: ${activity.title}`} key={activity.id} style={styles.activityItem}>
             {activity.kind === 'swap' && activity.metadata?.swap
-              ? <SwapActivityCard activity={activity} swap={activity.metadata.swap} />
+              ? <SwapActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} swap={activity.metadata.swap} />
               : activity.kind === 'yield' && activity.metadata?.yield
-                ? <YieldActivityCard activity={activity} metadata={activity.metadata.yield} />
+                ? <YieldActivityCard activity={activity} metadata={activity.metadata.yield} onOpenSolscan={() => setSolscanSignature(activity.signature)} />
                 : activity.kind === 'launch' && activity.metadata?.launch
-                  ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} />
-                  : <ActivityCard activity={activity} />}
-            <View style={styles.explorerFooter}>
-              <SolscanButton onPress={() => setSolscanSignature(activity.signature)} />
-            </View>
+                  ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} onOpenSolscan={() => setSolscanSignature(activity.signature)} />
+                  : <ActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} />}
           </View>
         ))}
       </View>
@@ -157,19 +153,12 @@ const styles = StyleSheet.create({
   feedHeader: { marginTop: 28, minHeight: 38, flexDirection: 'row', alignItems: 'baseline', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.text },
   feedTitle: { color: colors.text, fontFamily: typography.semibold, fontSize: 20, letterSpacing: -0.35 },
   feedMeta: { marginLeft: 'auto', color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
-  ledger: { gap: 12, paddingTop: 16 },
+  ledger: { gap: 8, paddingTop: 12 },
   activityItem: {
     overflow: 'hidden',
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  explorerFooter: {
-    minHeight: 44,
-    alignItems: 'flex-end',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
   skeletonRow: { minHeight: 116, flexDirection: 'row', paddingVertical: 18, paddingHorizontal: 14 },
