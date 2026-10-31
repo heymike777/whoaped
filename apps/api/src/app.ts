@@ -67,7 +67,7 @@ app.get('/v1/wallets', async (context) => {
     status: wallet.status,
     createdAt: wallet.createdAt,
     transactionCount24h: await db.transactions.countDocuments({
-      walletId: wallet._id, occurredAt: { $gte: since },
+      walletId: wallet._id, occurredAt: { $gte: since }, suppressed: { $ne: true },
     }),
   })));
   return context.json({ data: rows });
@@ -127,6 +127,7 @@ app.get('/v1/activities', async (context) => {
   const storedTransactions = await db.transactions.find({
     userId: context.get('userId'),
     kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'] },
+    suppressed: { $ne: true },
     ...(cursor ? activityBeforeCursor(cursor) : {}),
   })
     .sort({ occurredAt: -1, createdAt: -1, _id: -1 }).limit(limit + 1).toArray();
@@ -153,12 +154,14 @@ app.get('/v1/activities/:activityId', async (context) => {
   const transaction = await db.transactions.findOne({
     _id: context.req.param('activityId'),
     userId: context.get('userId'),
+    suppressed: { $ne: true },
   });
   if (!transaction) return context.json({ error: 'Activity not found.' }, 404);
   const wallet = await db.wallets.findOne({ _id: transaction.walletId });
   const [classified] = await reclassifyStoredActivities(
     [transaction], new Map(wallet ? [[wallet._id, wallet]] : []), db,
   );
+  if (!classified) return context.json({ error: 'Activity not found.' }, 404);
   const enriched = await enrichActivityMetadata(classified);
   return context.json({ data: activityView({ ...classified, ...enriched }, wallet ?? undefined) });
 });

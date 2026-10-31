@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
+import { isDustInboundTransfer, solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
 
 const wallet = '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe';
 const sol = 'So11111111111111111111111111111111111111112';
@@ -19,6 +19,93 @@ function parsedTransaction(overrides: Partial<ParsedSolanaTransaction>): ParsedS
     ...overrides,
   };
 }
+
+describe('inbound dust suppression', () => {
+  const sender = 'Sender111111111111111111111111111111111111';
+  const tinySol = parsedTransaction({
+    feePayer: sender,
+    summary: { type: 'transfer' },
+    instructions: [{ programName: 'system', instructionName: 'transfer', decoded: {
+      accounts: [
+        { name: 'from', pubkey: sender, isSigner: true },
+        { name: 'to', pubkey: wallet, isSigner: false },
+      ],
+    } }],
+    nativeTransfers: [{ fromUserAccount: sender, toUserAccount: wallet, amount: 1_000 }],
+  });
+
+  it('suppresses a pure tiny inbound SOL transfer', () => {
+    expect(isDustInboundTransfer(tinySol, wallet)).toBe(true);
+    expect(solanaAdapter.normalize(tinySol, wallet)).toEqual([]);
+  });
+
+  it('suppresses a pure tiny inbound USDC transfer', () => {
+    const payload = parsedTransaction({
+      feePayer: sender,
+      summary: { type: 'token_transfer' },
+      instructions: [
+        { programName: 'associated_token_account', instructionName: 'create_idempotent', decoded: {
+          accounts: [
+            { name: 'wallet_owner', pubkey: wallet, isSigner: false },
+            { name: 'token_mint', pubkey: usdc, isSigner: false },
+          ],
+        } },
+        { programName: 'token', instructionName: 'transfer_checked' },
+      ],
+      tokenTransfers: [{
+        fromUserAccount: sender, toUserAccount: wallet, mint: usdc,
+        rawTokenAmount: 100, decimals: 6,
+      }],
+    });
+    expect(isDustInboundTransfer(payload, wallet)).toBe(true);
+    expect(solanaAdapter.normalize(payload, wallet)).toEqual([]);
+    expect(isDustInboundTransfer({ ...payload, instructions: [{
+      programName: 'associated_token_account', instructionName: 'create_idempotent', decoded: {
+        accounts: [
+          { name: 'wallet_owner', pubkey: wallet, isSigner: false },
+          { name: 'token_mint', pubkey: 'OtherMint', isSigner: false },
+        ],
+      },
+    }, ...(payload.instructions?.slice(1) ?? [])] }, wallet)).toBe(false);
+  });
+
+  it('keeps a tiny transfer signed by the tracked wallet', () => {
+    expect(solanaAdapter.normalize({ ...tinySol, feePayer: wallet }, wallet)[0]).toMatchObject({ kind: 'balance' });
+    const signed = { ...tinySol, instructions: [{ programName: 'system', instructionName: 'transfer', decoded: {
+      accounts: [{ name: 'recipient', pubkey: wallet, isSigner: true }],
+    } }] };
+    expect(isDustInboundTransfer(signed, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...tinySol, instructions: [{
+      programName: 'system', instructionName: 'transfer', rawAccounts: [wallet],
+    }] }, wallet)).toBe(false);
+  });
+
+  it('keeps larger, unknown-token, and outgoing transfers', () => {
+    expect(isDustInboundTransfer({ ...tinySol, nativeTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, amount: 10_001,
+    }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...tinySol, nativeTransfers: [{
+      fromUserAccount: wallet, toUserAccount: sender, amount: 1_000,
+    }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...tinySol, nativeTransfers: [], tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: 'UnknownMint',
+      rawTokenAmount: 1, decimals: 9,
+    }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...tinySol, nativeTransfers: [
+      { fromUserAccount: sender, toUserAccount: wallet, amount: 6_000 },
+      { fromUserAccount: sender, toUserAccount: wallet, amount: 6_000 },
+    ] }, wallet)).toBe(false);
+  });
+
+  it('keeps tiny receipts when the transaction also mints or invokes another program', () => {
+    expect(isDustInboundTransfer({ ...tinySol, summary: { type: 'mint_nft' } }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...tinySol, instructions: [
+      ...(tinySol.instructions ?? []),
+      { programName: 'metaplex_core', instructionName: 'create_v1' },
+    ] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...tinySol, instructions: [] }, wallet)).toBe(false);
+  });
+});
 
 describe('solanaAdapter balance changes', () => {
   it.each([

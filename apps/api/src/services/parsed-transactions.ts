@@ -12,15 +12,6 @@ export async function ingestParsedTransaction(
   if (transaction.status === 'error' || transaction.transactionStatus === 'ERROR') return { activities: 0 };
 
   const db = await collections();
-  await db.ingestionEvents.updateOne(
-    { provider: options.provider, externalId: transaction.signature },
-    {
-      $set: { slot: transaction.slot, payload: transaction },
-      $setOnInsert: { _id: randomUUID(), receivedAt: new Date() },
-    },
-    { upsert: true },
-  );
-
   const addresses = options.watchedAddresses ?? solanaAdapter.extractAddresses(transaction);
   if (!addresses.length) return { activities: 0 };
 
@@ -31,9 +22,24 @@ export async function ingestParsedTransaction(
     address: { $in: addresses },
   }).toArray();
 
+  const normalizedByWallet = wallets.map((wallet) => ({
+    wallet,
+    activities: solanaAdapter.normalize(transaction, wallet.address),
+  }));
+  if (!normalizedByWallet.some(({ activities }) => activities.length)) return { activities: 0 };
+
+  await db.ingestionEvents.updateOne(
+    { provider: options.provider, externalId: transaction.signature },
+    {
+      $set: { slot: transaction.slot, payload: transaction },
+      $setOnInsert: { _id: randomUUID(), receivedAt: new Date() },
+    },
+    { upsert: true },
+  );
+
   let activities = 0;
-  for (const wallet of wallets) {
-    for (const normalizedActivity of solanaAdapter.normalize(transaction, wallet.address)) {
+  for (const { wallet, activities: normalizedActivities } of normalizedByWallet) {
+    for (const normalizedActivity of normalizedActivities) {
       const activity = await enrichActivityMetadata(normalizedActivity);
       const transactionId = randomUUID();
       const mutableFields = {

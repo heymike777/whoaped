@@ -93,4 +93,18 @@ describe('parsed transaction ingestion', () => {
     })).resolves.toEqual({ activities: 0 });
     expect(mocks.ingestionUpdateOne).not.toHaveBeenCalled();
   });
+
+  it('does not store or notify a pure unsigned dust receipt', async () => {
+    const result = await ingestParsedTransaction(transaction({
+      feePayer: 'sender',
+      summary: { type: 'transfer' },
+      nativeTransfers: [{ fromUserAccount: 'sender', toUserAccount: walletAddress, amount: 1_000 }],
+      instructions: [{ programName: 'system', instructionName: 'transfer' }],
+    }), { provider: 'helius-parsed-stream' });
+
+    expect(result).toEqual({ activities: 0 });
+    expect(mocks.ingestionUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.transactionUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.notificationUpdateOne).not.toHaveBeenCalled();
+  });
 });

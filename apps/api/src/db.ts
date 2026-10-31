@@ -35,6 +35,7 @@ export type TransactionDocument = {
   valueUsd?: number;
   occurredAt: Date;
   metadata: Record<string, unknown>;
+  suppressed?: boolean;
   createdAt: Date;
 };
 export type TokenMetadataDocument = {

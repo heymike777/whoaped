@@ -35,7 +35,7 @@ export type ParsedInstruction = {
   summary?: ParsedSummary | null;
   decoded?: {
     args?: Record<string, unknown>;
-    accounts?: Array<{ name?: string; pubkey?: string }>;
+    accounts?: Array<{ name?: string; pubkey?: string; isSigner?: boolean }>;
   } | null;
 };
 
@@ -72,6 +72,17 @@ const METAPLEX_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
 const SQUADS_V4_PROGRAM = 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf';
 const PUMP_FUN_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
+const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYDshorBZG77ZK1k3m1dAWF';
+const SYSTEM_PROGRAM = '11111111111111111111111111111111';
+const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+const ASSOCIATED_TOKEN_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget111111111111111111111111111111';
+
+// Intentionally narrow: unknown tokens can be valuable despite a tiny unit amount.
+const MAX_DUST_SOL_LAMPORTS = 10_000;
+const MAX_DUST_STABLECOIN_UNITS = 0.001;
 
 type SwapDex = string;
 
@@ -734,6 +745,86 @@ function transferBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddr
   return deltas;
 }
 
+function isPlainTransferInstruction(
+  instruction: ParsedInstruction,
+  watchedAddress: string,
+  transferMints: Set<string>,
+) {
+  const name = canonical(instruction.instructionName);
+  if (instruction.programId === COMPUTE_BUDGET_PROGRAM
+    || canonical(instruction.programName) === 'computebudget') return true;
+  const program = canonical(instruction.programName);
+  const isSystem = instruction.programId === SYSTEM_PROGRAM || program === 'system';
+  const isToken = instruction.programId === TOKEN_PROGRAM
+    || instruction.programId === TOKEN_2022_PROGRAM
+    || ['token', 'token2022', 'spltoken', 'spltoken2022'].includes(program);
+  const isAssociatedToken = instruction.programId === ASSOCIATED_TOKEN_PROGRAM
+    || program === 'associatedtokenaccount';
+  if (isAssociatedToken && ['create', 'createidempotent'].includes(name)) {
+    const owner = namedAccount(instruction, 'wallet_owner', 'wallet');
+    const mint = namedAccount(instruction, 'token_mint', 'mint');
+    return owner === watchedAddress && Boolean(mint && transferMints.has(mint));
+  }
+  if (isSystem) return ['transfer', 'transferwithseed'].includes(name);
+  if (isToken) return ['transfer', 'transferchecked', 'transfercheckedwithfee'].includes(name);
+  return false;
+}
+
+/** Suppress only provable, unsigned, inbound dust transfers—not protocol activity. */
+export function isDustInboundTransfer(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  if (transaction.feePayer === watchedAddress) return false;
+  for (const instruction of transaction.instructions ?? []) {
+    const accounts = instruction.decoded?.accounts?.filter((account) => account.pubkey === watchedAddress) ?? [];
+    if (accounts.some((account) => account.isSigner !== false)) return false;
+    if (instruction.rawAccounts?.includes(watchedAddress) && !accounts.length) return false;
+  }
+
+  const summaryType = canonical(transaction.summary?.type);
+  if (summaryType && !['transfer', 'nativetransfer', 'tokentransfer', 'soltransfer', 'spltransfer'].includes(summaryType)) {
+    return false;
+  }
+  const transferMints = new Set((transaction.tokenTransfers ?? []).map((transfer) => transfer.mint).filter(
+    (mint): mint is string => Boolean(mint),
+  ));
+  if (!transaction.instructions?.length || !transaction.instructions.every((instruction) =>
+    isPlainTransferInstruction(instruction, watchedAddress, transferMints))) return false;
+
+  let receivedSol = 0;
+  const receivedTokens = new Map<string, number>();
+  let hasIncoming = false;
+  for (const transfer of transaction.nativeTransfers ?? []) {
+    const amount = transfer.amount;
+    if (!transfer.fromUserAccount || !transfer.toUserAccount || !Number.isFinite(amount)
+      || amount == null || amount <= 0 || amount > MAX_DUST_SOL_LAMPORTS) return false;
+    if (transfer.fromUserAccount === watchedAddress) return false;
+    if (transfer.toUserAccount === watchedAddress) {
+      hasIncoming = true;
+      receivedSol += amount;
+    }
+  }
+  if (receivedSol > MAX_DUST_SOL_LAMPORTS) return false;
+
+  for (const transfer of transaction.tokenTransfers ?? []) {
+    const { mint, decimals, rawTokenAmount } = transfer;
+    if (!transfer.fromUserAccount || !transfer.toUserAccount || !mint
+      || decimals == null || rawTokenAmount == null) return false;
+    const raw = Number(rawTokenAmount);
+    if (!Number.isFinite(raw) || raw <= 0) return false;
+    const amount = raw / 10 ** decimals;
+    const maxAmount = mint === SOL_MINT ? MAX_DUST_SOL_LAMPORTS / 1e9
+      : mint === USDC_MINT || mint === USDT_MINT ? MAX_DUST_STABLECOIN_UNITS : null;
+    if (maxAmount == null || amount > maxAmount) return false;
+    if (transfer.fromUserAccount === watchedAddress) return false;
+    if (transfer.toUserAccount === watchedAddress) {
+      hasIncoming = true;
+      receivedTokens.set(mint, (receivedTokens.get(mint) ?? 0) + amount);
+    }
+  }
+  if ([...receivedTokens.entries()].some(([mint, amount]) =>
+    amount > (mint === SOL_MINT ? MAX_DUST_SOL_LAMPORTS / 1e9 : MAX_DUST_STABLECOIN_UNITS))) return false;
+  return hasIncoming;
+}
+
 function balanceActivity(
   transaction: ParsedSolanaTransaction,
   watchedAddress: string,
@@ -867,6 +958,7 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
         title: balance ? `${semantic.title}  ·  ${balance.title}` : semantic.title,
       }];
     }
+    if (balance && isDustInboundTransfer(transaction, watchedAddress)) return [];
     return balance ? [balance] : [];
   },
 };

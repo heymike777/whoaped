@@ -50,7 +50,7 @@ describe('wallet routes', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.transactionCountDocuments).toHaveBeenCalledWith({
-      walletId: 'wallet-1', occurredAt: { $gte: expect.any(Date) },
+      walletId: 'wallet-1', occurredAt: { $gte: expect.any(Date) }, suppressed: { $ne: true },
     });
     await expect(response.json()).resolves.toMatchObject({
       data: [{ id: 'wallet-1', transactionCount24h: 3 }],

@@ -7,6 +7,37 @@ const walletAddress = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
 const signature = '5gd69toC169WBCN9Nq2ygKDYP1Wxfb8g2T8Xer6kLVPLj4Yk7P6Ard967rSt3P9eK6MNikUG71nyvV4ebh9GxFC3';
 
 describe('activity reclassification', () => {
+  it('hides a previously stored unsigned dust receipt', async () => {
+    const transaction = {
+      _id: 'dust-1', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
+      txHash: 'dust-signature', eventIndex: 0, slot: 463_000_000, kind: 'balance',
+      title: '+0.000001 SOL', detail: 'Balance change',
+      occurredAt: new Date(), metadata: {}, createdAt: new Date(),
+    } as TransactionDocument;
+    const wallet = {
+      _id: 'wallet-1', userId: 'user-1', name: 'Watched', address: walletAddress,
+      chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+    } as WalletDocument;
+    const payload = {
+      signature: transaction.txHash, slot: transaction.slot, feePayer: 'sender',
+      summary: { type: 'transfer' },
+      instructions: [{ programName: 'system', instructionName: 'transfer' }],
+      nativeTransfers: [{ fromUserAccount: 'sender', toUserAccount: walletAddress, amount: 1_000 }],
+    };
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    const db = {
+      ingestionEvents: { find: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([
+          { externalId: transaction.txHash, payload, receivedAt: new Date() },
+        ]) }),
+      }) },
+      transactions: { updateOne },
+    };
+
+    expect(await reclassifyStoredActivities([transaction], new Map([[wallet._id, wallet]]), db as never)).toEqual([]);
+    expect(updateOne).toHaveBeenCalledWith({ _id: transaction._id }, { $set: { suppressed: true } });
+  });
+
   it('upgrades a stored balance event when the current parser recognizes Meteora liquidity', async () => {
     const transaction: TransactionDocument = {
       _id: 'transaction-1', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
