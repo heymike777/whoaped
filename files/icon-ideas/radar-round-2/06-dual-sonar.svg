@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped radar direction 06 — Dual Sonar</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <path d="M428 300C312 354 236 470 236 600M332 228C166 306 78 462 78 638" stroke="#F4F4EF" stroke-width="66" stroke-linecap="round"/>
+  <path d="M596 300C712 354 788 470 788 600M692 228C858 306 946 462 946 638" stroke="#F4F4EF" stroke-width="66" stroke-linecap="round"/>
+  <path d="M356 674L512 790L668 674" stroke="#F4F4EF" stroke-width="78" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="512" cy="492" r="66" fill="#F04B2F"/>
+</svg>

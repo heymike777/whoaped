@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped icon direction 03 — Wallet Beacon</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <path d="M250 338H672C728 338 774 384 774 440V706H250C194 706 150 662 150 606V438C150 382 194 338 250 338Z" stroke="#F4F4EF" stroke-width="76" stroke-linejoin="round"/>
+  <path d="M624 484H824V606H624C590 606 562 578 562 544C562 512 590 484 624 484Z" fill="#F4F4EF"/>
+  <circle cx="642" cy="545" r="34" fill="#F04B2F"/>
+  <path d="M724 270C758 236 812 236 846 270M680 212C738 154 832 154 890 212" stroke="#F04B2F" stroke-width="42" stroke-linecap="round"/>
+</svg>

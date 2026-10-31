@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped icon direction 06 — Ape Signal</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <path d="M512 232C674 232 806 364 806 526C806 688 674 820 512 820C350 820 218 688 218 526C218 364 350 232 512 232Z" stroke="#F4F4EF" stroke-width="76"/>
+  <path d="M342 494C342 414 406 350 486 350H538C618 350 682 414 682 494V582C682 684 606 748 512 748C418 748 342 684 342 582V494Z" fill="#F4F4EF"/>
+  <circle cx="430" cy="522" r="34" fill="#111313"/>
+  <circle cx="594" cy="522" r="34" fill="#111313"/>
+  <path d="M430 640C474 674 550 674 594 640" stroke="#111313" stroke-width="38" stroke-linecap="round"/>
+  <path d="M758 270C814 326 814 416 758 472M824 210C912 298 912 444 824 532" stroke="#F04B2F" stroke-width="46" stroke-linecap="round"/>
+</svg>

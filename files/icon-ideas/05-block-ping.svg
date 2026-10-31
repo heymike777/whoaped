@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped icon direction 05 — Block Ping</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <rect x="168" y="168" width="264" height="264" rx="82" fill="#F4F4EF"/>
+  <rect x="592" y="168" width="264" height="264" rx="82" fill="#F4F4EF"/>
+  <rect x="168" y="592" width="264" height="264" rx="82" fill="#F4F4EF"/>
+  <rect x="592" y="592" width="264" height="264" rx="82" fill="#F04B2F"/>
+  <circle cx="724" cy="724" r="54" fill="#111313"/>
+</svg>

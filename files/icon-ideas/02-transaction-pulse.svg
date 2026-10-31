@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped icon direction 02 — Transaction Pulse</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <path d="M188 512H332L410 326L526 718L616 424L688 512H836" stroke="#F4F4EF" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="836" cy="512" r="62" fill="#F04B2F"/>
+</svg>

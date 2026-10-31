@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 1780">
+  <title>WhoAped icon directions</title>
+  <rect width="1600" height="1780" fill="#EDECE6"/>
+  <text x="100" y="108" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="700">WhoAped — icon directions</text>
+  <text x="100" y="160" fill="#5C615E" font-family="Arial, Helvetica, sans-serif" font-size="24">Eight compact marks built from the same signal system.</text>
+
+  <g transform="translate(100 230)">
+    <image width="300" height="300" href="01-sonar-w.svg" xlink:href="01-sonar-w.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">01  Sonar W</text>
+  </g>
+  <g transform="translate(466 230)">
+    <image width="300" height="300" href="02-transaction-pulse.svg" xlink:href="02-transaction-pulse.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">02  Transaction Pulse</text>
+  </g>
+  <g transform="translate(832 230)">
+    <image width="300" height="300" href="03-wallet-beacon.svg" xlink:href="03-wallet-beacon.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">03  Wallet Beacon</text>
+  </g>
+  <g transform="translate(1198 230)">
+    <image width="300" height="300" href="04-watch-eye.svg" xlink:href="04-watch-eye.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">04  Watch Eye</text>
+  </g>
+
+  <g transform="translate(100 690)">
+    <image width="300" height="300" href="05-block-ping.svg" xlink:href="05-block-ping.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">05  Block Ping</text>
+  </g>
+  <g transform="translate(466 690)">
+    <image width="300" height="300" href="06-ape-signal.svg" xlink:href="06-ape-signal.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">06  Ape Signal</text>
+  </g>
+  <g transform="translate(832 690)">
+    <image width="300" height="300" href="07-orbit-w.svg" xlink:href="07-orbit-w.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">07  Orbit W</text>
+  </g>
+  <g transform="translate(1198 690)">
+    <image width="300" height="300" href="08-detected.svg" xlink:href="08-detected.svg"/>
+    <text y="346" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">08  Detected</text>
+  </g>
+
+  <rect x="100" y="1160" width="1400" height="2" fill="#D5D3CA"/>
+  <text x="100" y="1240" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">Small-size check</text>
+  <text x="100" y="1282" fill="#5C615E" font-family="Arial, Helvetica, sans-serif" font-size="22">Rendered at 64 px — the most important app-icon test.</text>
+  <g transform="translate(100 1340)"><image width="128" height="128" href="01-sonar-w.svg" xlink:href="01-sonar-w.svg"/></g>
+  <g transform="translate(276 1340)"><image width="128" height="128" href="02-transaction-pulse.svg" xlink:href="02-transaction-pulse.svg"/></g>
+  <g transform="translate(452 1340)"><image width="128" height="128" href="03-wallet-beacon.svg" xlink:href="03-wallet-beacon.svg"/></g>
+  <g transform="translate(628 1340)"><image width="128" height="128" href="04-watch-eye.svg" xlink:href="04-watch-eye.svg"/></g>
+  <g transform="translate(804 1340)"><image width="128" height="128" href="05-block-ping.svg" xlink:href="05-block-ping.svg"/></g>
+  <g transform="translate(980 1340)"><image width="128" height="128" href="06-ape-signal.svg" xlink:href="06-ape-signal.svg"/></g>
+  <g transform="translate(1156 1340)"><image width="128" height="128" href="07-orbit-w.svg" xlink:href="07-orbit-w.svg"/></g>
+  <g transform="translate(1332 1340)"><image width="128" height="128" href="08-detected.svg" xlink:href="08-detected.svg"/></g>
+  <text x="100" y="1625" fill="#111313" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700">Recommendation</text>
+  <text x="100" y="1670" fill="#5C615E" font-family="Arial, Helvetica, sans-serif" font-size="23">01 is the strongest evolution of the current mark. 07 is the cleanest premium alternative. 06 is the most memorable.</text>
+</svg>

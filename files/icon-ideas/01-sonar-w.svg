@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped icon direction 01 — Sonar W</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <path d="M252 318C142 428 142 596 252 706M772 318C882 428 882 596 772 706" stroke="#F4F4EF" stroke-width="76" stroke-linecap="round"/>
+  <path d="M360 390L452 666L512 526L572 666L664 390" stroke="#F4F4EF" stroke-width="84" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="512" cy="378" r="56" fill="#F04B2F"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped radar direction 10 — Ping Field</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <circle cx="512" cy="512" r="304" stroke="#F4F4EF" stroke-width="66"/>
+  <circle cx="512" cy="512" r="196" stroke="#F4F4EF" stroke-width="58"/>
+  <path d="M512 208V816M208 512H816" stroke="#F4F4EF" stroke-width="42" stroke-linecap="round"/>
+  <circle cx="632" cy="392" r="66" fill="#F04B2F"/>
+  <circle cx="512" cy="512" r="34" fill="#111313" stroke="#F4F4EF" stroke-width="28"/>
+</svg>

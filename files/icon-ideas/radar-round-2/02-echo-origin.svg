@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <title>WhoAped radar direction 02 — Echo Origin</title>
+  <rect width="1024" height="1024" fill="#111313"/>
+  <path d="M282 512A230 230 0 0 1 512 282M202 512C202 340 340 202 512 202M362 512A150 150 0 0 1 512 362" stroke="#F4F4EF" stroke-width="62" stroke-linecap="round"/>
+  <path d="M742 512A230 230 0 0 0 512 282M822 512C822 340 684 202 512 202M662 512A150 150 0 0 0 512 362" stroke="#F4F4EF" stroke-width="62" stroke-linecap="round"/>
+  <circle cx="512" cy="512" r="64" fill="#F04B2F"/>
+</svg>
