@@ -5,6 +5,7 @@ import { collections } from '../db.js';
 import { enrichActivityMetadata } from './token-metadata.js';
 import { withAccountMutation } from './accounts.js';
 import { enqueueTelegramTransaction } from './telegram.js';
+import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
 
 export async function ingestParsedTransaction(
   transaction: ParsedSolanaTransaction,
@@ -24,6 +25,7 @@ export async function ingestParsedTransaction(
     address: { $in: addresses },
   }).toArray();
 
+  transaction = await reconcileNativeBalanceChanges(transaction, wallets.map((wallet) => wallet.address));
   const normalizedByWallet = wallets.map((wallet) => ({
     wallet,
     activities: failed ? [] : solanaAdapter.normalize(transaction, wallet.address),

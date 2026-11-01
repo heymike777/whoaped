@@ -1,5 +1,6 @@
 import { isDustInboundTransfer, solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
 import type { Collections, TransactionDocument, WalletDocument } from '../db.js';
+import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
 
 function isParsedSolanaTransaction(value: unknown): value is ParsedSolanaTransaction {
   if (!value || typeof value !== 'object') return false;
@@ -19,15 +20,26 @@ export async function reclassifyStoredActivities(
   const events = await db.ingestionEvents.find({
     externalId: { $in: [...new Set(stale.map((transaction) => transaction.txHash))] },
   }).sort({ receivedAt: -1 }).toArray();
-  const eventBySignature = new Map<string, unknown>();
+  const eventBySignature = new Map<string, { _id: string; payload: unknown }>();
   events.forEach((event) => {
-    if (!eventBySignature.has(event.externalId)) eventBySignature.set(event.externalId, event.payload);
+    if (!eventBySignature.has(event.externalId)) eventBySignature.set(event.externalId, event);
   });
+
+  await Promise.all([...eventBySignature.entries()].map(async ([signature, event]) => {
+    if (!isParsedSolanaTransaction(event.payload)) return;
+    const addresses = stale.filter((transaction) => transaction.txHash === signature)
+      .map((transaction) => walletById.get(transaction.walletId)?.address)
+      .filter((address): address is string => Boolean(address));
+    const reconciled = await reconcileNativeBalanceChanges(event.payload, addresses);
+    if (reconciled === event.payload) return;
+    event.payload = reconciled;
+    await db.ingestionEvents.updateOne({ _id: event._id }, { $set: { payload: reconciled } });
+  }));
 
   const classified = await Promise.all(transactions.map(async (transaction) => {
     if (transaction.chain !== 'solana' || (transaction.kind !== 'balance' && transaction.kind !== 'swap')) return transaction;
     const wallet = walletById.get(transaction.walletId);
-    const payload = eventBySignature.get(transaction.txHash);
+    const payload = eventBySignature.get(transaction.txHash)?.payload;
     if (!wallet || !isParsedSolanaTransaction(payload)) return transaction;
     if (transaction.kind === 'balance' && isDustInboundTransfer(payload, wallet.address)) {
       await db.transactions.updateOne({ _id: transaction._id }, { $set: { suppressed: true } });
@@ -37,7 +49,8 @@ export async function reclassifyStoredActivities(
     const normalized = solanaAdapter.normalize(payload, wallet.address)
       .find((activity) => activity.eventIndex === transaction.eventIndex);
     if (!normalized) return transaction;
-    if (transaction.kind === 'balance' && normalized.kind === 'balance') return transaction;
+    if (transaction.kind === 'balance' && normalized.kind === 'balance'
+      && normalized.title === transaction.title) return transaction;
     if (transaction.kind === 'swap' && (normalized.kind !== 'swap' || normalized.source === transaction.source)) return transaction;
 
     const mutableFields = {

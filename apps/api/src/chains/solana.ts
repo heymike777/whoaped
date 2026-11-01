@@ -44,6 +44,9 @@ export type ParsedSolanaTransaction = {
   slot: number;
   blockTime?: number | null;
   feePayer?: string | null;
+  fee?: number;
+  /** Authoritative pre/post lamport delta, used when account closures refund rent. */
+  nativeBalanceChanges?: Record<string, number>;
   accountKeys?: string[];
   status?: 'ok' | 'error';
   transactionStatus?: 'OK' | 'ERROR';
@@ -484,7 +487,11 @@ function mintBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress:
       add(change.mint, displayAmount(raw, decimals));
     });
   });
-  if (found) return deltas;
+  if (found) {
+    const exact = transaction.nativeBalanceChanges?.[watchedAddress];
+    if (exact != null) deltas.set(SOL_MINT, exact / 1e9);
+    return deltas;
+  }
   transaction.nativeTransfers?.forEach((transfer) => {
     const amount = (transfer.amount ?? 0) / 1e9;
     if (transfer.toUserAccount === watchedAddress) add('So11111111111111111111111111111111111111112', amount);
@@ -496,6 +503,8 @@ function mintBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress:
     if (transfer.toUserAccount === watchedAddress) add(transfer.mint, amount);
     if (transfer.fromUserAccount === watchedAddress) add(transfer.mint, -amount);
   });
+  const exact = transaction.nativeBalanceChanges?.[watchedAddress];
+  if (exact != null) deltas.set(SOL_MINT, exact / 1e9);
   return deltas;
 }
 
@@ -606,7 +615,8 @@ function inferredSwapLegs(transaction: ParsedSolanaTransaction, watchedAddress: 
   }
 
   const legs: Array<{ mint: string; amount: number }> = [];
-  const native = transaction.accountData?.find((account) => account.account === watchedAddress)?.nativeBalanceChange;
+  const native = transaction.nativeBalanceChanges?.[watchedAddress]
+    ?? transaction.accountData?.find((account) => account.account === watchedAddress)?.nativeBalanceChange;
   if (native) legs.push({ mint: 'So11111111111111111111111111111111111111112', amount: native / 1e9 });
   transaction.accountData?.forEach((account) => account.tokenBalanceChanges?.forEach((change) => {
     if (change.userAccount !== watchedAddress || !change.mint) return;
@@ -712,7 +722,8 @@ function accountBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddre
   transaction.accountData?.forEach((account) => {
     if (account.account === watchedAddress) {
       foundWatchedAccount = true;
-      addDelta(deltas, 'SOL', (account.nativeBalanceChange ?? 0) / 1e9);
+      addDelta(deltas, 'SOL', (transaction.nativeBalanceChanges?.[watchedAddress]
+        ?? account.nativeBalanceChange ?? 0) / 1e9);
     }
     account.tokenBalanceChanges?.forEach((change) => {
       if (change.userAccount !== watchedAddress) return;
@@ -731,11 +742,16 @@ function accountBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddre
 
 function transferBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress: string) {
   const deltas = new Map<string, number>();
-  transaction.nativeTransfers?.forEach((transfer) => {
-    const amount = (transfer.amount ?? 0) / 1e9;
-    if (transfer.toUserAccount === watchedAddress) addDelta(deltas, 'SOL', amount);
-    if (transfer.fromUserAccount === watchedAddress) addDelta(deltas, 'SOL', -amount);
-  });
+  const exact = transaction.nativeBalanceChanges?.[watchedAddress];
+  if (exact != null) addDelta(deltas, 'SOL', exact / 1e9);
+  else {
+    transaction.nativeTransfers?.forEach((transfer) => {
+      const amount = (transfer.amount ?? 0) / 1e9;
+      if (transfer.toUserAccount === watchedAddress) addDelta(deltas, 'SOL', amount);
+      if (transfer.fromUserAccount === watchedAddress) addDelta(deltas, 'SOL', -amount);
+    });
+    if (transaction.feePayer === watchedAddress) addDelta(deltas, 'SOL', -(transaction.fee ?? 0) / 1e9);
+  }
   transaction.tokenTransfers?.forEach((transfer) => {
     const amount = displayAmount(transfer.rawTokenAmount, transfer.decimals);
     const symbol = tokenSymbol(transfer.mint);
