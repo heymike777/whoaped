@@ -3,13 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
 import { collections } from '../db.js';
 import { enrichActivityMetadata } from './token-metadata.js';
+import { enqueueTelegramTransaction } from './telegram.js';
 
 export async function ingestParsedTransaction(
   transaction: ParsedSolanaTransaction,
   options: { provider: 'helius-parsed-stream' | 'helius-parsed-events'; watchedAddresses?: string[] },
 ) {
   if (!transaction.signature || !Number.isFinite(transaction.slot)) return { activities: 0 };
-  if (transaction.status === 'error' || transaction.transactionStatus === 'ERROR') return { activities: 0 };
+  const failed = transaction.status === 'error' || transaction.transactionStatus === 'ERROR';
 
   const db = await collections();
   const addresses = options.watchedAddresses ?? solanaAdapter.extractAddresses(transaction);
@@ -24,8 +25,12 @@ export async function ingestParsedTransaction(
 
   const normalizedByWallet = wallets.map((wallet) => ({
     wallet,
-    activities: solanaAdapter.normalize(transaction, wallet.address),
+    activities: failed ? [] : solanaAdapter.normalize(transaction, wallet.address),
   }));
+  // Persist independently of mobile activity classification, including dust and failed transactions.
+  await Promise.all(normalizedByWallet.map(({ wallet, activities }) =>
+    enqueueTelegramTransaction(wallet, transaction, activities)));
+  if (failed) return { activities: 0 };
   if (!normalizedByWallet.some(({ activities }) => activities.length)) return { activities: 0 };
 
   await db.ingestionEvents.updateOne(

@@ -12,6 +12,7 @@ import { activityView } from './services/activity-view.js';
 import { reclassifyStoredActivities } from './services/activity-reclassification.js';
 import { drainNotificationJobs } from './services/push.js';
 import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
+import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
 
 const walletSchema = z.object({
   name: z.string().trim().min(2).max(40),
@@ -33,6 +34,20 @@ function safeSecretEqual(received: string, expected: string) {
 export const app = new Hono<{ Variables: Variables }>();
 app.use('*', logger());
 app.use('*', cors({ origin: process.env.CORS_ORIGIN ?? '*', allowHeaders: ['Authorization', 'Content-Type'] }));
+
+app.post('/telegram/webhook', async (context) => {
+  if (!authorizedTelegramWebhook(context.req.header('x-telegram-bot-api-secret-token') ?? '')) {
+    return context.json({ error: 'Unauthorized.' }, 401);
+  }
+  const parsed = telegramUpdateSchema.safeParse(await context.req.json().catch(() => null));
+  if (!parsed.success) return context.json({ error: 'Invalid update.' }, 400);
+  const db = await collections();
+  const now = new Date();
+  await db.telegramUpdates.updateOne({ _id: String(parsed.data.update_id) }, { $setOnInsert: {
+    payload: parsed.data, status: 'pending', attempts: 0, availableAt: now, createdAt: now,
+  } }, { upsert: true });
+  return context.json({ ok: true });
+});
 
 app.get('/health', async (context) => {
   if (!hasDatabase()) return context.json({ ok: false, database: 'missing' }, 503);

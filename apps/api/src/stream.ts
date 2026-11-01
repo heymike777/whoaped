@@ -10,6 +10,7 @@ import {
 } from './services/parsed-stream-protocol.js';
 import { ingestParsedTransaction } from './services/parsed-transactions.js';
 import { drainNotificationJobs } from './services/push.js';
+import { drainTelegramJobs } from './services/telegram.js';
 
 function positiveInteger(value: string | undefined, fallback: number, maximum = Number.MAX_SAFE_INTEGER) {
   const parsed = Number(value);
@@ -136,7 +137,8 @@ class ParsedStreamSupervisor {
     if (this.drainingPush) return;
     this.drainingPush = true;
     try {
-      await drainNotificationJobs();
+      const results = await Promise.allSettled([drainNotificationJobs(), drainTelegramJobs()]);
+      for (const result of results) if (result.status === 'rejected') console.error('Notification delivery failed', result.reason);
     } finally {
       this.drainingPush = false;
     }
@@ -173,7 +175,7 @@ class ParsedStreamSupervisor {
     const socket = new WebSocket(`${STREAM_URL}/?api-key=${encodeURIComponent(apiKey)}`);
     const checkpointId = `solana-parsed-stream:${connectionIndex}`;
     const pingIds = new Set<number>();
-    const subscriptionIds = new Set(streamSubscriptions(addresses).map((request) => request.id));
+    const subscriptionIds = new Set(streamSubscriptions(addresses, true).map((request) => request.id));
     let pingSequence = 0;
     let processing = Promise.resolve();
     let processingFailed = false;
@@ -199,7 +201,7 @@ class ParsedStreamSupervisor {
 
     this.sockets.add(socket);
     socket.addEventListener('open', () => {
-      for (const subscription of streamSubscriptions(addresses)) {
+      for (const subscription of streamSubscriptions(addresses, true)) {
         socket.send(JSON.stringify(subscription));
       }
       sendPing();

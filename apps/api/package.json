@@ -10,7 +10,8 @@
     "start": "node --env-file-if-exists=.env dist/index.js",
     "start:stream": "node --env-file-if-exists=.env dist/stream.js",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "setup:telegram": "node --env-file-if-exists=.env dist/telegram-setup.js"
   },
   "engines": {
     "node": ">=22.13"

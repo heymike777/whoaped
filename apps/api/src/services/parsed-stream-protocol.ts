@@ -9,7 +9,7 @@ export type ParsedStreamSubscription = {
   params: [
     {
       accounts: { include: string[] };
-      includeFailed: false;
+      includeFailed: boolean;
       includeCpi: true;
     },
     { commitment: 'confirmed'; details: 'full' },
@@ -21,7 +21,7 @@ export function chunks<T>(items: T[], size: number): T[][] {
     items.slice(index * size, (index + 1) * size));
 }
 
-export function streamSubscriptions(addresses: string[]) {
+export function streamSubscriptions(addresses: string[], includeFailed = false) {
   return chunks(addresses, ADDRESSES_PER_SUBSCRIPTION).map((addressChunk, index): ParsedStreamSubscription => ({
     jsonrpc: '2.0' as const,
     id: index + 1,
@@ -29,7 +29,7 @@ export function streamSubscriptions(addresses: string[]) {
     params: [
       {
         accounts: { include: addressChunk },
-        includeFailed: false,
+        includeFailed,
         includeCpi: true,
       },
       { commitment: 'confirmed', details: 'full' },

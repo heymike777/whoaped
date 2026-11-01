@@ -76,6 +76,18 @@ export type NotificationJobDocument = {
   createdAt: Date;
 };
 
+export type TelegramUpdateDocument = {
+  _id: string; payload: unknown; status: 'pending' | 'processing' | 'sent' | 'failed';
+  availableAt: Date; createdAt: Date; attempts: number;
+};
+export type TelegramJobDocument = {
+  _id: string; chatId: string; walletId: string; txHash: string; slot: number;
+  text: string; buttons: Array<Array<{ text: string; url: string }>>;
+  status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
+  availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
+};
+export type TelegramChatDocument = { _id: string; createdAt: Date; disabledAt?: Date };
+
 export type Collections = {
   users: Collection<UserDocument>;
   sessions: Collection<SessionDocument>;
@@ -86,6 +98,9 @@ export type Collections = {
   pipelineCheckpoints: Collection<PipelineCheckpointDocument>;
   deviceTokens: Collection<DeviceTokenDocument>;
   notificationJobs: Collection<NotificationJobDocument>;
+  telegramJobs: Collection<TelegramJobDocument>;
+  telegramUpdates: Collection<TelegramUpdateDocument>;
+  telegramChats: Collection<TelegramChatDocument>;
 };
 
 const mongoUri = process.env.MONGODB_URI;
@@ -108,6 +123,9 @@ function databaseCollections(database: Db): Collections {
     pipelineCheckpoints: database.collection<PipelineCheckpointDocument>('pipeline_checkpoints'),
     deviceTokens: database.collection<DeviceTokenDocument>('device_tokens'),
     notificationJobs: database.collection<NotificationJobDocument>('notification_jobs'),
+    telegramJobs: database.collection<TelegramJobDocument>('telegram_jobs'),
+    telegramUpdates: database.collection<TelegramUpdateDocument>('telegram_updates'),
+    telegramChats: database.collection<TelegramChatDocument>('telegram_chats'),
   };
 }
 
@@ -137,6 +155,10 @@ async function ensureIndexes(database: Db) {
       { unique: true },
     ),
     db.notificationJobs.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
+    db.telegramJobs.createIndex({ walletId: 1, txHash: 1 }, { unique: true }),
+    db.telegramJobs.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
+    db.telegramJobs.createIndex({ chatId: 1, createdAt: -1, _id: -1 }),
+    db.telegramUpdates.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
   ]);
 }
 
