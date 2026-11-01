@@ -50,6 +50,8 @@ describe('Telegram tracker', () => {
     expect(mocks.jobUpdate).toHaveBeenCalledWith({ walletId: 'w1', txHash: 'sig' }, expect.objectContaining({ $setOnInsert: expect.objectContaining({ chatId: '123', text: expect.stringContaining('Failed transaction'), slot: 123 }) }), { upsert: true });
     expect(telegramNotification(wallet, { ...transaction, status: 'error' }, []).text.startsWith('🔴 Whale')).toBe(true);
     expect(telegramNotification(wallet, transaction, []).text).toContain('On-chain transaction');
+    expect(telegramNotification(wallet, { ...transaction, status: 'error', feePayer: address, fee: 5000 }, []).text)
+      .toContain('Balance changes\n−0.000005 SOL');
   });
   it('shows the failed-transaction setting in the bot', async () => {
     mocks.userFind.mockResolvedValue({ trackFailedTransactions: false });
