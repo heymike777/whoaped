@@ -77,7 +77,7 @@ export type NotificationJobDocument = {
 };
 
 export type TelegramUpdateDocument = {
-  _id: string; payload: unknown; status: 'pending' | 'processing' | 'sent' | 'failed';
+  _id: string; payload: unknown; walletAction?: 'add' | 'remove'; status: 'pending' | 'processing' | 'sent' | 'failed';
   availableAt: Date; createdAt: Date; attempts: number;
 };
 export type TelegramJobDocument = {
@@ -86,7 +86,7 @@ export type TelegramJobDocument = {
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
 };
-export type TelegramChatDocument = { _id: string; createdAt: Date; disabledAt?: Date };
+export type TelegramChatDocument = { _id: string; createdAt: Date; disabledAt?: Date; pendingAction?: 'add' | 'remove' };
 
 export type Collections = {
   users: Collection<UserDocument>;

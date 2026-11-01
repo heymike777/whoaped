@@ -13,10 +13,10 @@ if (probe.status !== 400) throw new Error(`Deploy Telegram endpoint before setup
 const bot = await telegramCall<{ username: string }>('getMe', {});
 await telegramCall('setMyCommands', { commands: [
   { command: 'start', description: 'Start tracking Solana wallets' },
-  { command: 'add', description: 'Add wallet: /add ADDRESS Name' },
-  { command: 'remove', description: 'Remove wallet: /remove ADDRESS' },
+  { command: 'add', description: 'Add one or many wallets' },
+  { command: 'remove', description: 'Remove one or many wallets' },
   { command: 'wallets', description: 'List and manage tracked wallets' },
-  { command: 'transactions', description: 'Browse transaction history' },
+  { command: 'cancel', description: 'Cancel wallet input' },
   { command: 'help', description: 'Show commands' },
 ] });
 await telegramCall('setMyDescription', { description: 'Track Solana wallets with WhoAped. Get transaction notifications and quick token links to BONKbot, GMGN, FOMO and DexScreener. Add a wallet to start.' });

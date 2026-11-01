@@ -23,8 +23,10 @@ export const telegramUpdateSchema = z.object({
 });
 type Update = z.infer<typeof telegramUpdateSchema>;
 type Button = { text: string; url?: string; callback_data?: string };
-const menu: Button[][] = [[{ text: '➕ Add wallet', callback_data: 'add' }, { text: '👛 Wallets', callback_data: 'wallets' }], [{ text: '📜 Transactions', callback_data: 'history' }]];
-const help = 'WhoAped · Solana wallet tracker\n\n/add ADDRESS Name — track a wallet\n/remove ADDRESS — stop tracking\n/wallets — manage wallets\n/transactions — transaction history\n\nSend a Solana address to add it. Notifications start from now, including unclassified and failed transactions.';
+const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }]];
+const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/cancel — cancel wallet input\n\nEvery detected on-chain transaction is sent directly to this chat, including unclassified and failed transactions.';
+const addPrompt = 'Send one or many wallets, one per line, in this format:\nADDRESS Name\nADDRESS Another name\n\nYou can also send /add followed by the list. Use /cancel to cancel.';
+const removePrompt = 'Send the wallet addresses to remove, one per line:\nADDRESS\nADDRESS\n\nYou can also paste ADDRESS Name lines or send /remove followed by the list. Use /cancel to cancel.';
 
 export function telegramWebhookSecret(token = process.env.TELEGRAM_BOT_TOKEN ?? '') {
   return createHash('sha256').update(`whoaped:telegram:webhook:${token}`).digest('hex');
@@ -79,31 +81,79 @@ export async function handleTelegramUpdate(update: Update) {
   const db = await collections();
   await db.telegramChats.updateOne({ _id: chatId }, { $setOnInsert: { createdAt: new Date() }, $unset: { disabledAt: '' } }, { upsert: true });
   if (callback) await telegramCall('answerCallbackQuery', { callback_query_id: callback.id }).catch(() => {});
-  const text = message.text?.trim() ?? '';
-  const [rawCommand = '', ...args] = text.split(/\s+/);
+  const text = callback ? '' : message.text?.trim() ?? '';
+  const rawCommand = text.split(/\s+/)[0] ?? '';
   const command = callback?.data ?? rawCommand.toLowerCase().split('@')[0];
-  if (['/start', '/help'].includes(command)) return send(chatId, help);
-  if (command === 'add' || command === '/add' && !args.length) return send(chatId, 'Send /add ADDRESS Name\nExample: /add 11111111111111111111111111111111 System');
-  if (command === '/add' || validSolanaAddress(rawCommand)) {
-    const address = command === '/add' ? args.shift() ?? '' : rawCommand;
-    if (!validSolanaAddress(address)) return send(chatId, 'Invalid Solana address. Use /add ADDRESS Name.');
-    const name = args.join(' ').slice(0, 40) || `${address.slice(0, 4)}…${address.slice(-4)}`;
-    if (await db.wallets.countDocuments({ userId, deletedAt: null }) >= 100) return send(chatId, 'Limit: 100 wallets. Remove a wallet first.');
-    try {
-      // Stable id makes a retried command safe, even after wallet removal.
-      await db.wallets.updateOne({ _id: `tg:${chatId}:${update.update_id}` }, { $setOnInsert: {
-        userId, name, address, chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
-      } }, { upsert: true });
-    } catch (error) {
-      if (error instanceof MongoServerError && error.code === 11000) return send(chatId, 'This wallet is already being tracked.');
-      throw error;
-    }
-    return send(chatId, `Tracking ${name}\n${address}\n\nNotifications will start within a few seconds.`);
+  if (['/start', '/help', '/cancel'].includes(command)) {
+    await db.telegramChats.updateOne({ _id: chatId }, { $unset: { pendingAction: '' } });
+    return send(chatId, command === '/cancel' ? 'Wallet input cancelled.' : help);
   }
-  if (command === '/remove' || command.startsWith('remove:')) {
-    const selector = command.startsWith('remove:') ? { _id: command.slice(7) } : { address: args[0] ?? '' };
-    const result = await db.wallets.updateOne({ ...selector, userId, deletedAt: null }, { $set: { deletedAt: new Date() } });
-    return send(chatId, result.matchedCount ? 'Wallet removed. Notifications stopped.' : 'Wallet not found. Use /remove ADDRESS or /wallets.');
+  if (command.startsWith('remove:')) {
+    const result = await db.wallets.updateOne({ _id: command.slice(7), userId, deletedAt: null }, { $set: { deletedAt: new Date() } });
+    return send(chatId, result.matchedCount ? 'Wallet removed. Notifications stopped.' : 'Wallet not found.');
+  }
+  const explicitAction: 'add' | 'remove' | undefined = ['/add', 'add'].includes(command) ? 'add'
+    : ['/remove', 'remove'].includes(command) ? 'remove' : undefined;
+  const input = explicitAction ? text.slice(rawCommand.length).trim() : text;
+  if (explicitAction && !input) {
+    await db.telegramChats.updateOne({ _id: chatId }, { $set: { pendingAction: explicitAction } });
+    return send(chatId, explicitAction === 'add' ? addPrompt : removePrompt);
+  }
+  let action = explicitAction;
+  if (!action && !callback && !command.startsWith('/')) {
+    const [chat, storedUpdate] = await Promise.all([
+      db.telegramChats.findOne({ _id: chatId }),
+      db.telegramUpdates.findOne({ _id: String(update.update_id) }),
+    ]);
+    action = storedUpdate?.walletAction ?? chat?.pendingAction ?? (validSolanaAddress(rawCommand) ? 'add' : undefined);
+  }
+  if (action && input) {
+    // Remember the chosen action before mutations, so a retried remove cannot become an add.
+    await db.telegramUpdates.updateOne({ _id: String(update.update_id) }, { $set: { walletAction: action } });
+    const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length > 100) return send(chatId, 'Send at most 100 wallets per message.');
+    const results: string[] = [];
+    let completed = 0;
+    for (const [index, line] of lines.entries()) {
+      const [address = '', ...nameParts] = line.split(/\s+/);
+      const name = nameParts.join(' ');
+      const label = `Line ${index + 1}`;
+      if (!validSolanaAddress(address)) { results.push(`${label}: invalid Solana address.`); continue; }
+      if (action === 'remove') {
+        const result = await db.wallets.updateOne({ address, userId, deletedAt: null }, { $set: { deletedAt: new Date() } });
+        if (result.matchedCount) completed++;
+        else results.push(`${label}: wallet is not tracked.`);
+        continue;
+      }
+      if (!name || name.length > 40) { results.push(`${label}: use ADDRESS Name (name: 1–40 characters).`); continue; }
+      const walletId = `tg:${chatId}:${update.update_id}:${index}`;
+      const existing = await db.wallets.findOne({ userId, address, deletedAt: null });
+      if (existing) {
+        if (existing._id === walletId) completed++;
+        else results.push(`${label}: wallet is already tracked.`);
+        continue;
+      }
+      if (await db.wallets.countDocuments({ userId, deletedAt: null }) >= 100) { results.push(`${label}: 100-wallet limit reached.`); continue; }
+      try {
+        await db.wallets.updateOne({ _id: walletId }, { $setOnInsert: {
+          userId, name, address, chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+        } }, { upsert: true });
+        completed++;
+      } catch (error) {
+        if (error instanceof MongoServerError && error.code === 11000) results.push(`${label}: wallet is already tracked.`);
+        else throw error;
+      }
+    }
+    // Keep the mode on invalid input so the user can correct and resend the list.
+    if (!results.length) await db.telegramChats.updateOne({ _id: chatId }, { $unset: { pendingAction: '' } });
+    else await db.telegramChats.updateOne({ _id: chatId }, { $set: { pendingAction: action } });
+    return send(chatId, [
+      `${action === 'add' ? 'Added' : 'Removed'} ${completed} of ${lines.length} wallets.`,
+      action === 'add' ? 'Every detected transaction will be sent directly to this chat.' : 'Notifications stopped for removed wallets.',
+      ...results.slice(0, 20),
+      ...(results.length > 20 ? [`…and ${results.length - 20} more errors.`] : []),
+      ...(results.length ? ['Correct the listed lines and resend them, or use /cancel.'] : []),
+    ].join('\n'));
   }
   if (command === '/wallets' || command === 'wallets' || command.startsWith('wallets:')) {
     const page = Math.max(0, Math.min(100, Number(command.split(':')[1]) || 0));
@@ -112,18 +162,6 @@ export async function handleTelegramUpdate(update: Update) {
     const buttons: Button[][] = rows.map(w => [{ text: `✖ ${w.name}`, callback_data: `remove:${w._id}` }]);
     if (wallets.length > 10) buttons.push([{ text: 'Next →', callback_data: `wallets:${page + 1}` }]);
     return send(chatId, rows.length ? rows.map(w => `${w.name}\n${w.address}`).join('\n\n') : 'No wallets yet. Use /add ADDRESS Name.', [...buttons, ...menu]);
-  }
-  if (command === '/transactions' || command === 'history' || command.startsWith('history:')) {
-    const cursor = command.startsWith('history:') ? command.slice(8) : undefined;
-    // UUID cursor resolves to a chat-owned record; clients cannot inspect another chat.
-    const anchor = cursor ? await db.telegramJobs.findOne({ _id: cursor, chatId }) : null;
-    const jobs = await db.telegramJobs.find({ chatId, ...(anchor ? { $or: [
-      { createdAt: { $lt: anchor.createdAt } }, { createdAt: anchor.createdAt, _id: { $lt: anchor._id } },
-    ] } : {}) }).sort({ createdAt: -1, _id: -1 }).limit(6).toArray();
-    const rows = jobs.slice(0, 5);
-    return send(chatId, rows.length ? rows.map(j => `${j.text.slice(0, 500)}\nhttps://solscan.io/tx/${j.txHash}`).join('\n\n') : 'No transactions since tracking started.', [
-      ...(jobs.length > 5 ? [[{ text: 'Older transactions →', callback_data: `history:${rows[rows.length - 1]._id}` }]] : []), ...menu,
-    ]);
   }
   return send(chatId, help);
 }
