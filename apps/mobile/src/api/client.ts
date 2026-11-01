@@ -189,13 +189,18 @@ export async function registerPushToken(token: string, platform: string) {
 
 export type Account = {
   id: string;
+  preferences: { trackFailedTransactions: boolean };
   telegram: { connected: true; username: string | null; linkedAt?: string } | null;
   entitlements: Array<{ feature: string; expiresAt: string | null }>;
-  tracking?: { paused: boolean; cooldownUntil: string | null; resuming: boolean; reason: string | null; limits: { minute: number; hour: number; day: number } };
+  premium?: { active: boolean; expiresAt: string | null };
+  tracking?: { tier?: 'free' | 'premium'; paused: boolean; cooldownUntil: string | null; resuming: boolean; reason: string | null; limits: { minute: number; hour: number; day: number } };
 };
 export type TelegramLink = { url: string; code: string; expiresAt: string };
 const TELEGRAM_LINK_KEY = 'whoaped.telegram-link';
 export const getAccount = () => apiFetch<Account>('/v1/account');
+export const setTrackFailedTransactions = (enabled: boolean) => apiFetch<{ preferences: Account['preferences'] }>('/v1/account/preferences', {
+  method: 'PATCH', body: JSON.stringify({ trackFailedTransactions: enabled }),
+});
 export const createTelegramLink = () => apiFetch<TelegramLink>('/v1/account/telegram-link', { method: 'POST' });
 export const cancelTelegramLink = () => apiFetch('/v1/account/telegram-link', { method: 'DELETE' });
 export async function saveTelegramLink(link: TelegramLink | null) {
@@ -209,3 +214,20 @@ export async function getSavedTelegramLink(): Promise<TelegramLink | null> {
   if (!saved) return null;
   try { return JSON.parse(saved.password) as TelegramLink; } catch { return null; }
 }
+
+export type PremiumPlanId = 'month' | 'year';
+export type BillingCatalog = {
+  plans: Array<{ id: PremiumPlanId; label: string; days: number; usdc: number; stars: number }>;
+  usdcAvailable: boolean; terms: string; termsVersion: string;
+  premium: { active: boolean; expiresAt: string | null };
+};
+export type StakeOffer = { chain: 'solana'; tokenSymbol: string; tokenMint: string; amount: number; cooldownSeconds: number; available: boolean };
+export const getStakeOffer = () => apiFetch<StakeOffer>('/v1/staking/offer');
+export type UsdcCheckout = { id: string; transaction: string; amount: number; mint: string; recipient: string; reference: string; expiresAt: string };
+export type PaymentStatus = { id: string; status: 'pending' | 'paid' | 'expired' | 'refunded'; premiumUntil: string | null };
+export const getBillingCatalog = () => apiFetch<BillingCatalog>('/v1/billing/products');
+export const createUsdcCheckout = (plan: PremiumPlanId, payer: string, requestKey: string) => apiFetch<UsdcCheckout>('/v1/billing/usdc/orders', {
+  method: 'POST', body: JSON.stringify({ plan, payer, requestKey, acceptsTerms: true }),
+});
+export const confirmUsdcPayment = (id: string, signature: string) => apiFetch<PaymentStatus>(`/v1/billing/orders/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: JSON.stringify({ signature }) });
+export const getPaymentStatus = (id: string) => apiFetch<PaymentStatus>(`/v1/billing/orders/${encodeURIComponent(id)}`);

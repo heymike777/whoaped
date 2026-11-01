@@ -12,9 +12,13 @@ import { activityView } from './services/activity-view.js';
 import { reclassifyStoredActivities } from './services/activity-reclassification.js';
 import { drainNotificationJobs } from './services/push.js';
 import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
-import { AccountLinkError, createTelegramLink, getAccount, withAccountMutation } from './services/accounts.js';
+import { AccountLinkError, createTelegramLink, getAccount, setTrackFailedTransactions, withAccountMutation } from './services/accounts.js';
+import { BillingError } from './config/premium.js';
+import { answerStarsPreCheckout, billingCatalog } from './services/billing.js';
+import { getPaymentOrder, reportUsdcSignature } from './services/usdc-payments.js';
 import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-limits.js';
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
+import { STAKING_OFFER } from './config/staking.js';
 
 const walletSchema = z.object({
   name: z.string().trim().min(2).max(40),
@@ -46,8 +50,12 @@ app.post('/telegram/webhook', async (context) => {
   const db = await collections();
   const now = new Date();
   await db.telegramUpdates.updateOne({ _id: String(parsed.data.update_id) }, { $setOnInsert: {
-    payload: parsed.data, status: 'pending', attempts: 0, availableAt: now, createdAt: now,
+    payload: parsed.data, status: parsed.data.pre_checkout_query ? 'processing' : 'pending', attempts: 0, availableAt: parsed.data.pre_checkout_query ? new Date(now.getTime() + 60_000) : now, createdAt: now,
   } }, { upsert: true });
+  if (parsed.data.pre_checkout_query) {
+    await answerStarsPreCheckout(parsed.data.pre_checkout_query);
+    await db.telegramUpdates.updateOne({ _id: String(parsed.data.update_id) }, { $set: { status: 'sent' } });
+  }
   return context.json({ ok: true });
 });
 
@@ -72,6 +80,12 @@ app.use('/v1/*', requireSession);
 
 app.get('/v1/account', async (context) => context.json(await getAccount(context.get('userId'))));
 
+app.patch('/v1/account/preferences', async (context) => {
+  const parsed = z.object({ trackFailedTransactions: z.boolean() }).strict().safeParse(await context.req.json().catch(() => null));
+  if (!parsed.success) return context.json({ error: 'Invalid preferences.' }, 400);
+  return context.json({ preferences: await setTrackFailedTransactions(context.get('userId'), parsed.data.trackFailedTransactions) });
+});
+
 app.post('/v1/account/telegram-link', async (context) => {
   try { return context.json(await createTelegramLink(context.get('userId')), 201); }
   catch (error) {
@@ -84,6 +98,20 @@ app.delete('/v1/account/telegram-link', async (context) => {
   const db = await collections();
   await db.accountLinks.updateMany({ userId: context.get('userId'), status: 'pending' }, { $set: { status: 'cancelled' } });
   return context.json({ ok: true });
+});
+
+app.get('/v1/billing/products', async (context) => context.json(await billingCatalog(context.get('userId'))));
+app.get('/v1/staking/offer', (context) => context.json(STAKING_OFFER));
+app.post('/v1/billing/usdc/orders', (context) => context.json({ error: 'Premium purchases are paused.' }, 410));
+app.get('/v1/billing/orders/:id', async (context) => {
+  try { return context.json(await getPaymentOrder(context.get('userId'), context.req.param('id'))); }
+  catch (error) { if (error instanceof BillingError) return context.json({ error: error.message }, 404); throw error; }
+});
+app.post('/v1/billing/orders/:id/confirm', async (context) => {
+  const input = z.object({ signature: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{64,88}$/) }).safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return context.json({ error: 'Invalid transaction signature.' }, 400);
+  try { return context.json(await reportUsdcSignature(context.get('userId'), context.req.param('id'), input.data.signature)); }
+  catch (error) { if (error instanceof BillingError) return context.json({ error: error.message }, 404); throw error; }
 });
 
 app.get('/v1/wallets', async (context) => {
@@ -160,7 +188,7 @@ app.get('/v1/activities', async (context) => {
   const db = await collections();
   const storedTransactions = await db.transactions.find({
     userId: context.get('userId'),
-    kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch'] },
+    kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch', 'failed'] },
     suppressed: { $ne: true },
     ...(cursor ? activityBeforeCursor(cursor) : {}),
   })
@@ -221,6 +249,14 @@ app.post('/v1/devices', async (context) => {
     );
   });
   return context.json({ ok: true }, 201);
+});
+
+app.get('/internal/billing/support', async (context) => {
+  const secret = context.req.header('authorization')?.replace('Bearer ', '') ?? '';
+  const expected = process.env.INTERNAL_JOB_SECRET ?? '';
+  if (!expected || !safeSecretEqual(secret, expected)) return context.json({ error: 'Unauthorized.' }, 401);
+  const db = await collections();
+  return context.json({ data: await db.billingSupport.find({ status: 'open' }).sort({ createdAt: 1 }).limit(100).toArray() });
 });
 
 app.post('/internal/accounts/:userId/tracking', async (context) => {

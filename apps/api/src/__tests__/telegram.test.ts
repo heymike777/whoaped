@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ walletUpdate: vi.fn(), walletCount: vi.fn(), jobUpdate: vi.fn(), chatUpdate: vi.fn(), walletFind: vi.fn(), chatFind: vi.fn(), updateFind: vi.fn(), updateSave: vi.fn() }));
+const mocks = vi.hoisted(() => ({ walletUpdate: vi.fn(), walletCount: vi.fn(), jobUpdate: vi.fn(), chatUpdate: vi.fn(), walletFind: vi.fn(), chatFind: vi.fn(), updateFind: vi.fn(), updateSave: vi.fn(), userFind: vi.fn(), userUpdate: vi.fn() }));
 vi.mock('../db.js', () => ({ collections: async () => ({
   wallets: { updateOne: mocks.walletUpdate, countDocuments: mocks.walletCount, findOne: mocks.walletFind },
   telegramChats: { updateOne: mocks.chatUpdate, findOne: mocks.chatFind }, telegramUpdates: { findOne: mocks.updateFind, updateOne: mocks.updateSave }, telegramJobs: { updateOne: mocks.jobUpdate },
+  users: { findOne: mocks.userFind, updateOne: mocks.userUpdate },
 }) }));
 vi.mock('../services/token-metadata.js', () => ({ enrichActivityMetadata: async (a: unknown) => a }));
 vi.mock('../services/accounts.js', async (importOriginal) => ({
@@ -24,6 +25,7 @@ describe('Telegram tracker', () => {
     vi.resetAllMocks(); vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, result: {} }) }));
     mocks.walletCount.mockResolvedValue(0); mocks.walletUpdate.mockResolvedValue({ matchedCount: 1 });
+    mocks.userFind.mockResolvedValue({ trackFailedTransactions: true });
   });
   it('authenticates webhooks with a token-derived secret', () => {
     expect(authorizedTelegramWebhook('')).toBe(false); expect(authorizedTelegramWebhook('wrong')).toBe(false);
@@ -46,7 +48,17 @@ describe('Telegram tracker', () => {
     mocks.walletFind.mockResolvedValue(wallet);
     await enqueueTelegramTransaction(wallet, { ...transaction, status: 'error' }, []);
     expect(mocks.jobUpdate).toHaveBeenCalledWith({ walletId: 'w1', txHash: 'sig' }, expect.objectContaining({ $setOnInsert: expect.objectContaining({ chatId: '123', text: expect.stringContaining('Failed transaction'), slot: 123 }) }), { upsert: true });
+    expect(telegramNotification(wallet, { ...transaction, status: 'error' }, []).text.startsWith('🔴 Whale')).toBe(true);
     expect(telegramNotification(wallet, transaction, []).text).toContain('On-chain transaction');
+  });
+  it('shows the failed-transaction setting in the bot', async () => {
+    mocks.userFind.mockResolvedValue({ trackFailedTransactions: false });
+    await handleTelegramUpdate(update('/settings'));
+    const payload = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
+    expect(payload.text).toContain('Failed onchain transactions: Off');
+    expect(payload.reply_markup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ callback_data: 'settings:failed:on' }),
+    ]));
   });
   it('does not enqueue mobile wallets or transactions before tracking', async () => {
     await enqueueTelegramTransaction({ ...wallet, userId: 'mobile-user' }, transaction, []);
@@ -73,6 +85,7 @@ describe('bulk wallet conversation', () => {
     vi.resetAllMocks(); vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, result: {} }) }));
     mocks.walletCount.mockResolvedValue(0); mocks.walletUpdate.mockResolvedValue({ matchedCount: 1 });
+    mocks.userFind.mockResolvedValue({ trackFailedTransactions: true });
   });
   it('prompts for multiple wallets and remembers add mode', async () => {
     await handleTelegramUpdate(update('/add'));

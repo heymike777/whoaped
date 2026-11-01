@@ -8,6 +8,7 @@ import {
 } from './parsed-stream-protocol.js';
 import { ingestParsedTransaction } from './parsed-transactions.js';
 import { drainNotificationJobs } from './push.js';
+import { drainUsdcPayments } from './usdc-payments.js';
 import { drainTelegramJobs } from './telegram.js';
 import { eligibleSubscriptionPlan, resumeAccountsAtSlot } from './rate-limits.js';
 
@@ -109,7 +110,7 @@ export class ParsedStreamSupervisor {
     }, REFRESH_MS);
     this.pushTimer = setInterval(() => {
       this.drainPush().catch((error) => console.error('Notification drain failed', error));
-    }, 2_000);
+    }, 1_000);
   }
 
   stop() {
@@ -130,7 +131,7 @@ export class ParsedStreamSupervisor {
     if (this.drainingPush) return;
     this.drainingPush = true;
     try {
-      const results = await Promise.allSettled([drainNotificationJobs(), drainTelegramJobs()]);
+      const results = await Promise.allSettled([drainNotificationJobs(), drainTelegramJobs(), drainUsdcPayments()]);
       for (const result of results) if (result.status === 'rejected') console.error('Notification delivery failed', result.reason);
     } finally {
       this.drainingPush = false;

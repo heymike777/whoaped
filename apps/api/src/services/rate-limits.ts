@@ -1,14 +1,24 @@
 import { randomUUID } from 'node:crypto';
 import type { ClientSession } from 'mongodb';
 import { collections, type Collections, type TrackingStateDocument, type WalletDocument } from '../db.js';
+import { premiumAccess } from './premium-access.js';
 import { canonicalAccountId, withAccountMutation } from './accounts.js';
 
-// One policy for every account today. Future paid policies can be selected here.
+// Policies are selected exclusively from server-verified, time-limited paid access.
 export const FREE_TRANSACTION_LIMITS = [
   { name: 'minute', limit: 20, durationMs: 60_000 },
   { name: 'hour', limit: 100, durationMs: 60 * 60_000 },
   { name: 'day', limit: 300, durationMs: 24 * 60 * 60_000 },
 ] as const;
+
+export const PREMIUM_TRANSACTION_LIMITS = [
+  { name: 'minute', limit: 60, durationMs: 60_000 },
+  { name: 'hour', limit: 1000, durationMs: 60 * 60_000 },
+  { name: 'day', limit: 3000, durationMs: 24 * 60 * 60_000 },
+] as const;
+export async function accountPolicy(userId: string, db?: Collections, session?: ClientSession, now = new Date()) {
+  return (await premiumAccess(userId, db, session, now)).active ? PREMIUM_TRANSACTION_LIMITS : FREE_TRANSACTION_LIMITS;
+}
 
 export function trackingBlocked(state: TrackingStateDocument | null | undefined, now = new Date()) {
   return Boolean(state?.paused || state?.resumePending || (state?.cooldownUntil && state.cooldownUntil > now));
@@ -21,7 +31,7 @@ export function subscriptionBlocked(state: TrackingStateDocument | null | undefi
 export async function quotaDeadline(db: Collections, userId: string, now: Date, session?: ClientSession, merging = false) {
   const exceeded: string[] = [];
   let until = 0;
-  for (const policy of FREE_TRANSACTION_LIMITS) {
+  for (const policy of await accountPolicy(userId, db, session, now)) {
     const query = { userId, observedAt: { $gt: new Date(now.getTime() - policy.durationMs) } };
     const count = await db.rateEvents.countDocuments(query, { session });
     if (merging ? count <= policy.limit : count < policy.limit) continue;
@@ -79,7 +89,8 @@ export async function getTrackingStatus(userId: string) {
   return {
     paused: Boolean(state?.paused), cooldownUntil: state?.cooldownUntil ?? null,
     resuming: Boolean(state?.resumePending && !subscriptionBlocked(state)), reason: state?.reason ?? null,
-    limits: Object.fromEntries(FREE_TRANSACTION_LIMITS.map(p => [p.name, p.limit])),
+    tier: (await premiumAccess(userId, db)).active ? 'premium' : 'free',
+    limits: Object.fromEntries((await accountPolicy(userId, db)).map(p => [p.name, p.limit])),
   };
 }
 
@@ -166,4 +177,16 @@ export async function mergeAccountRateLimits(db: Collections, session: ClientSes
   const deadline = await quotaDeadline(db, targetId, now, session, true);
   if (deadline && deadline.until.getTime() > existingUntil) await startCooldown(db, session, targetId, deadline.until, deadline.reason, now);
   if (source) await db.trackingStates.deleteOne({ _id: sourceId }, options);
+}
+
+
+export async function refreshPaidTrackingPolicy(db: Collections, session: ClientSession, userId: string, now: Date) {
+  const state = await db.trackingStates.findOne({ _id: userId }, { session });
+  const deadline = await quotaDeadline(db, userId, now, session);
+  if (deadline) {
+    if (!state?.cooldownUntil || deadline.until > state.cooldownUntil) await startCooldown(db, session, userId, deadline.until, deadline.reason, now);
+    else await db.trackingStates.updateOne({ _id: userId }, { $set: { cooldownUntil: deadline.until, reason: deadline.reason, resumePending: true, updatedAt: now } }, { session });
+  } else if (state?.resumePending || state?.cooldownUntil && state.cooldownUntil > now) {
+    await db.trackingStates.updateOne({ _id: userId }, { $set: { cooldownUntil: now, resumePending: true, updatedAt: now } }, { session });
+  }
 }

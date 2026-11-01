@@ -18,6 +18,9 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
+    "@solana-program/memo": "^0.16.0",
+    "@solana-program/token": "^0.18.0",
+    "@solana/kit": "^8.6.0",
     "firebase-admin": "^14.3.0",
     "hono": "^4.13.5",
     "mongodb": "^7.7.0",

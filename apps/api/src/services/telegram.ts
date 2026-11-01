@@ -1,22 +1,30 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { MongoServerError } from 'mongodb';
 import { z } from 'zod';
+import { BillingError } from '../config/premium.js';
+import { answerStarsPreCheckout, billingCatalog, createBillingSupport, PAYMENT_TERMS, settleStarsPayment } from './billing.js';
+import { TelegramError, telegramCall } from './telegram-api.js';
 
 import { collections, type WalletDocument } from '../db.js';
 import type { NormalizedActivity } from '../chains/types.js';
 import type { ParsedSolanaTransaction } from '../chains/solana.js';
 import { enrichActivityMetadata } from './token-metadata.js';
-import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, previewTelegramLink, withAccountMutation } from './accounts.js';
+import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, previewTelegramLink, setTrackFailedTransactions, withAccountMutation } from './accounts.js';
 import { buildTokenActionLinks } from '../config/token-actions.js';
+import { STAKING_OFFER } from '../config/staking.js';
 
+const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
   chat: z.object({ id: z.number().int().safe(), type: z.string() }),
   from: z.object({ id: z.number().int().safe(), is_bot: z.boolean().optional(), username: z.string().optional() }).optional(),
   text: z.string().max(4096).optional(),
+  successful_payment: starsPaymentSchema.optional(),
+  refunded_payment: starsPaymentSchema.optional(),
 });
 export const telegramUpdateSchema = z.object({
   update_id: z.number().int().safe().nonnegative(),
   message: messageSchema.optional(),
+  pre_checkout_query: z.object({ id: z.string(), from: z.object({ id: z.number().int().safe() }), currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128) }).optional(),
   callback_query: z.object({
     id: z.string(), data: z.string().max(64).optional(), message: messageSchema.optional(),
     from: z.object({ id: z.number().int().safe(), is_bot: z.boolean().optional(), username: z.string().optional() }),
@@ -24,8 +32,8 @@ export const telegramUpdateSchema = z.object({
 });
 type Update = z.infer<typeof telegramUpdateSchema>;
 type Button = { text: string; url?: string; callback_data?: string };
-const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }]];
-const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/cancel — cancel wallet input\n\nEvery detected on-chain transaction is sent directly to this chat, including unclassified and failed transactions.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
+const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '⚙️ Settings', callback_data: 'settings' }], [{ text: '⭐ Premium', callback_data: 'premium' }]];
+const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/settings — transaction preferences\n/cancel — cancel wallet input\n/premium — Premium status and token lock\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
 const addPrompt = 'Send one or many wallets, one per line, in this format:\nADDRESS Name\nADDRESS Another name\n\nYou can also send /add followed by the list. Use /cancel to cancel.';
 const removePrompt = 'Send the wallet addresses to remove, one per line:\nADDRESS\nADDRESS\n\nYou can also paste ADDRESS Name lines or send /remove followed by the list. Use /cancel to cancel.';
 
@@ -37,25 +45,8 @@ export function authorizedTelegramWebhook(received: string) {
   const a = Buffer.from(received), b = Buffer.from(telegramWebhookSecret());
   return a.length === b.length && timingSafeEqual(a, b);
 }
-export class TelegramError extends Error {
-  constructor(public code: number, public retryAfter = 0) { super(`Telegram API error ${code}`); }
-}
-export async function telegramCall<T = unknown>(method: string, payload: Record<string, unknown>): Promise<T> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
-  // Do not log fetch errors: their URL can contain the bot token.
-  let response: Response;
-  try {
-    response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload), signal: AbortSignal.timeout(15_000),
-    });
-  } catch { throw new TelegramError(503); }
-  let result: { ok?: boolean; result: T; error_code?: number; parameters?: { retry_after?: number } };
-  try { result = await response.json() as typeof result; } catch { throw new TelegramError(502); }
-  if (!response.ok || !result.ok) throw new TelegramError(result.error_code ?? response.status, result.parameters?.retry_after);
-  return result.result;
-}
+export { TelegramError, telegramCall } from './telegram-api.js';
+
 async function send(chatId: string, text: string, buttons: Button[][] = menu) {
   await telegramCall('sendMessage', {
     chat_id: chatId, text: text.slice(0, 4000), link_preview_options: { is_disabled: true },
@@ -74,19 +65,62 @@ export function validSolanaAddress(address: string) {
 }
 
 export async function handleTelegramUpdate(update: Update) {
+  if (update.pre_checkout_query) { await answerStarsPreCheckout(update.pre_checkout_query); return; }
   const callback = update.callback_query;
   const message = callback?.message ?? update.message;
   const sender = callback?.from ?? message?.from;
-  if (!message || message.chat.type !== 'private' || sender?.is_bot || sender?.id !== message.chat.id) return;
+  if (!message || message.chat.type !== 'private') return;
+  if (message.refunded_payment) {
+    await settleStarsPayment(String(message.chat.id), message.refunded_payment, true);
+    return;
+  }
+  if (sender?.is_bot || sender?.id !== message.chat.id) return;
   const chatId = String(message.chat.id);
   const db = await collections();
   const telegramChat = await db.telegramChats.findOne({ _id: chatId });
   const userId = telegramChat?.userId ?? `telegram:${chatId}`;
   await db.telegramChats.updateOne({ _id: chatId }, { $setOnInsert: { createdAt: new Date() }, $unset: { disabledAt: '' } }, { upsert: true });
   if (callback) await telegramCall('answerCallbackQuery', { callback_query_id: callback.id }).catch(() => {});
+  if (message.successful_payment) {
+    try {
+      const access = await settleStarsPayment(chatId, message.successful_payment);
+      return send(chatId, `Payment confirmed. Premium is active until ${access.expiresAt?.toISOString()}. Your access is shared with the mobile app. No auto-renewal.`);
+    } catch (error) {
+      if (!(error instanceof BillingError)) throw error;
+      const ticket = await createBillingSupport(userId, `Payment review: ${message.successful_payment.telegram_payment_charge_id}. ${error.message}`);
+      return send(chatId, `Your payment needs a support review. Reference: ${ticket}. Send /paysupport with any additional details.`);
+    }
+  }
   const text = callback ? '' : message.text?.trim() ?? '';
   const rawCommand = text.split(/\s+/)[0] ?? '';
   const command = callback?.data ?? rawCommand.toLowerCase().split('@')[0];
+  if (command === '/settings' || command === 'settings' || command.startsWith('settings:failed:')) {
+    if (command === 'settings:failed:on' || command === 'settings:failed:off') {
+      await setTrackFailedTransactions(userId, command.endsWith(':on'));
+    }
+    const accountId = await canonicalAccountId(userId, db);
+    const user = await db.users.findOne({ _id: accountId });
+    const enabled = user?.trackFailedTransactions === true;
+    return send(chatId, `Transaction settings\n\nFailed onchain transactions: ${enabled ? 'On' : 'Off'}\n\nThese landed in a block but failed during execution. Attempts that never land onchain are not visible. This setting is shared with the mobile app.`, [[{
+      text: enabled ? 'Turn off failed transactions' : 'Turn on failed transactions',
+      callback_data: enabled ? 'settings:failed:off' : 'settings:failed:on',
+    }], ...menu]);
+  }
+  if (command === '/terms') return send(chatId, PAYMENT_TERMS);
+  if (command === '/paysupport') {
+    const detail = text.slice(rawCommand.length).trim();
+    if (!detail) return send(chatId, 'For billing help or a refund request, send /paysupport followed by your message and payment reference. Never include a private key or seed phrase. Your request will be recorded for WhoAped support.');
+    try { return send(chatId, `Billing request recorded. Reference: ${await createBillingSupport(userId, detail)}`); }
+    catch (error) { if (error instanceof BillingError) return send(chatId, error.message); throw error; }
+  }
+  if (command === '/premium' || command === 'premium') {
+    const catalog = await billingCatalog(userId);
+    const status = catalog.premium.active ? `Premium active until ${catalog.premium.expiresAt?.toISOString()}.\n\n` : '';
+    return send(chatId, `${status}WhoAped Premium\n\n60 transactions/minute · 1,000/hour · 3,000/day.\n\nThe planned option is to lock ${STAKING_OFFER.amount.toLocaleString('en-US')} ${STAKING_OFFER.tokenSymbol} for Premium. You may request an unlock at any time; withdrawal follows a 7-day cooldown.\n\nThe lock is not live yet. Do not send tokens to the bot or to any address claiming to activate Premium. New purchases are paused.`, menu);
+  }
+  if (command.startsWith('purchase:')) {
+    return send(chatId, 'New Premium purchases are paused. Existing invoices and refunds remain supported via /paysupport. Do not send tokens to any address claiming to activate staking.');
+  }
   const linkToken = command === '/start' && text.slice(rawCommand.length).trim().startsWith('link_')
     ? text.slice(rawCommand.length).trim().slice(5) : command.startsWith('connect:') ? command.slice(8) : null;
   if (linkToken !== null) {
@@ -199,7 +233,7 @@ export async function handleTelegramUpdate(update: Update) {
 export function telegramNotification(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
   const failed = transaction.status === 'error' || transaction.transactionStatus === 'ERROR';
   const at = new Date((transaction.blockTime ?? Date.now() / 1000) * 1000).toISOString();
-  const text = `${wallet.name}\n${wallet.address}\n\n${failed ? '❌ Failed transaction' : activities.map(a => [a.title, a.detail].filter(Boolean).join('\n')).join('\n\n') || 'On-chain transaction'}\n\n${at}\nSlot: ${transaction.slot}`.slice(0, 4000);
+  const text = `${failed ? '🔴 ' : ''}${wallet.name}\n${wallet.address}\n\n${failed ? 'Failed transaction' : activities.map(a => [a.title, a.detail].filter(Boolean).join('\n')).join('\n\n') || 'On-chain transaction'}\n\n${at}\nSlot: ${transaction.slot}`.slice(0, 4000);
   const buttons: Array<Array<{ text: string; url: string }>> = [];
   const seen = new Set<string>();
   for (const activity of activities) {
@@ -237,8 +271,11 @@ export async function enqueueTelegramTransaction(wallet: WalletDocument, transac
       ...(transaction.accountData ?? []).filter(a => a.account === wallet.address).flatMap(a => a.tokenBalanceChanges ?? []),
     ] },
   };
-  const enriched = await Promise.all((activities.length ? activities : [fallback]).map(enrichActivityMetadata));
+  const enriched = transaction.status === 'error' || transaction.transactionStatus === 'ERROR'
+    ? activities : await Promise.all((activities.length ? activities : [fallback]).map(enrichActivityMetadata));
   await withAccountMutation(accountId, async (database, session) => {
+    if ((transaction.status === 'error' || transaction.transactionStatus === 'ERROR')
+      && (await database.users.findOne({ _id: accountId }, { session }))?.trackFailedTransactions !== true) return;
     const original = await database.wallets.findOne({ _id: wallet._id }, { session });
     const currentWallet = original?.mergedIntoWalletId
       ? await database.wallets.findOne({ _id: original.mergedIntoWalletId }, { session }) : original;
@@ -246,7 +283,8 @@ export async function enqueueTelegramTransaction(wallet: WalletDocument, transac
     if (transaction.blockTime && currentWallet.telegramAlertsFrom && transaction.blockTime * 1000 < currentWallet.telegramAlertsFrom.getTime() - 1000) return;
     const now = new Date();
     await database.telegramJobs.updateOne({ walletId: currentWallet._id, txHash: transaction.signature }, { $setOnInsert: {
-      _id: randomUUID(), chatId, walletId: currentWallet._id,
+      _id: randomUUID(), chatId, walletId: currentWallet._id, userId: accountId,
+      ...((transaction.status === 'error' || transaction.transactionStatus === 'ERROR') ? { kind: 'failed' as const } : {}),
       txHash: transaction.signature, slot: transaction.slot, ...telegramNotification(currentWallet, transaction, enriched),
       status: 'pending', attempts: 0, availableAt: now, createdAt: now,
     } }, { upsert: true, session });
@@ -286,7 +324,8 @@ export async function drainTelegramJobs() {
       const userId = chat?.userId ?? `telegram:${job.chatId}`;
       const subscriptionActive = job.kind === 'account' ? job.userId === userId
         : Boolean(await db.wallets.findOne({ _id: job.walletId, userId, deletedAt: null }));
-      if (!subscriptionActive || !chat || chat.disabledAt) {
+      const failedEnabled = job.kind !== 'failed' || (await db.users.findOne({ _id: userId }))?.trackFailedTransactions === true;
+      if (!subscriptionActive || !chat || chat.disabledAt || !failedEnabled) {
         await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'failed', lastError: 'Subscription inactive' } });
         continue;
       }

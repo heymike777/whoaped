@@ -1,9 +1,11 @@
 import { Bell, CheckCircle2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PremiumCard } from '../components/PremiumCard';
 import { TelegramAccountCard } from '../components/TelegramAccountCard';
+import { getAccount, setTrackFailedTransactions } from '../api/client';
 import { enablePushNotifications, syncEnabledPushNotifications } from '../lib/notifications';
 import { type ThemeColors, layout, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
@@ -13,6 +15,10 @@ export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const [pushState, setPushState] = useState<'idle' | 'loading' | 'enabled' | 'error'>('idle');
   const [message, setMessage] = useState('Get an alert after a tracked transaction confirms.');
+  const [trackFailed, setTrackFailed] = useState(false);
+  const [failedLoading, setFailedLoading] = useState(true);
+  const [failedSaving, setFailedSaving] = useState(false);
+  const [failedError, setFailedError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -23,6 +29,29 @@ export function SettingsScreen() {
     });
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getAccount().then((account) => {
+      if (mounted) setTrackFailed(account.preferences?.trackFailedTransactions === true);
+    }).catch((error) => {
+      if (mounted) setFailedError(error instanceof Error ? error.message : 'Could not load transaction settings.');
+    }).finally(() => { if (mounted) setFailedLoading(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  const toggleFailed = async (enabled: boolean) => {
+    setFailedSaving(true);
+    setFailedError(null);
+    try {
+      const result = await setTrackFailedTransactions(enabled);
+      setTrackFailed(result.preferences.trackFailedTransactions);
+    } catch (error) {
+      setFailedError(error instanceof Error ? error.message : 'Could not save transaction settings.');
+    } finally {
+      setFailedSaving(false);
+    }
+  };
 
   const enable = async () => {
     setPushState('loading');
@@ -42,6 +71,7 @@ export function SettingsScreen() {
       <Text style={styles.subheading}>Account and preferences.</Text>
 
       <TelegramAccountCard />
+      <PremiumCard />
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
@@ -63,6 +93,25 @@ export function SettingsScreen() {
             <Text style={styles.smallButtonText}>{pushState === 'enabled' ? 'On' : pushState === 'loading' ? 'Wait' : 'Enable'}</Text>
           </Pressable>
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>TRANSACTIONS</Text>
+        <View style={styles.card}>
+          <View style={styles.copy}>
+            <Text style={styles.cardTitle}>Failed transactions</Text>
+            <Text style={styles.cardBody}>Show and alert on transactions that landed on Solana but failed during execution.</Text>
+          </View>
+          <Switch
+            accessibilityLabel="Track failed transactions"
+            disabled={failedLoading || failedSaving}
+            onValueChange={toggleFailed}
+            trackColor={{ false: colors.borderStrong, true: colors.primary }}
+            thumbColor={colors.surface}
+            value={trackFailed}
+          />
+        </View>
+        {failedError && <Text accessibilityRole="alert" style={styles.errorText}>{failedError}</Text>}
       </View>
 
       <View style={styles.section}>

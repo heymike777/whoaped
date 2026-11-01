@@ -2,7 +2,7 @@ import { MongoClient, type ClientSession, type Collection, type Db } from 'mongo
 
 import type { ChainId, NormalizedActivity } from './chains/types.js';
 
-export type UserDocument = { _id: string; createdAt: Date; mergedInto?: string; mergedAt?: Date; writeVersion?: number };
+export type UserDocument = { _id: string; createdAt: Date; mergedInto?: string; mergedAt?: Date; writeVersion?: number; trackFailedTransactions?: boolean };
 export type AccountLinkDocument = {
   _id: string; userId: string; code: string; createdAt: Date; expiresAt: Date;
   status: 'pending' | 'confirmed' | 'cancelled'; confirmedChatId?: string; claimedChatId?: string;
@@ -11,6 +11,18 @@ export type AccountLinkDocument = {
 export type AccountEntitlementDocument = {
   _id: string; userId: string; provider: string; externalId: string;
   feature: string; expiresAt?: Date; revokedAt?: Date; createdAt: Date;
+};
+export type PaymentOrderDocument = {
+  _id: string; userId: string; plan: 'month' | 'year'; provider: 'usdc' | 'stars';
+  amount: number; currency: 'USDC' | 'XTR'; status: 'pending' | 'paid' | 'refunded' | 'expired';
+  createdAt: Date; expiresAt: Date; paidAt?: Date; paymentId?: string;
+  accessStartsAt?: Date; accessEndsAt?: Date; telegramUserId?: string;
+  payer?: string; recipient?: string; sourceTokenAccount?: string; destinationTokenAccount?: string;
+  reference?: string; memo?: string; signature?: string; requestKey?: string;
+  nextCheckAt?: Date; checks?: number; lastError?: string;
+};
+export type BillingSupportDocument = {
+  _id: string; userId: string; message: string; createdAt: Date; status: 'open' | 'closed';
 };
 export type SessionDocument = {
   _id: string; userId: string; tokenHash: string; expiresAt: Date; createdAt: Date;
@@ -84,6 +96,7 @@ export type NotificationJobDocument = {
   userId: string;
   deviceTokenId: string;
   transactionId: string;
+  failedTransaction?: boolean;
   title: string;
   body: string;
   data: Record<string, unknown>;
@@ -101,7 +114,7 @@ export type TelegramUpdateDocument = {
 };
 export type TelegramJobDocument = {
   _id: string; chatId: string; walletId: string; txHash: string; slot: number;
-  kind?: 'account'; userId?: string; priority?: number;
+  kind?: 'account' | 'failed'; userId?: string; priority?: number;
   text: string; buttons: Array<Array<{ text: string; url: string }>>;
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
@@ -128,6 +141,8 @@ export type Collections = {
   accountEntitlements: Collection<AccountEntitlementDocument>;
   trackingStates: Collection<TrackingStateDocument>;
   rateEvents: Collection<RateEventDocument>;
+  paymentOrders: Collection<PaymentOrderDocument>;
+  billingSupport: Collection<BillingSupportDocument>;
 };
 
 const mongoUri = process.env.MONGODB_URI;
@@ -157,6 +172,8 @@ function databaseCollections(database: Db): Collections {
     accountEntitlements: database.collection<AccountEntitlementDocument>('account_entitlements'),
     trackingStates: database.collection<TrackingStateDocument>('tracking_states'),
     rateEvents: database.collection<RateEventDocument>('rate_events'),
+    paymentOrders: database.collection<PaymentOrderDocument>('payment_orders'),
+    billingSupport: database.collection<BillingSupportDocument>('billing_support'),
   };
 }
 
@@ -198,6 +215,11 @@ async function ensureIndexes(database: Db) {
     db.trackingStates.createIndex({ cooldownUntil: 1 }),
     db.rateEvents.createIndex({ userId: 1, chain: 1, txHash: 1 }, { unique: true }),
     db.rateEvents.createIndex({ userId: 1, observedAt: -1 }),
+    db.paymentOrders.createIndex({ provider: 1, paymentId: 1 }, { unique: true, partialFilterExpression: { paymentId: { $type: 'string' } } }),
+    db.paymentOrders.createIndex({ userId: 1, requestKey: 1 }, { unique: true, partialFilterExpression: { requestKey: { $type: 'string' } } }),
+    db.paymentOrders.createIndex({ userId: 1, createdAt: -1 }),
+    db.paymentOrders.createIndex({ provider: 1, status: 1, nextCheckAt: 1 }),
+    db.billingSupport.createIndex({ status: 1, createdAt: 1 }),
   ]);
 }
 

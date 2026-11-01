@@ -43,6 +43,17 @@ const address = '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe';
 describe('wallet routes', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('does not create a new USDC order while purchases are paused', async () => {
+    const response = await app.request('/v1/billing/usdc/orders', { method: 'POST', body: '{}' });
+    expect(response.status).toBe(410);
+  });
+
+  it('exposes the BONK prototype as unavailable, not as a live deposit address', async () => {
+    const response = await app.request('/v1/staking/offer');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ tokenSymbol: 'BONK', amount: 1_000_000, available: false });
+  });
+
   it('returns a transaction count for the last 24 hours with each wallet', async () => {
     const wallet = {
       _id: 'wallet-1', userId: 'user-1', name: 'Main', address, chain: 'solana',

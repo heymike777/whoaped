@@ -5,7 +5,7 @@ import * as api from '../api/client';
 import { useTelegramAccount } from './useTelegramAccount';
 jest.mock('../api/client', () => ({ getAccount: jest.fn(), getSavedTelegramLink: jest.fn(), saveTelegramLink: jest.fn(), createTelegramLink: jest.fn(), cancelTelegramLink: jest.fn() }));
 const mock = api as jest.Mocked<typeof api>;
-const account: api.Account = { id: 'mobile', telegram: null, entitlements: [] };
+const account: api.Account = { id: 'mobile', telegram: null, entitlements: [], preferences: { trackFailedTransactions: false } };
 const link: api.TelegramLink = { url: 'https://t.me/whoapedbot?start=link_token', code: '123456', expiresAt: new Date(Date.now() + 600_000).toISOString() };
 let latest: ReturnType<typeof useTelegramAccount>;
 function Probe() { latest = useTelegramAccount(); return null; }

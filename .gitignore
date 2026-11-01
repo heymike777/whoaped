@@ -10,3 +10,7 @@ dist/
 coverage/
 *.log
 /keys
+
+# Local wallet keypairs: never commit private keys.
+/files/private/
+programs/**/target/

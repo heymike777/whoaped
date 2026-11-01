@@ -61,6 +61,10 @@ export async function drainNotificationJobs(limit = 100) {
       { sort: { createdAt: 1 }, returnDocument: 'after' },
     );
     if (!job) break;
+    if (job.failedTransaction && (await db.users.findOne({ _id: job.userId }))?.trackFailedTransactions !== true) {
+      await db.notificationJobs.updateOne({ _id: job._id }, { $set: { status: 'failed', lastError: 'Failed transaction tracking disabled' } });
+      continue;
+    }
     const device = await db.deviceTokens.findOne({ _id: job.deviceTokenId });
     if (!device || device.disabledAt) {
       await db.notificationJobs.updateOne(

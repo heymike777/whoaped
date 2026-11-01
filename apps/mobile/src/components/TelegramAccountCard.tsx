@@ -36,7 +36,7 @@ export function TelegramAccountCard() {
         )}
         {tracking && (
           <View style={styles.verification}>
-            <Text style={styles.title}>Free tracking limits</Text>
+            <Text style={styles.title}>{tracking.tier === 'premium' ? 'Premium tracking limits' : 'Free tracking limits'}</Text>
             <Text style={styles.body}>{tracking.limits.minute}/min · {tracking.limits.hour}/hour · {tracking.limits.day}/day across all your wallets.</Text>
             {(tracking.paused || coolingDown || tracking.resuming) && (
               <Text accessibilityRole="alert" style={styles.error}>

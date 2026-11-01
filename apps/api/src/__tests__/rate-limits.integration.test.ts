@@ -153,10 +153,12 @@ describe('per-account transaction limits', () => {
     expect(await db.rateEvents.countDocuments({ userId: user })).toBe(20);
     expect((await quota.admitAccountTransaction(user, 'after-restart', 1000)).allowed).toBe(false);
   });
-  it('charges failed transactions but avoids parsing and metadata calls after quota is exhausted', async () => {
+  it('charges opted-in failed transactions but avoids parsing and metadata calls after quota is exhausted', async () => {
+    await accounts.setTrackFailedTransactions(user, true);
     await ingest({ signature: 'failed', status: 'error', slot: 700, accountKeys: [address] }, { provider: 'helius-parsed-stream' });
     expect(await db.rateEvents.countDocuments({ userId: user })).toBe(1);
     expect((await db.telegramJobs.findOne({ txHash: 'failed' }))?.text).toContain('Failed transaction');
+    expect(await db.transactions.countDocuments({ userId: user, txHash: 'failed', kind: 'failed' })).toBe(1);
     await seed(19);
     const adapter = (await import('../chains/solana.js')).solanaAdapter;
     const spy = vi.spyOn(adapter, 'normalize');

@@ -47,6 +47,40 @@ async function pendingLink() {
 }
 
 describe('atomic Telegram account linking (real MongoDB replica set)', () => {
+  it('shares the failed-transaction preference between app and bot and cancels queued alerts when disabled', async () => {
+    const enabled = await app.request('/v1/account/preferences', {
+      method: 'PATCH', headers: { Authorization: 'Bearer mobile-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackFailedTransactions: true }),
+    });
+    expect(enabled.status).toBe(200);
+    const link = await pendingLink();
+    await accounts.confirmTelegramLink(link.token, '123');
+    expect((await accounts.getAccount(source)).preferences.trackFailedTransactions).toBe(true);
+    const telegram = await import('../services/telegram.js');
+    await telegram.handleTelegramUpdate({ update_id: 98, message: { chat: { id: 123, type: 'private' }, from: { id: 123 }, text: '/settings' } });
+    expect(JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string).text).toContain('Failed onchain transactions: On');
+    await db.deviceTokens.insertOne({ _id: 'failed-device', userId: target, token: 'push-token', platform: 'ios', createdAt: now, lastSeenAt: now });
+    const { ingestParsedTransaction } = await import('../services/parsed-transactions.js');
+    await ingestParsedTransaction({ signature: 'failed-opt-in', status: 'error', slot: 250, accountKeys: [address] }, { provider: 'helius-parsed-stream' });
+    expect(await db.transactions.countDocuments({ userId: target, kind: 'failed', txHash: 'failed-opt-in' })).toBe(1);
+    expect(await db.telegramJobs.countDocuments({ txHash: 'failed-opt-in', kind: 'failed', status: 'pending' })).toBe(1);
+    expect(await db.notificationJobs.countDocuments({ userId: target, failedTransaction: true, status: 'pending' })).toBe(1);
+    const disabled = await app.request('/v1/account/preferences', {
+      method: 'PATCH', headers: { Authorization: 'Bearer mobile-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackFailedTransactions: false }),
+    });
+    expect(disabled.status).toBe(200);
+    expect(await db.telegramJobs.countDocuments({ txHash: 'failed-opt-in', status: 'failed' })).toBe(1);
+    expect(await db.notificationJobs.countDocuments({ failedTransaction: true, status: 'failed' })).toBe(1);
+    await ingestParsedTransaction({ signature: 'failed-opt-out', status: 'error', slot: 251, accountKeys: [address] }, { provider: 'helius-parsed-stream' });
+    expect(await db.transactions.countDocuments({ txHash: 'failed-opt-out' })).toBe(0);
+    expect(await db.rateEvents.countDocuments({ txHash: 'failed-opt-out' })).toBe(0);
+    await telegram.handleTelegramUpdate({ update_id: 99, callback_query: {
+      id: 'failed-on', data: 'settings:failed:on', from: { id: 123 },
+      message: { chat: { id: 123, type: 'private' } },
+    } });
+    expect((await accounts.getAccount(source)).preferences.trackFailedTransactions).toBe(true);
+  });
   it('merges wallets, sessions, push devices, history and entitlements and shares future writes', async () => {
     await db.deviceTokens.insertOne({ _id: 'device', userId: source, token: 'push-token', platform: 'ios', createdAt: now, lastSeenAt: now });
     const activity = { chain: 'solana' as const, txHash: 'same-signature', eventIndex: 0, slot: 1, kind: 'balance' as const, title: 'Transfer', detail: '', occurredAt: now, metadata: {}, createdAt: now };

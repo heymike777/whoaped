@@ -16,10 +16,13 @@ await telegramCall('setMyCommands', { commands: [
   { command: 'add', description: 'Add one or many wallets' },
   { command: 'remove', description: 'Remove one or many wallets' },
   { command: 'wallets', description: 'List and manage tracked wallets' },
+  { command: 'settings', description: 'Transaction tracking preferences' },
   { command: 'cancel', description: 'Cancel wallet input' },
+  { command: 'premium', description: 'Premium status and BONK lock' },
+  { command: 'paysupport', description: 'Billing help and refund requests' },
   { command: 'help', description: 'Show commands' },
 ] });
 await telegramCall('setMyDescription', { description: 'Track Solana wallets with WhoAped. Get transaction notifications and quick token links to BONKbot, GMGN, FOMO and DexScreener. Add a wallet to start.' });
-await telegramCall('setWebhook', { url, secret_token: secret, max_connections: 1, allowed_updates: ['message', 'callback_query'], drop_pending_updates: false });
+await telegramCall('setWebhook', { url, secret_token: secret, max_connections: 1, allowed_updates: ['message', 'callback_query', 'pre_checkout_query'], drop_pending_updates: false });
 const webhook = await telegramCall<{ url: string; pending_update_count: number; last_error_message?: string }>('getWebhookInfo', {});
 console.log(JSON.stringify({ bot: `https://t.me/${bot.username}`, webhook: webhook.url, pendingUpdates: webhook.pending_update_count, lastError: webhook.last_error_message }));

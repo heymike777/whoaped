@@ -1,0 +1,19 @@
+[package]
+name = "whoaped-premium-lock"
+version = "0.1.0"
+edition = "2021"
+description = "Solana token lock for WhoAped Premium access"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "whoaped_premium_lock"
+
+[features]
+default = []
+no-entrypoint = []
+cpi = ["no-entrypoint"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.31.1", features = ["associated_token", "token"] }

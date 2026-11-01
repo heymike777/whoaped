@@ -66,7 +66,7 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
         {feed.error && <ErrorState message={feed.error} onRetry={feed.refresh} />}
         {!feed.isLoading && !waitingForState && !feed.error && feed.activities.length === 0 && <EmptyState onAddWallet={onAddWallet} walletCount={walletCount} />}
         {!feed.error && feed.activities.map((activity) => (
-          <View accessibilityLabel={`${activity.walletName}: ${activity.title}`} key={activity.id} style={styles.activityItem}>
+          <View accessibilityLabel={`${activity.walletName}: ${activity.title}`} key={activity.id} style={[styles.activityItem, activity.kind === 'failed' && styles.failedActivityItem]}>
             {activity.kind === 'swap' && activity.metadata?.swap
               ? <SwapActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} swap={activity.metadata.swap} />
               : activity.kind === 'yield' && activity.metadata?.yield
@@ -169,6 +169,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  failedActivityItem: { borderColor: `${colors.destructive}52` },
   loadMoreWrap: { alignItems: 'center', paddingVertical: 16 },
   loadMoreButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: colors.borderStrong },
   loadMoreText: { color: colors.text, fontFamily: typography.medium, fontSize: 13 },

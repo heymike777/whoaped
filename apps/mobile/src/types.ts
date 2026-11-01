@@ -20,7 +20,8 @@ export type ActivityKind =
   | 'stake'
   | 'transfer'
   | 'nft'
-  | 'unknown';
+  | 'unknown'
+  | 'failed';
 
 export type SwapDex = string;
 

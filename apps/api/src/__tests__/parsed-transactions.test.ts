@@ -6,12 +6,15 @@ const mocks = vi.hoisted(() => ({
   transactionUpdateOne: vi.fn(),
   deviceFind: vi.fn(),
   notificationUpdateOne: vi.fn(),
+  usersFind: vi.fn(),
+  userFindOne: vi.fn(),
 }));
 
 vi.mock('../db.js', () => ({
   hasDatabase: () => false,
   collections: async () => ({
     telegramChats: { findOne: vi.fn().mockResolvedValue(null) },
+    users: { find: mocks.usersFind, findOne: mocks.userFindOne },
     ingestionEvents: { updateOne: mocks.ingestionUpdateOne },
     wallets: { find: mocks.walletFind, findOne: vi.fn().mockResolvedValue({ _id: 'wallet-1', userId: 'user-1', name: 'Main', address: '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe', chain: 'solana', createdAt: new Date(0) }) },
     transactions: { updateOne: mocks.transactionUpdateOne },
@@ -57,6 +60,8 @@ describe('parsed transaction ingestion', () => {
       _id: 'wallet-1', userId: 'user-1', name: 'Main', address: walletAddress,
     }]) });
     mocks.transactionUpdateOne.mockResolvedValue({ upsertedCount: 1 });
+    mocks.usersFind.mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) });
+    mocks.userFindOne.mockResolvedValue({ trackFailedTransactions: true });
     mocks.deviceFind.mockReturnValue({ toArray: vi.fn().mockResolvedValue([{
       _id: 'device-1', userId: 'user-1', token: 'push-token',
     }]) });
@@ -99,11 +104,29 @@ describe('parsed transaction ingestion', () => {
     );
   });
 
-  it('ignores failed transactions before touching storage', async () => {
+  it('ignores failed transactions when opt-in is off', async () => {
     await expect(ingestParsedTransaction(transaction({ status: 'error' }), {
       provider: 'helius-parsed-stream',
     })).resolves.toEqual({ activities: 0 });
     expect(mocks.ingestionUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.notificationUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('stores and pushes failed transactions only after opt-in', async () => {
+    mocks.usersFind.mockReturnValue({ toArray: vi.fn().mockResolvedValue([{ _id: 'user-1' }]) });
+    await expect(ingestParsedTransaction(transaction({ status: 'error' }), {
+      provider: 'helius-parsed-stream',
+    })).resolves.toEqual({ activities: 1 });
+    expect(mocks.transactionUpdateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ txHash: 'stream-signature' }),
+      expect.objectContaining({ $set: expect.objectContaining({ kind: 'failed', title: 'Transaction failed' }) }),
+      { upsert: true },
+    );
+    expect(mocks.notificationUpdateOne).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ $setOnInsert: expect.objectContaining({ failedTransaction: true }) }),
+      { upsert: true },
+    );
   });
 
   it('does not store or notify a pure unsigned dust receipt', async () => {

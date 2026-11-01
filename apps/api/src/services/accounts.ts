@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import type { ClientSession } from 'mongodb';
+import { mergePaidAccess, premiumAccess } from './premium-access.js';
 import { getTrackingStatus, mergeAccountRateLimits } from './rate-limits.js';
 import { collections, withDatabaseTransaction, type Collections } from '../db.js';
 
@@ -29,6 +30,7 @@ export async function withAccountMutation<T>(userId: string, work: (db: Collecti
 export async function getAccount(userId: string) {
   const db = await collections();
   const accountId = await canonicalAccountId(userId, db);
+  const user = await db.users.findOne({ _id: accountId });
   const chat = await db.telegramChats.findOne({ userId: accountId });
   const now = new Date();
   const entitlements = await db.accountEntitlements.find({ userId: accountId, revokedAt: { $exists: false }, $or: [
@@ -36,10 +38,23 @@ export async function getAccount(userId: string) {
   ] }).toArray();
   return {
     id: accountId,
+    preferences: { trackFailedTransactions: user?.trackFailedTransactions === true },
     telegram: chat ? { connected: true as const, username: chat.username ?? null, linkedAt: chat.linkedAt } : null,
     tracking: await getTrackingStatus(accountId),
+    premium: await premiumAccess(accountId),
     entitlements: entitlements.map(e => ({ feature: e.feature, expiresAt: e.expiresAt ?? null })),
   };
+}
+
+export async function setTrackFailedTransactions(userId: string, enabled: boolean) {
+  return withAccountMutation(userId, async (db, session, accountId) => {
+    await db.users.updateOne({ _id: accountId }, { $set: { trackFailedTransactions: enabled } }, { session });
+    if (!enabled) {
+      await db.notificationJobs.updateMany({ userId: accountId, failedTransaction: true, status: { $in: ['pending', 'processing'] } }, { $set: { status: 'failed', lastError: 'Failed transaction tracking disabled' } }, { session });
+      await db.telegramJobs.updateMany({ userId: accountId, kind: 'failed', status: { $in: ['pending', 'processing'] } }, { $set: { status: 'failed', lastError: 'Failed transaction tracking disabled' } }, { session });
+    }
+    return { trackFailedTransactions: enabled };
+  });
 }
 
 export async function createTelegramLink(userId: string) {
@@ -97,6 +112,11 @@ export async function confirmTelegramLink(token: string, chatId: string, usernam
 
 export async function mergeAccountData(db: Collections, session: ClientSession, sourceId: string, targetId: string, now: Date) {
   const options = { session };
+  const source = await db.users.findOne({ _id: sourceId }, options);
+  const target = await db.users.findOne({ _id: targetId }, options);
+  if (source?.trackFailedTransactions === true && target?.trackFailedTransactions == null) {
+    await db.users.updateOne({ _id: targetId }, { $set: { trackFailedTransactions: true } }, options);
+  }
   // Retain aliases for any session or in-flight event that still carries the old account ID.
   await db.users.updateOne({ _id: sourceId }, { $set: { mergedInto: targetId, mergedAt: now }, $setOnInsert: { createdAt: now } }, { ...options, upsert: true });
   const wallets = await db.wallets.find({ userId: sourceId }, options).toArray();
@@ -122,6 +142,7 @@ export async function mergeAccountData(db: Collections, session: ClientSession, 
   await db.sessions.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await db.deviceTokens.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await db.notificationJobs.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
+  await mergePaidAccess(db, session, sourceId, targetId, now);
   await db.accountEntitlements.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await mergeAccountRateLimits(db, session, sourceId, targetId, now);
 }

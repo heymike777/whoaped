@@ -25,11 +25,16 @@ export async function ingestParsedTransaction(
     status: { $ne: 'error' },
     address: { $in: addresses },
   }).toArray();
+  const enabledFailedAccounts = failed ? new Set((await db.users.find({
+    _id: { $in: [...new Set(wallets.map((wallet) => wallet.userId))] },
+    trackFailedTransactions: true,
+  }).toArray()).map((user) => user._id)) : null;
 
   const admissions = new Map<string, boolean>();
   const eligibleWallets = [];
   let cooldownStarted = false;
   for (const wallet of wallets) {
+    if (failed && !enabledFailedAccounts?.has(wallet.userId)) continue;
     if (!await walletTrackingEligible(wallet, transaction.slot, transaction.blockTime)) continue;
     // Admission itself resolves aliases and serializes concurrent stream connections.
     if (!admissions.has(wallet.userId)) {
@@ -41,15 +46,20 @@ export async function ingestParsedTransaction(
   }
   // Rebuild upstream subscriptions before processing another queued stream message.
   if (cooldownStarted) await options.onCooldown?.();
-  transaction = await reconcileNativeBalanceChanges(transaction, eligibleWallets.map((wallet) => wallet.address));
+  if (!eligibleWallets.length) return { activities: 0 };
+  if (!failed) transaction = await reconcileNativeBalanceChanges(transaction, eligibleWallets.map((wallet) => wallet.address));
   const normalizedByWallet = eligibleWallets.map((wallet) => ({
     wallet,
-    activities: failed ? [] : solanaAdapter.normalize(transaction, wallet.address),
+    activities: failed ? [{
+      chain: 'solana' as const, txHash: transaction.signature, eventIndex: 0,
+      kind: 'failed' as const, title: 'Transaction failed', detail: 'Execution failed on Solana.',
+      occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
+      metadata: { failed: true },
+    }] : solanaAdapter.normalize(transaction, wallet.address),
   }));
   // Persist independently of mobile activity classification, including dust and failed transactions.
   await Promise.all(normalizedByWallet.map(({ wallet, activities }) =>
     enqueueTelegramTransaction(wallet, transaction, activities)));
-  if (failed) return { activities: 0 };
   if (!normalizedByWallet.some(({ activities }) => activities.length)) return { activities: 0 };
 
   await db.ingestionEvents.updateOne(
@@ -66,6 +76,7 @@ export async function ingestParsedTransaction(
     for (const normalizedActivity of normalizedActivities) {
       const activity = await enrichActivityMetadata(normalizedActivity);
       activities += await withAccountMutation(wallet.userId, async (database, session, accountId) => {
+        if (failed && (await database.users.findOne({ _id: accountId }, { session }))?.trackFailedTransactions !== true) return 0;
         const original = await database.wallets.findOne({ _id: wallet._id }, { session });
         const currentWallet = original?.mergedIntoWalletId
           ? await database.wallets.findOne({ _id: original.mergedIntoWalletId }, { session }) : original;
@@ -120,6 +131,7 @@ export async function ingestParsedTransaction(
               userId: accountId,
               deviceTokenId: device._id,
               transactionId,
+              ...(failed ? { failedTransaction: true } : {}),
               title: currentWallet.name,
               body: activity.title,
               data: { transactionId, walletId: currentWallet._id },

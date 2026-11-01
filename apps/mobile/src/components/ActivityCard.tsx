@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpDown, Image, Rocket, ShieldCheck, Sprout, Zap } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpDown, CircleX, Image, Rocket, ShieldCheck, Sprout, Zap } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { type ThemeColors, typography } from '../theme';
@@ -18,6 +18,7 @@ const iconByKind = {
   transfer: ArrowDownLeft,
   nft: Image,
   unknown: Zap,
+  failed: CircleX,
 };
 
 const colorByKind = (colors: ThemeColors): Record<ActivityKind, string> => ({
@@ -31,6 +32,7 @@ const colorByKind = (colors: ThemeColors): Record<ActivityKind, string> => ({
   transfer: colors.gold,
   nft: colors.nft,
   unknown: colors.textMuted,
+  failed: colors.destructive,
 });
 
 function relativeTime(value: string) {
@@ -47,7 +49,7 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
   const accent = colorByKind(colors)[activity.kind];
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, activity.kind === 'failed' && styles.failedCard]}>
       <View style={styles.solscanAction}><SolscanButton onPress={onOpenSolscan} /></View>
       <View style={styles.mainRow}>
         <View style={[styles.iconWrap, { backgroundColor: `${accent}12` }]}>
@@ -60,7 +62,7 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
             <View style={styles.dot} />
             <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
           </View>
-          <Text style={styles.title}>{activity.title}</Text>
+          <Text style={[styles.title, activity.kind === 'failed' && styles.failedTitle]}>{activity.title}</Text>
           {activity.kind !== 'balance' && <Text numberOfLines={1} style={styles.detail}>{activity.detail}</Text>}
         </View>
         {activity.valueUsd != null && (
@@ -83,6 +85,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: colors.surface,
   },
+  failedCard: { backgroundColor: `${colors.destructive}0D` },
   solscanAction: { position: 'absolute', zIndex: 2, right: 12, top: 12 },
   signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
   mainRow: { paddingRight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -99,6 +102,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textFaint },
   time: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 10 },
   title: { color: colors.text, fontFamily: typography.regular, fontWeight: '600', fontSize: 15, lineHeight: 19 },
+  failedTitle: { color: colors.destructive },
   detail: { marginTop: 3, color: colors.textMuted, fontFamily: typography.regular, fontSize: 12, lineHeight: 16 },
   value: { color: colors.text, fontFamily: typography.mono, fontSize: 11, marginTop: 2 },
 });
