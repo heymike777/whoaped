@@ -29,12 +29,12 @@ export function assertPremiumPool(config: StreamflowConfig, pool: StreamflowPool
   }
   if (pool.address !== config.poolAddress || pool.mint !== config.tokenMint) throw new Error('Streamflow pool address or mint mismatch.');
   if (pool.unstakePeriod !== STREAMFLOW_UNSTAKE_SECONDS) throw new Error('Streamflow pool must have a 7-day request-to-unstake period.');
-  if (pool.minDuration !== 0 || pool.autoUnstake) throw new Error('Streamflow pool must allow an unlock request at any time.');
+  if (pool.minDuration !== 1 || pool.maxDuration !== 1 || pool.autoUnstake) throw new Error('Streamflow pool must use the verified one-second stake duration and manual unstaking.');
   if (!pool.freezeStakeMint) throw new Error('Streamflow receipt tokens must be frozen to prevent transferable Premium access.');
 }
 
 export function summarizeStreamflowPosition(config: StreamflowConfig, wallet: string, entries: StreamflowEntrySnapshot[]) {
-  const matching = entries.filter(entry => entry.authority === wallet && entry.pool === config.poolAddress && entry.closedTs === 0 && entry.amountRaw > 0n && entry.duration === 0);
+  const matching = entries.filter(entry => entry.authority === wallet && entry.pool === config.poolAddress && entry.closedTs === 0 && entry.amountRaw > 0n && entry.duration === 1);
   const amountRaw = matching.reduce((sum, entry) => sum + entry.amountRaw, 0n);
   return {
     wallet,

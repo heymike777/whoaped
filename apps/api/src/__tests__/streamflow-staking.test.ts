@@ -7,9 +7,9 @@ const config = streamflowConfig({
   STREAMFLOW_TOKEN_SYMBOL: 'TEST', STREAMFLOW_REQUIRED_AMOUNT_RAW: '100000000000',
 });
 const pool = { address: 'Pool111', mint: 'Mint111', stakeMint: 'StakeMint111', unstakePeriod: STREAMFLOW_UNSTAKE_SECONDS,
-  minDuration: 0, maxDuration: 0, freezeStakeMint: true, autoUnstake: false };
+  minDuration: 1, maxDuration: 1, freezeStakeMint: true, autoUnstake: false };
 const entry = (overrides: Partial<StreamflowEntrySnapshot> = {}): StreamflowEntrySnapshot => ({
-  address: 'Entry111', authority: 'Owner111', pool: 'Pool111', amountRaw: 100_000_000_000n, duration: 0, closedTs: 0, unstakeTs: 0, ...overrides,
+  address: 'Entry111', authority: 'Owner111', pool: 'Pool111', amountRaw: 100_000_000_000n, duration: 1, closedTs: 0, unstakeTs: 0, ...overrides,
 });
 
 describe('Streamflow Premium preparation', () => {
@@ -22,7 +22,8 @@ describe('Streamflow Premium preparation', () => {
     expect(() => assertPremiumPool(config, pool)).not.toThrow();
     expect(() => assertPremiumPool(config, { ...pool, unstakePeriod: 0 })).toThrow(/7-day/);
     expect(() => assertPremiumPool(config, { ...pool, freezeStakeMint: false })).toThrow(/frozen/);
-    expect(() => assertPremiumPool(config, { ...pool, minDuration: 1 })).toThrow(/any time/);
+    expect(() => assertPremiumPool(config, { ...pool, minDuration: 0 })).toThrow(/one-second/);
+    expect(() => assertPremiumPool(config, { ...pool, maxDuration: 604800 })).toThrow(/one-second/);
     expect(() => assertPremiumPool(config, { ...pool, mint: 'Wrong' })).toThrow(/mismatch/);
   });
 
