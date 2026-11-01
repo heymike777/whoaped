@@ -18,6 +18,23 @@ _Current brand direction: The Live Ledger. See `DESIGN.md` for the full design s
 
 Orange is deliberately rare. Do not use gradients, neon, glass cards, or decorative crypto motifs.
 
+## Dark theme
+
+The dark theme keeps the same hierarchy rather than inverting the light palette.
+
+| Role | Hex | Usage |
+|---|---|---|
+| Night paper | `#111513` | Page and app background |
+| Night sheet | `#1C211E` | Cards and content surfaces |
+| Raised surface | `#29302B` | Controls, panels, and empty-state icons |
+| Light ink | `#F2F5F0` | Primary text |
+| Muted ink | `#B5BFB7` | Secondary text |
+| Signal orange | `#FF6A50` | Primary action and sparse event markers |
+| Positive green | `#69D5A2` | Received or active state |
+| Route blue | `#91A2FF` | Swap semantics and focus |
+
+Follow the device appearance by default; a manual Light or Dark choice overrides it. Preserve readable contrast for wallet names, amounts, and token symbols.
+
 ## Typography
 
 - Space Grotesk: headings, prominent controls, and brand wordmark.

@@ -12,9 +12,11 @@ import { SwapActivityCard } from '../components/SwapActivityCard';
 import { YieldActivityCard } from '../components/YieldActivityCard';
 import { useActivityFeed } from '../hooks/useActivityFeed';
 import { getActivityEmptyMode } from '../lib/emptyState';
-import { colors, layout, typography } from '../theme';
+import { type ThemeColors, layout, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 
 export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const feed = useActivityFeed();
   const [walletCount, setWalletCount] = useState<number | null>(null);
@@ -91,6 +93,7 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
 }
 
 function LoadingState() {
+  const { styles } = useThemedStyles(createStyles);
   return (
     <View accessibilityLabel="Loading wallet activity">
       {[0, 1, 2].map((item) => (
@@ -110,6 +113,7 @@ function LoadingState() {
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.state}>
       <View style={styles.stateIcon}><RefreshCw color={colors.destructive} size={23} /></View>
@@ -121,6 +125,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 function EmptyState({ onAddWallet, walletCount }: { onAddWallet: () => void; walletCount: number | null }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   if (getActivityEmptyMode(walletCount) === 'needs-wallet') {
     return (
       <View style={styles.state}>
@@ -145,7 +150,7 @@ function EmptyState({ onAddWallet, walletCount }: { onAddWallet: () => void; wal
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: { paddingHorizontal: layout.gutter, paddingBottom: 124 },
   brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center' },
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 10 },

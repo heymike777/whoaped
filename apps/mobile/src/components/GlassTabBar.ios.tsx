@@ -1,6 +1,7 @@
 import { requireNativeComponent, StyleSheet, View } from 'react-native';
 import type { NativeSyntheticEvent, ViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../themeContext';
 
 export type TabKey = 'activity' | 'wallets' | 'settings';
 
@@ -10,6 +11,7 @@ type Props = {
 };
 
 type NativeProps = ViewProps & {
+  darkMode: boolean;
   selectedIndex: number;
   onTabSelected: (event: NativeSyntheticEvent<{ index: number }>) => void;
 };
@@ -18,6 +20,7 @@ const tabOrder: TabKey[] = ['activity', 'wallets', 'settings'];
 const NativeLiquidGlassTabBar = requireNativeComponent<NativeProps>('WhoApedTabBar');
 
 export function GlassTabBar({ activeTab, onChange }: Props) {
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const selectedIndex = tabOrder.indexOf(activeTab);
 
@@ -34,6 +37,7 @@ export function GlassTabBar({ activeTab, onChange }: Props) {
       style={[styles.positioner, { height: 49 + insets.bottom }]}
     >
       <NativeLiquidGlassTabBar
+        darkMode={isDark}
         onTabSelected={handleTabSelected}
         selectedIndex={selectedIndex}
         style={styles.tabBar}

@@ -8,9 +8,14 @@ import { ActivityScreen } from './src/screens/ActivityScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { WalletsScreen } from './src/screens/WalletsScreen';
 import { enablePushNotifications, observePushTokenRefresh } from './src/lib/notifications';
-import { colors } from './src/theme';
+import { ThemeProvider, useTheme } from './src/themeContext';
 
 export default function App() {
+  return <ThemeProvider><AppContent /></ThemeProvider>;
+}
+
+function AppContent() {
+  const { colors, isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<TabKey>('activity');
   useEffect(() => {
     enablePushNotifications().catch(() => undefined);
@@ -19,8 +24,8 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <View style={styles.root}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
         <View style={styles.content}>
           <ConnectivityBanner />
@@ -43,6 +48,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1 },
   content: { flex: 1 },
 });

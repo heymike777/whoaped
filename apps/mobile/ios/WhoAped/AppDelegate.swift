@@ -89,6 +89,12 @@ final class WhoApedTabBarView: UIView, UITabBarDelegate {
     }
   }
 
+  @objc var darkMode: Bool = false {
+    didSet {
+      overrideUserInterfaceStyle = darkMode ? .dark : .light
+    }
+  }
+
   @objc var onTabSelected: RCTDirectEventBlock?
 
   private let tabBar = UITabBar()
@@ -115,13 +121,15 @@ final class WhoApedTabBarView: UIView, UITabBarDelegate {
 
   private func configureTabBar() {
     backgroundColor = .clear
-    overrideUserInterfaceStyle = .light
-
     tabBar.items = tabItems
     tabBar.delegate = self
     tabBar.isTranslucent = true
-    tabBar.tintColor = UIColor(red: 0.941, green: 0.294, blue: 0.184, alpha: 1)
-    tabBar.unselectedItemTintColor = UIColor(red: 0.353, green: 0.376, blue: 0.365, alpha: 1)
+    tabBar.tintColor = UIColor { traits in
+      traits.userInterfaceStyle == .dark
+        ? UIColor(red: 1, green: 0.416, blue: 0.314, alpha: 1)
+        : UIColor(red: 0.941, green: 0.294, blue: 0.184, alpha: 1)
+    }
+    tabBar.unselectedItemTintColor = .secondaryLabel
     tabBar.accessibilityIdentifier = "main-tab-bar"
     addSubview(tabBar)
 

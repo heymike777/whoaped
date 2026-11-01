@@ -1,9 +1,11 @@
 import { Pressable, StyleSheet } from 'react-native';
 
-import { colors } from '../theme';
+import { type ThemeColors } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import { SolscanMark } from './SolscanMark';
 
 export function SolscanButton({ onPress }: { onPress: () => void }) {
+  const { styles } = useThemedStyles(createStyles);
   return (
     <Pressable
       accessibilityHint="Opens this transaction inside WhoAped"
@@ -18,7 +20,7 @@ export function SolscanButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   button: {
     width: 36,
     height: 36,

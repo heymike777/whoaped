@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 
 export type TabKey = 'activity' | 'wallets' | 'settings';
 
@@ -19,6 +20,7 @@ const tabs = [
 ];
 
 export function GlassTabBar({ activeTab, onChange }: Props) {
+  const { colors, styles } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
 
   const select = (tab: TabKey) => {
@@ -65,7 +67,7 @@ export function GlassTabBar({ activeTab, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   positioner: {
     position: 'absolute',
     left: 18,

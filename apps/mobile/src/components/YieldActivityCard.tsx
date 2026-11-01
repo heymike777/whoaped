@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import type { Activity, YieldAsset, YieldMetadata } from '../types';
 import { TokenActionButtons } from './TokenActionButtons';
 import { SolscanButton } from './SolscanButton';
@@ -46,6 +47,7 @@ function formatAmount(value: number) {
 }
 
 function ProtocolIcon({ metadata }: { metadata: YieldMetadata }) {
+  const { styles } = useThemedStyles(createStyles);
   const source = protocolLogos[metadata.protocol];
   if (source) return <Image source={source} style={styles.protocolLogo} />;
   return (
@@ -56,6 +58,7 @@ function ProtocolIcon({ metadata }: { metadata: YieldMetadata }) {
 }
 
 function AssetIcon({ asset }: { asset: YieldAsset }) {
+  const { styles } = useThemedStyles(createStyles);
   const [failed, setFailed] = useState(false);
   if (!asset.iconUrl || failed) {
     return (
@@ -75,6 +78,7 @@ function AssetIcon({ asset }: { asset: YieldAsset }) {
 }
 
 function AssetRow({ asset, action }: { asset: YieldAsset; action: YieldMetadata['action'] }) {
+  const { styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.assetRow}>
       <AssetIcon asset={asset} />
@@ -90,6 +94,7 @@ function AssetRow({ asset, action }: { asset: YieldAsset; action: YieldMetadata[
 }
 
 export function YieldActivityCard({ activity, metadata, onOpenSolscan }: { activity: Activity; metadata: YieldMetadata; onOpenSolscan: () => void }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   const isDeposit = metadata.action === 'deposit';
   const isLiquidity = metadata.positionType === 'liquidity';
   const ActionIcon = isDeposit ? ArrowDownToLine : ArrowUpFromLine;
@@ -137,7 +142,7 @@ export function YieldActivityCard({ activity, metadata, onOpenSolscan }: { activ
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     position: 'relative',
     paddingVertical: 18,
@@ -182,12 +187,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: 'rgba(64, 85, 217, 0.09)',
+    backgroundColor: colors.blueSoft,
   },
   withdrawIcon: { backgroundColor: colors.positiveSoft },
   actionEyebrow: { color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 11 },
   actionTitle: { marginTop: 2, color: colors.text, fontFamily: typography.semibold, fontSize: 17 },
-  statusPill: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: 'rgba(64, 85, 217, 0.09)' },
+  statusPill: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: colors.blueSoft },
   withdrawPill: { backgroundColor: colors.positiveSoft },
   statusText: { color: colors.blue, fontFamily: typography.regular, fontWeight: '700', fontSize: 10 },
   withdrawText: { color: colors.positive },

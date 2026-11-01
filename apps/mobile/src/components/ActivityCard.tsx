@@ -1,7 +1,8 @@
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpDown, Image, Rocket, ShieldCheck, Sprout, Zap } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import { Activity, ActivityKind } from '../types';
 import { TokenActionButtons } from './TokenActionButtons';
 import { SolscanButton } from './SolscanButton';
@@ -19,7 +20,7 @@ const iconByKind = {
   unknown: Zap,
 };
 
-const colorByKind: Record<ActivityKind, string> = {
+const colorByKind = (colors: ThemeColors): Record<ActivityKind, string> => ({
   balance: colors.primary,
   multisig: colors.blue,
   swap: colors.blue,
@@ -30,7 +31,7 @@ const colorByKind: Record<ActivityKind, string> = {
   transfer: colors.gold,
   nft: colors.nft,
   unknown: colors.textMuted,
-};
+});
 
 function relativeTime(value: string) {
   const seconds = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 1000));
@@ -41,8 +42,9 @@ function relativeTime(value: string) {
 }
 
 export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; onOpenSolscan: () => void }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   const Icon = iconByKind[activity.kind];
-  const accent = colorByKind[activity.kind];
+  const accent = colorByKind(colors)[activity.kind];
 
   return (
     <View style={styles.card}>
@@ -74,7 +76,7 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     position: 'relative',
     paddingVertical: 12,

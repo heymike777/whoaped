@@ -17,12 +17,14 @@ import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
 import { addWallet, deleteWallet, getWallets } from '../api/client';
 import { isWalletAlreadyTracked, transactionCount24hLabel } from '../lib/wallets';
-import { colors, layout, typography } from '../theme';
+import { type ThemeColors, layout, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import { Wallet } from '../types';
 
 const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 export function WalletsScreen() {
+  const { colors, styles, isDark } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +99,7 @@ export function WalletsScreen() {
                 accessibilityLabel="Search wallets"
                 autoCapitalize="none"
                 autoCorrect={false}
+                keyboardAppearance={isDark ? 'dark' : 'light'}
                 onChangeText={setSearch}
                 placeholder="Search name or address"
                 placeholderTextColor={colors.textFaint}
@@ -144,6 +147,7 @@ export function WalletsScreen() {
 }
 
 function WalletEmptyState({ onAdd }: { onAdd: () => void }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.onboardingCard}>
       <View style={styles.walletVisual}>
@@ -185,6 +189,7 @@ function WalletRow({
   onRemove: () => void;
   removing: boolean;
 }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   return (
     <View
       accessibilityLabel={`${wallet.name}, ${transactionCount24hLabel(wallet.transactionCount24h)}`}
@@ -221,6 +226,7 @@ function AddWalletModal({
   onCreated: (wallet: Wallet) => void;
   wallets: Wallet[];
 }) {
+  const { colors, styles, isDark } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
@@ -275,6 +281,7 @@ function AddWalletModal({
           <TextInput
             autoCapitalize="sentences"
             autoComplete="off"
+            keyboardAppearance={isDark ? 'dark' : 'light'}
             onChangeText={(value) => { setName(value); setError(null); }}
             placeholder="e.g. degen vault"
             placeholderTextColor={colors.textFaint}
@@ -286,6 +293,7 @@ function AddWalletModal({
             autoCapitalize="none"
             autoComplete="off"
             autoCorrect={false}
+            keyboardAppearance={isDark ? 'dark' : 'light'}
             multiline
             onChangeText={(value) => { setAddress(value); setError(null); }}
             placeholder="Paste Solana address"
@@ -310,7 +318,7 @@ function AddWalletModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: layout.gutter, paddingBottom: 124, gap: 12 },
   headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', marginBottom: 14 },

@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 
 export function ConnectivityBanner() {
+  const { colors, styles } = useThemedStyles(createStyles);
   const [offline, setOffline] = useState(false);
   const insets = useSafeAreaInsets();
 
@@ -21,7 +23,7 @@ export function ConnectivityBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   banner: {
     position: 'absolute',
     zIndex: 10,

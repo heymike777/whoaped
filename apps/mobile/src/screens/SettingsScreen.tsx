@@ -4,9 +4,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { enablePushNotifications, syncEnabledPushNotifications } from '../lib/notifications';
-import { colors, layout, typography } from '../theme';
+import { type ThemeColors, layout, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 
 export function SettingsScreen() {
+  const { colors, styles, preference, setPreference } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [pushState, setPushState] = useState<'idle' | 'loading' | 'enabled' | 'error'>('idle');
   const [message, setMessage] = useState('Get an alert after a tracked transaction confirms.');
@@ -60,12 +62,35 @@ export function SettingsScreen() {
         </View>
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>APPEARANCE</Text>
+        <View style={styles.appearanceCard}>
+          <Text style={styles.cardTitle}>Theme</Text>
+          <Text style={styles.cardBody}>Choose how WhoAped looks on this device.</Text>
+          <View accessibilityRole="radiogroup" style={styles.themeOptions}>
+            {(['system', 'light', 'dark'] as const).map((option) => (
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: preference === option }}
+                key={option}
+                onPress={() => setPreference(option)}
+                style={({ pressed }) => [styles.themeOption, preference === option && styles.themeOptionSelected, pressed && styles.pressed]}
+              >
+                <Text style={[styles.themeOptionText, preference === option && styles.themeOptionTextSelected]}>
+                  {option === 'system' ? 'System' : option === 'light' ? 'Light' : 'Dark'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+
       <Text style={styles.version}>WHOAPED · MVP 0.1.0</Text>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: { paddingHorizontal: layout.gutter, paddingBottom: 124 },
   eyebrow: { color: colors.primary, fontFamily: typography.mono, fontSize: 10, letterSpacing: 1.35 },
   heading: { color: colors.text, fontFamily: typography.bold, fontSize: 38, letterSpacing: -1.1 },
@@ -81,6 +106,12 @@ const styles = StyleSheet.create({
   errorText: { color: colors.coral },
   smallButton: { minWidth: 58, minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 11, borderRadius: 14, backgroundColor: colors.primarySoft },
   smallButtonText: { color: colors.primary, fontFamily: typography.semibold, fontSize: 12 },
+  appearanceCard: { padding: 16, borderRadius: 22, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
+  themeOptions: { flexDirection: 'row', gap: 6, marginTop: 18, padding: 4, borderRadius: 15, backgroundColor: colors.background },
+  themeOption: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  themeOptionSelected: { backgroundColor: colors.surfaceRaised },
+  themeOptionText: { color: colors.textMuted, fontFamily: typography.medium, fontSize: 13 },
+  themeOptionTextSelected: { color: colors.text, fontFamily: typography.semibold },
   pressed: { opacity: 0.7 },
   version: { marginTop: 28, color: colors.textFaint, fontFamily: typography.mono, fontSize: 9, letterSpacing: 1.1, textAlign: 'center' },
 });

@@ -1,4 +1,4 @@
-export const colors = {
+export const lightColors = {
   background: '#F4F4EF',
   backgroundMid: '#F4F4EF',
   surface: '#FFFFFF',
@@ -16,6 +16,7 @@ export const colors = {
   primaryBorder: 'rgba(240, 75, 47, 0.18)',
   primaryBorderStrong: 'rgba(240, 75, 47, 0.30)',
   blue: '#4055D9',
+  blueSoft: 'rgba(64, 85, 217, 0.09)',
   glowBlue: 'transparent',
   glowMint: 'transparent',
   coral: '#C83C2A',
@@ -30,6 +31,42 @@ export const colors = {
   destructive: '#C92F26',
   black: '#111313',
 } as const;
+
+export type ThemeColors = Record<keyof typeof lightColors, string>;
+
+export const darkColors: ThemeColors = {
+  background: '#111513',
+  backgroundMid: '#111513',
+  surface: '#1C211E',
+  surfaceRaised: '#29302B',
+  glass: '#202622',
+  glassStrong: '#252C27',
+  border: 'rgba(238, 244, 238, 0.10)',
+  borderStrong: 'rgba(238, 244, 238, 0.20)',
+  text: '#F2F5F0',
+  textMuted: '#B5BFB7',
+  textFaint: '#929D95',
+  primary: '#FF6A50',
+  primaryInk: '#111513',
+  primarySoft: 'rgba(255, 106, 80, 0.13)',
+  primaryBorder: 'rgba(255, 106, 80, 0.25)',
+  primaryBorderStrong: 'rgba(255, 106, 80, 0.36)',
+  blue: '#91A2FF',
+  blueSoft: 'rgba(145, 162, 255, 0.13)',
+  glowBlue: 'transparent',
+  glowMint: 'transparent',
+  coral: '#FF826C',
+  gold: '#F0C477',
+  goldSoft: 'rgba(240, 196, 119, 0.12)',
+  nft: '#BEA3FF',
+  positive: '#69D5A2',
+  positiveSoft: 'rgba(105, 213, 162, 0.12)',
+  offlineSurface: '#30281B',
+  offlineText: '#FFF1CF',
+  scrim: 'rgba(0, 0, 0, 0.65)',
+  destructive: '#FF756C',
+  black: '#000000',
+};
 
 export const typography = {
   regular: 'System',

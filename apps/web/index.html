@@ -9,16 +9,16 @@
     <meta property="og:description" content="A live record of the Solana wallets your AI agents use." />
     <meta property="og:image" content="/assets/og-card.svg" />
     <link rel="icon" type="image/svg+xml" href="/assets/mark.svg" />
+    <script>try{const saved=localStorage.getItem('whoaped.theme');document.documentElement.dataset.theme=saved|| (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{}</script>
     <link rel="stylesheet" href="/styles.css" />
+    <script src="/theme.js" defer></script>
     <title>WhoAped — Know what your agents did</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header shell">
       <a class="brand" href="/" aria-label="WhoAped home"><img src="/assets/mark.svg" alt="" width="36" height="36" /><span>WhoAped</span></a>
-      <nav class="nav" aria-label="Main navigation">
-        <a href="#how-it-works">How it works</a>
-      </nav>
+      <div class="header-actions"><nav class="nav" aria-label="Main navigation"><a href="#how-it-works">How it works</a></nav><button class="theme-toggle" type="button" aria-label="Switch to dark mode">Dark mode</button></div>
     </header>
 
     <main id="main">

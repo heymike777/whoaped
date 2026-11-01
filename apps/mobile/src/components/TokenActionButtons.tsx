@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import type { TokenAction } from '../types';
 
 const providerLogos: Record<string, ImageSourcePropType> = {
@@ -20,6 +21,7 @@ const providerLogos: Record<string, ImageSourcePropType> = {
 };
 
 export function TokenActionButtons({ actions }: { actions?: TokenAction[] }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   if (!actions?.length) return null;
   return (
     <View style={styles.wrap}>
@@ -50,7 +52,7 @@ export function TokenActionButtons({ actions }: { actions?: TokenAction[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: { marginTop: 12, gap: 10 },
   tokenBlock: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 12 },
   heading: { flex: 1, color: colors.textMuted, fontFamily: typography.regular, fontWeight: '700', fontSize: 12 },

@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import type { Activity, SwapDex, SwapMetadata, SwapToken } from '../types';
 import { TokenActionButtons } from './TokenActionButtons';
 import { SolscanButton } from './SolscanButton';
@@ -34,6 +35,7 @@ const dexLogos: Partial<Record<SwapDex, ImageSourcePropType>> = {
 };
 
 function DexIcon({ swap }: { swap: SwapMetadata }) {
+  const { styles } = useThemedStyles(createStyles);
   const source = dexLogos[swap.dex];
   if (source) return <Image source={source} style={styles.dexLogo} />;
   return (
@@ -61,6 +63,7 @@ function formatAmount(value: number) {
 }
 
 function TokenIcon({ token }: { token: SwapToken }) {
+  const { styles } = useThemedStyles(createStyles);
   const [failed, setFailed] = useState(false);
   if (!token.iconUrl || failed) {
     return (
@@ -80,6 +83,7 @@ function TokenIcon({ token }: { token: SwapToken }) {
 }
 
 function TokenLeg({ label, token, output }: { label: string; token: SwapToken; output?: boolean }) {
+  const { styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.leg}>
       <View style={styles.legCopy}>
@@ -103,6 +107,7 @@ export function SwapActivityCard({
   onOpenSolscan: () => void;
   swap: SwapMetadata;
 }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.card}>
       <View style={styles.solscanAction}><SolscanButton onPress={onOpenSolscan} /></View>
@@ -136,7 +141,7 @@ export function SwapActivityCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     position: 'relative',
     paddingVertical: 18,

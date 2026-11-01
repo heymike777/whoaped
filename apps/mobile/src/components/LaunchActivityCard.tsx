@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import type { Activity, LaunchMetadata } from '../types';
 import { TokenActionButtons } from './TokenActionButtons';
 import { SolscanButton } from './SolscanButton';
@@ -21,6 +22,7 @@ function compactAddress(value: string) {
 }
 
 function TokenArtwork({ metadata }: { metadata: LaunchMetadata }) {
+  const { styles } = useThemedStyles(createStyles);
   const [failed, setFailed] = useState(false);
   if (metadata.token.iconUrl && !failed) {
     if (/\.svg(?:\?|$)/i.test(metadata.token.iconUrl)) {
@@ -47,6 +49,7 @@ function TokenArtwork({ metadata }: { metadata: LaunchMetadata }) {
 }
 
 export function LaunchActivityCard({ activity, metadata, onOpenSolscan }: { activity: Activity; metadata: LaunchMetadata; onOpenSolscan: () => void }) {
+  const { colors, styles } = useThemedStyles(createStyles);
   const openBuy = () => { Linking.openURL(metadata.buyUrl).catch(() => undefined); };
   const tokenName = metadata.token.name ?? metadata.token.symbol;
 
@@ -101,7 +104,7 @@ export function LaunchActivityCard({ activity, metadata, onOpenSolscan }: { acti
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     position: 'relative',
     paddingVertical: 18,

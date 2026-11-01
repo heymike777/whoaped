@@ -13,7 +13,8 @@ import { WebView } from 'react-native-webview';
 import type { AndroidWebViewProps, IOSWebViewProps } from 'react-native-webview/lib/WebViewTypes';
 
 import { solscanTransactionUrl } from '../lib/solscan';
-import { colors, typography } from '../theme';
+import { type ThemeColors, typography } from '../theme';
+import { useThemedStyles } from '../themeContext';
 import { SolscanMark } from './SolscanMark';
 
 type WebViewHandle = { reload: () => void };
@@ -31,6 +32,7 @@ export function SolscanWebView({
   signature: string | null;
   onClose: () => void;
 }) {
+  const { colors, styles, isDark } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const webView = useRef<WebViewHandle>(null);
   const url = signature ? solscanTransactionUrl(signature) : null;
@@ -40,6 +42,7 @@ export function SolscanWebView({
       animationType="slide"
       onRequestClose={onClose}
       presentationStyle="fullScreen"
+      statusBarTranslucent={false}
       visible={url != null}
     >
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -75,6 +78,7 @@ export function SolscanWebView({
             ref={webView}
             allowsBackForwardNavigationGestures
             javaScriptEnabled
+            forceDarkOn={isDark}
             originWhitelist={['https://*']}
             renderError={() => (
               <View style={styles.errorState}>
@@ -99,7 +103,7 @@ export function SolscanWebView({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   header: {
     height: 60,

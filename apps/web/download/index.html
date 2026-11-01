@@ -6,13 +6,15 @@
     <meta name="theme-color" content="#F4F4EF" />
     <meta name="description" content="Download published WhoAped Android APK builds and view the release history." />
     <link rel="icon" type="image/svg+xml" href="/assets/mark.svg" />
+    <script>try{const saved=localStorage.getItem('whoaped.theme');document.documentElement.dataset.theme=saved|| (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{}</script>
     <link rel="stylesheet" href="/styles.css" />
+    <script src="/theme.js" defer></script>
     <script type="module" src="/download.js"></script>
     <title>Download WhoAped for Android</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <header class="site-header shell"><a class="brand" href="/" aria-label="WhoAped home"><img src="/assets/mark.svg" alt="" width="36" height="36" /><span>WhoAped</span></a><nav class="nav" aria-label="Main navigation"><a href="/#how-it-works">How it works</a><a class="active" href="/download/" aria-current="page">Download</a></nav></header>
+    <header class="site-header shell download-header"><a class="brand" href="/" aria-label="WhoAped home"><img src="/assets/mark.svg" alt="" width="36" height="36" /><span>WhoAped</span></a><div class="header-actions"><nav class="nav" aria-label="Main navigation"><a href="/#how-it-works">How it works</a><a class="active" href="/download/" aria-current="page">Download</a></nav><button class="theme-toggle" type="button" aria-label="Switch to dark mode">Dark mode</button></div></header>
     <main id="main" class="download-page shell">
       <div class="download-head"><div><p class="eyebrow">ANDROID / SOLANA MOBILE</p><h1>Download<br /><em>WhoAped.</em></h1><p>Every published Android build lives here. Download the latest APK or find an earlier version below.</p></div><div class="download-mark" aria-hidden="true"><img src="/assets/mark.svg" alt="" width="128" height="128" /></div></div>
       <section class="release-section" aria-labelledby="latest-title"><div class="release-heading"><h2 id="latest-title">Latest build</h2><span class="release-source">DIRECT APK · GITHUB RELEASES</span></div><div id="latest-release" class="release-card" aria-live="polite" aria-busy="true"><div class="skeleton skeleton-label"></div><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-meta"></div></div></section>
