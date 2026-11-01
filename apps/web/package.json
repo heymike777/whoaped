@@ -1,0 +1,9 @@
+{
+  "name": "whoaped-web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node --check download.js && node --check build.mjs"
+  }
+}

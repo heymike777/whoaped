@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#F4F4EF"/>
+  <path d="M60 79H1140M60 555H1140" stroke="#C9CDC4"/>
+  <rect x="60" y="112" width="84" height="84" rx="14" fill="#111313"/>
+  <path d="M91 131H82C76 131 73 134 73 140V149M113 131H122C128 131 131 134 131 140V149M91 177H82C76 177 73 174 73 168V159M113 177H122C128 177 131 174 131 168V159" stroke="#F4F4EF" stroke-width="6" stroke-linecap="round"/>
+  <path d="M83 154C92 140 99 137 102 137C111 137 118 145 123 154C117 164 110 170 102 170C94 170 87 164 83 154Z" stroke="#F4F4EF" stroke-width="5"/>
+  <circle cx="102" cy="154" r="5" fill="#F04B2F"/>
+  <text x="163" y="171" fill="#111313" font-family="Arial,sans-serif" font-size="42" font-weight="700">WhoAped</text>
+  <text x="60" y="348" fill="#111313" font-family="Arial,sans-serif" font-size="93" font-weight="700" letter-spacing="-4">Know what your</text>
+  <text x="60" y="448" fill="#F04B2F" font-family="Arial,sans-serif" font-size="93" font-weight="700" letter-spacing="-4">wallets did.</text>
+  <text x="60" y="598" fill="#5A605D" font-family="Arial,sans-serif" font-size="24">Live, readable Solana wallet activity.</text>
+</svg>

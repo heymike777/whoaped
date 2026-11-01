@@ -4,6 +4,8 @@ Watch-only wallet activity for humans. Add a Solana public address and get a pla
 
 This repository contains a React Native Community CLI mobile client with checked-in iOS and Android projects, plus a Hono/MongoDB API and a persistent Solana ingestion worker. Without `API_URL`, wallets are stored locally and no live tracking occurs.
 
+The static landing page and Android build archive live in `apps/web`; deployment and APK release steps are in [docs/web-and-android-downloads.md](docs/web-and-android-downloads.md).
+
 ## Stack
 
 - Mobile: React Native 0.86, Community CLI, TypeScript, Hermes
