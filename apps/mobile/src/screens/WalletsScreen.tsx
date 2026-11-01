@@ -1,7 +1,10 @@
 import { BellRing, Check, Plus, Search, ShieldCheck, Trash2, WalletCards, X } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   Alert,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -232,10 +235,64 @@ function AddWalletModal({
   const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetProgress = useRef(new Animated.Value(0)).current;
+  const dismissing = useRef(false);
 
-  const close = () => {
-    if (saving) return;
-    setName(''); setAddress(''); setError(null); onClose();
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    dismissing.current = false;
+    backdropOpacity.setValue(0);
+    sheetProgress.setValue(0);
+    if (reduceMotion) {
+      backdropOpacity.setValue(1);
+      sheetProgress.setValue(1);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(sheetProgress, {
+        toValue: 1,
+        damping: 23,
+        stiffness: 275,
+        mass: 0.9,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [backdropOpacity, open, reduceMotion, sheetProgress]);
+
+  const close = (force = false) => {
+    if ((saving && !force) || dismissing.current) return;
+    dismissing.current = true;
+    const finish = () => {
+      setName(''); setAddress(''); setError(null); onClose();
+    };
+    if (reduceMotion) return finish();
+    Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetProgress, {
+        toValue: 0,
+        duration: 210,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => { if (finished) finish(); });
   };
 
   const submit = async () => {
@@ -255,7 +312,7 @@ function AddWalletModal({
         ignoreAndroidSystemSettings: false,
       });
       onCreated(wallet);
-      setSaving(false); setName(''); setAddress(''); setError(null); onClose();
+      setSaving(false); close(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Wallet could not be added.');
       setSaving(false);
@@ -263,17 +320,26 @@ function AddWalletModal({
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={close} transparent visible={open}>
+    <Modal animationType="none" onRequestClose={() => close()} transparent visible={open}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
-        <Pressable accessibilityLabel="Close add wallet" onPress={close} style={styles.scrim} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <Animated.View pointerEvents="box-none" style={[styles.scrim, { opacity: backdropOpacity }]}>
+          <Pressable accessibilityLabel="Close add wallet" onPress={() => close()} style={StyleSheet.absoluteFill} />
+        </Animated.View>
+        <Animated.View style={[styles.sheet, {
+          paddingBottom: Math.max(insets.bottom, 20),
+          opacity: sheetProgress,
+          transform: [
+            { translateY: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [64, 0] }) },
+            { scale: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+          ],
+        }]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <View>
               <Text style={styles.eyebrow}>SOLANA</Text>
               <Text style={styles.sheetTitle}>Track a wallet</Text>
             </View>
-            <Pressable accessibilityLabel="Close" onPress={close} style={styles.closeButton}><X color={colors.textMuted} size={20} /></Pressable>
+            <Pressable accessibilityLabel="Close" onPress={() => close()} style={styles.closeButton}><X color={colors.textMuted} size={20} /></Pressable>
           </View>
           <Text style={styles.sheetBody}>Paste a public address. Tracking starts immediately after it is added.</Text>
 
@@ -312,7 +378,7 @@ function AddWalletModal({
             {saving ? <Text style={styles.submitText}>Starting tracker…</Text> : <><Check color={colors.primaryInk} size={19} /><Text style={styles.submitText}>Start tracking</Text></>}
           </Pressable>
           <Text style={styles.safety}>Watch-only. Never share a seed phrase or private key.</Text>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );

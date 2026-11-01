@@ -39,7 +39,7 @@ export function SolscanWebView({
 
   return (
     <Modal
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
       presentationStyle="fullScreen"
       statusBarTranslucent={false}
