@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TelegramAccountCard } from '../components/TelegramAccountCard';
 import { enablePushNotifications, syncEnabledPushNotifications } from '../lib/notifications';
 import { type ThemeColors, layout, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
@@ -38,7 +39,9 @@ export function SettingsScreen() {
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.heading}>Settings</Text>
-      <Text style={styles.subheading}>Notification preferences.</Text>
+      <Text style={styles.subheading}>Account and preferences.</Text>
+
+      <TelegramAccountCard />
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>

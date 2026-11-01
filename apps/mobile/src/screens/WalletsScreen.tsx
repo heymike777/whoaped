@@ -2,6 +2,7 @@ import { BellRing, Check, Plus, Search, ShieldCheck, Trash2, WalletCards, X } fr
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  AppState,
   Alert,
   Animated,
   Easing,
@@ -31,12 +32,28 @@ export function WalletsScreen() {
   const insets = useSafeAreaInsets();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [walletError, setWalletError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    getWallets().then(setWallets).finally(() => setLoading(false));
+    let mounted = true;
+    let running = false;
+    const reload = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const next = await getWallets();
+        if (mounted) { setWallets(next); setWalletError(null); }
+      } catch (reason) {
+        if (mounted) setWalletError(reason instanceof Error ? reason.message : 'Wallets could not be loaded.');
+      } finally { running = false; if (mounted) setLoading(false); }
+    };
+    reload();
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') reload(); });
+    const timer = setInterval(() => { if (AppState.currentState === 'active') reload(); }, 10_000);
+    return () => { mounted = false; clearInterval(timer); subscription.remove(); };
   }, []);
 
   const filtered = useMemo(() => {
@@ -118,6 +135,7 @@ export function WalletsScreen() {
           </>
         )}
 
+        {walletError && <Text accessibilityRole="alert" style={styles.error}>{walletError}</Text>}
         {loading && [0, 1, 2].map((item) => <View key={item} style={styles.walletSkeleton} />)}
         {!loading && wallets.length === 0 && (
           <WalletEmptyState onAdd={() => setShowAdd(true)} />

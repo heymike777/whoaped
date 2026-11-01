@@ -6,11 +6,12 @@ import { collections, type WalletDocument } from '../db.js';
 import type { NormalizedActivity } from '../chains/types.js';
 import type { ParsedSolanaTransaction } from '../chains/solana.js';
 import { enrichActivityMetadata } from './token-metadata.js';
+import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, previewTelegramLink, withAccountMutation } from './accounts.js';
 import { buildTokenActionLinks } from '../config/token-actions.js';
 
 const messageSchema = z.object({
   chat: z.object({ id: z.number().int().safe(), type: z.string() }),
-  from: z.object({ id: z.number().int().safe(), is_bot: z.boolean().optional() }).optional(),
+  from: z.object({ id: z.number().int().safe(), is_bot: z.boolean().optional(), username: z.string().optional() }).optional(),
   text: z.string().max(4096).optional(),
 });
 export const telegramUpdateSchema = z.object({
@@ -18,7 +19,7 @@ export const telegramUpdateSchema = z.object({
   message: messageSchema.optional(),
   callback_query: z.object({
     id: z.string(), data: z.string().max(64).optional(), message: messageSchema.optional(),
-    from: z.object({ id: z.number().int().safe(), is_bot: z.boolean().optional() }),
+    from: z.object({ id: z.number().int().safe(), is_bot: z.boolean().optional(), username: z.string().optional() }),
   }).optional(),
 });
 type Update = z.infer<typeof telegramUpdateSchema>;
@@ -77,19 +78,44 @@ export async function handleTelegramUpdate(update: Update) {
   const message = callback?.message ?? update.message;
   const sender = callback?.from ?? message?.from;
   if (!message || message.chat.type !== 'private' || sender?.is_bot || sender?.id !== message.chat.id) return;
-  const chatId = String(message.chat.id), userId = `telegram:${chatId}`;
+  const chatId = String(message.chat.id);
   const db = await collections();
+  const telegramChat = await db.telegramChats.findOne({ _id: chatId });
+  const userId = telegramChat?.userId ?? `telegram:${chatId}`;
   await db.telegramChats.updateOne({ _id: chatId }, { $setOnInsert: { createdAt: new Date() }, $unset: { disabledAt: '' } }, { upsert: true });
   if (callback) await telegramCall('answerCallbackQuery', { callback_query_id: callback.id }).catch(() => {});
   const text = callback ? '' : message.text?.trim() ?? '';
   const rawCommand = text.split(/\s+/)[0] ?? '';
   const command = callback?.data ?? rawCommand.toLowerCase().split('@')[0];
+  const linkToken = command === '/start' && text.slice(rawCommand.length).trim().startsWith('link_')
+    ? text.slice(rawCommand.length).trim().slice(5) : command.startsWith('connect:') ? command.slice(8) : null;
+  if (linkToken !== null) {
+    try {
+      if (command.startsWith('connect:')) {
+        await confirmTelegramLink(linkToken, chatId, sender?.username);
+        return send(chatId, 'Telegram connected. Your wallets are now shared with the mobile app. New transactions will arrive here and in the app. Return to WhoAped to see your account.');
+      }
+      const link = await previewTelegramLink(linkToken, chatId);
+      return send(chatId, `Connect Telegram to WhoAped?\n\nVerification code: ${link.code}\n\nCheck that this code matches the one in your mobile app. Only confirm if you started this connection yourself. Your wallet lists will be combined into one account, including any account access and future subscriptions.`, [[
+        { text: 'Confirm connection', callback_data: `connect:${linkToken}` },
+        { text: 'Cancel', callback_data: `cancel-connect:${linkToken}` },
+      ]]);
+    } catch (error) {
+      if (error instanceof AccountLinkError) return send(chatId, error.message);
+      throw error;
+    }
+  }
+  if (command.startsWith('cancel-connect:')) {
+    const token = command.slice(15);
+    await db.accountLinks.updateOne({ _id: linkHash(token), claimedChatId: chatId, status: 'pending' }, { $set: { status: 'cancelled' } });
+    return send(chatId, 'Connection cancelled. Create a new link in the mobile app to try again.');
+  }
   if (['/start', '/help', '/cancel'].includes(command)) {
     await db.telegramChats.updateOne({ _id: chatId }, { $unset: { pendingAction: '' } });
     return send(chatId, command === '/cancel' ? 'Wallet input cancelled.' : help);
   }
   if (command.startsWith('remove:')) {
-    const result = await db.wallets.updateOne({ _id: command.slice(7), userId, deletedAt: null }, { $set: { deletedAt: new Date() } });
+    const result = await withAccountMutation(userId, (database, session, accountId) => database.wallets.updateOne({ _id: command.slice(7), userId: accountId, deletedAt: null }, { $set: { deletedAt: new Date() } }, { session }));
     return send(chatId, result.matchedCount ? 'Wallet removed. Notifications stopped.' : 'Wallet not found.');
   }
   const explicitAction: 'add' | 'remove' | undefined = ['/add', 'add'].includes(command) ? 'add'
@@ -112,38 +138,42 @@ export async function handleTelegramUpdate(update: Update) {
     await db.telegramUpdates.updateOne({ _id: String(update.update_id) }, { $set: { walletAction: action } });
     const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     if (lines.length > 100) return send(chatId, 'Send at most 100 wallets per message.');
-    const results: string[] = [];
-    let completed = 0;
-    for (const [index, line] of lines.entries()) {
-      const [address = '', ...nameParts] = line.split(/\s+/);
-      const name = nameParts.join(' ');
-      const label = `Line ${index + 1}`;
-      if (!validSolanaAddress(address)) { results.push(`${label}: invalid Solana address.`); continue; }
-      if (action === 'remove') {
-        const result = await db.wallets.updateOne({ address, userId, deletedAt: null }, { $set: { deletedAt: new Date() } });
-        if (result.matchedCount) completed++;
-        else results.push(`${label}: wallet is not tracked.`);
-        continue;
+    const { results, completed } = await withAccountMutation(userId, async (database, session, accountId) => {
+      const options = { session };
+      const results: string[] = [];
+      let completed = 0;
+      for (const [index, line] of lines.entries()) {
+        const [address = '', ...nameParts] = line.split(/\s+/);
+        const name = nameParts.join(' ');
+        const label = `Line ${index + 1}`;
+        if (!validSolanaAddress(address)) { results.push(`${label}: invalid Solana address.`); continue; }
+        if (action === 'remove') {
+          const result = await database.wallets.updateOne({ address, userId: accountId, deletedAt: null }, { $set: { deletedAt: new Date() } }, options);
+          if (result.matchedCount) completed++;
+          else results.push(`${label}: wallet is not tracked.`);
+          continue;
+        }
+        if (!name || name.length > 40) { results.push(`${label}: use ADDRESS Name (name: 1–40 characters).`); continue; }
+        const walletId = `tg:${chatId}:${update.update_id}:${index}`;
+        const existing = await database.wallets.findOne({ userId: accountId, address, deletedAt: null }, options);
+        if (existing) {
+          if (existing._id === walletId) completed++;
+          else results.push(`${label}: wallet is already tracked.`);
+          continue;
+        }
+        if (await database.wallets.countDocuments({ userId: accountId, deletedAt: null }, options) >= 100) { results.push(`${label}: 100-wallet limit reached.`); continue; }
+        try {
+          await database.wallets.updateOne({ _id: walletId }, { $setOnInsert: {
+            userId: accountId, name, address, chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+          } }, { ...options, upsert: true });
+          completed++;
+        } catch (error) {
+          if (error instanceof MongoServerError && error.code === 11000) results.push(`${label}: wallet is already tracked.`);
+          else throw error;
+        }
       }
-      if (!name || name.length > 40) { results.push(`${label}: use ADDRESS Name (name: 1–40 characters).`); continue; }
-      const walletId = `tg:${chatId}:${update.update_id}:${index}`;
-      const existing = await db.wallets.findOne({ userId, address, deletedAt: null });
-      if (existing) {
-        if (existing._id === walletId) completed++;
-        else results.push(`${label}: wallet is already tracked.`);
-        continue;
-      }
-      if (await db.wallets.countDocuments({ userId, deletedAt: null }) >= 100) { results.push(`${label}: 100-wallet limit reached.`); continue; }
-      try {
-        await db.wallets.updateOne({ _id: walletId }, { $setOnInsert: {
-          userId, name, address, chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
-        } }, { upsert: true });
-        completed++;
-      } catch (error) {
-        if (error instanceof MongoServerError && error.code === 11000) results.push(`${label}: wallet is already tracked.`);
-        else throw error;
-      }
-    }
+      return { results, completed };
+    });
     // Keep the mode on invalid input so the user can correct and resend the list.
     if (!results.length) await db.telegramChats.updateOne({ _id: chatId }, { $unset: { pendingAction: '' } });
     else await db.telegramChats.updateOne({ _id: chatId }, { $set: { pendingAction: action } });
@@ -191,9 +221,13 @@ export function telegramNotification(wallet: WalletDocument, transaction: Parsed
 }
 
 export async function enqueueTelegramTransaction(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
-  if (!wallet.userId.startsWith('telegram:')) return;
+  const db = await collections();
+  const accountId = await canonicalAccountId(wallet.userId, db);
+  const chatId = accountId.startsWith('telegram:') ? accountId.slice(9)
+    : (await db.telegramChats.findOne({ userId: accountId }))?._id;
+  if (!chatId) return;
   // Replay/backfill must not deliver transactions from before this subscription.
-  if (transaction.blockTime && transaction.blockTime * 1000 < wallet.createdAt.getTime() - 1000) return;
+  if (transaction.blockTime && transaction.blockTime * 1000 < Math.max(wallet.createdAt.getTime(), wallet.telegramAlertsFrom?.getTime() ?? 0) - 1000) return;
   const fallback: NormalizedActivity = {
     chain: 'solana', txHash: transaction.signature, eventIndex: 0, kind: 'unknown',
     title: 'On-chain transaction', detail: transaction.summary?.description ?? '',
@@ -204,13 +238,19 @@ export async function enqueueTelegramTransaction(wallet: WalletDocument, transac
     ] },
   };
   const enriched = await Promise.all((activities.length ? activities : [fallback]).map(enrichActivityMetadata));
-  const db = await collections();
-  const now = new Date();
-  await db.telegramJobs.updateOne({ walletId: wallet._id, txHash: transaction.signature }, { $setOnInsert: {
-    _id: randomUUID(), chatId: wallet.userId.slice(9), walletId: wallet._id,
-    txHash: transaction.signature, slot: transaction.slot, ...telegramNotification(wallet, transaction, enriched),
-    status: 'pending', attempts: 0, availableAt: now, createdAt: now,
-  } }, { upsert: true });
+  await withAccountMutation(accountId, async (database, session) => {
+    const original = await database.wallets.findOne({ _id: wallet._id }, { session });
+    const currentWallet = original?.mergedIntoWalletId
+      ? await database.wallets.findOne({ _id: original.mergedIntoWalletId }, { session }) : original;
+    if (!currentWallet || currentWallet.deletedAt) return;
+    if (transaction.blockTime && currentWallet.telegramAlertsFrom && transaction.blockTime * 1000 < currentWallet.telegramAlertsFrom.getTime() - 1000) return;
+    const now = new Date();
+    await database.telegramJobs.updateOne({ walletId: currentWallet._id, txHash: transaction.signature }, { $setOnInsert: {
+      _id: randomUUID(), chatId, walletId: currentWallet._id,
+      txHash: transaction.signature, slot: transaction.slot, ...telegramNotification(currentWallet, transaction, enriched),
+      status: 'pending', attempts: 0, availableAt: now, createdAt: now,
+    } }, { upsert: true, session });
+  });
 }
 
 export async function drainTelegramJobs() {
@@ -242,10 +282,8 @@ export async function drainTelegramJobs() {
     if (!job) break;
     chats.push(job.chatId);
     try {
-      const [wallet, chat] = await Promise.all([
-        db.wallets.findOne({ _id: job.walletId, userId: `telegram:${job.chatId}`, deletedAt: null }),
-        db.telegramChats.findOne({ _id: job.chatId }),
-      ]);
+      const chat = await db.telegramChats.findOne({ _id: job.chatId });
+      const wallet = await db.wallets.findOne({ _id: job.walletId, userId: chat?.userId ?? `telegram:${job.chatId}`, deletedAt: null });
       if (!wallet || !chat || chat.disabledAt) {
         await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'failed', lastError: 'Subscription inactive' } });
         continue;

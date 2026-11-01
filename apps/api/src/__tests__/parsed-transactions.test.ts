@@ -11,12 +11,19 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../db.js', () => ({
   hasDatabase: () => false,
   collections: async () => ({
+    telegramChats: { findOne: vi.fn().mockResolvedValue(null) },
     ingestionEvents: { updateOne: mocks.ingestionUpdateOne },
-    wallets: { find: mocks.walletFind },
+    wallets: { find: mocks.walletFind, findOne: vi.fn().mockResolvedValue({ _id: 'wallet-1', userId: 'user-1', name: 'Main', address: '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe', chain: 'solana', createdAt: new Date(0) }) },
     transactions: { updateOne: mocks.transactionUpdateOne },
     deviceTokens: { find: mocks.deviceFind },
     notificationJobs: { updateOne: mocks.notificationUpdateOne },
   }),
+}));
+
+vi.mock('../services/accounts.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/accounts.js')>(),
+  canonicalAccountId: async (userId: string) => userId,
+  withAccountMutation: async (userId: string, work: Function) => work(await (await import('../db.js')).collections(), undefined, userId),
 }));
 
 import type { ParsedSolanaTransaction } from '../chains/solana.js';

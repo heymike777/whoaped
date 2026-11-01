@@ -2,6 +2,7 @@ import type { ChangeStream, ChangeStreamInsertDocument } from 'mongodb';
 
 import { authenticateSessionToken } from './auth.js';
 import { collections, type TransactionDocument } from './db.js';
+import { canonicalAccountId } from './services/accounts.js';
 import { activityView } from './services/activity-view.js';
 
 type RealtimeClient = {
@@ -101,10 +102,11 @@ export class ActivityRealtimeHub {
 
   private async broadcast(change: ChangeStreamInsertDocument<TransactionDocument>) {
     const transaction = change.fullDocument;
+    const db = await collections();
+    // Existing sockets follow the same account alias as HTTP sessions after a link.
+    for (const state of this.clients) state.userId = await canonicalAccountId(state.userId, db);
     const recipients = [...this.clients].filter((state) => state.userId === transaction.userId);
     if (!recipients.length) return;
-
-    const db = await collections();
     const wallet = await db.wallets.findOne({ _id: transaction.walletId });
     const payload = JSON.stringify({ type: 'activity', data: activityView(transaction, wallet ?? undefined) });
     for (const state of recipients) {

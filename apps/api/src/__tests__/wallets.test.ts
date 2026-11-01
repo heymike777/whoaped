@@ -30,6 +30,12 @@ vi.mock('../auth.js', () => ({
 
 vi.mock('../services/push.js', () => ({ drainNotificationJobs: vi.fn() }));
 
+vi.mock('../services/accounts.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/accounts.js')>(),
+  canonicalAccountId: async (userId: string) => userId,
+  withAccountMutation: async (userId: string, work: Function) => work(await (await import('../db.js')).collections(), undefined, userId),
+}));
+
 import { app } from '../app.js';
 
 const address = '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe';
@@ -81,6 +87,7 @@ describe('wallet routes', () => {
     expect(mocks.walletUpdateOne).toHaveBeenCalledWith(
       { _id: 'wallet-1', userId: 'user-1', deletedAt: null },
       { $set: { deletedAt: expect.any(Date) } },
+      { session: undefined },
     );
   });
 });

@@ -12,6 +12,7 @@ import { activityView } from './services/activity-view.js';
 import { reclassifyStoredActivities } from './services/activity-reclassification.js';
 import { drainNotificationJobs } from './services/push.js';
 import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
+import { AccountLinkError, createTelegramLink, getAccount, withAccountMutation } from './services/accounts.js';
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
 
 const walletSchema = z.object({
@@ -68,6 +69,22 @@ app.post('/v1/sessions', async (context) => {
 
 app.use('/v1/*', requireSession);
 
+app.get('/v1/account', async (context) => context.json(await getAccount(context.get('userId'))));
+
+app.post('/v1/account/telegram-link', async (context) => {
+  try { return context.json(await createTelegramLink(context.get('userId')), 201); }
+  catch (error) {
+    if (error instanceof AccountLinkError) return context.json({ error: error.message }, 409);
+    throw error;
+  }
+});
+
+app.delete('/v1/account/telegram-link', async (context) => {
+  const db = await collections();
+  await db.accountLinks.updateMany({ userId: context.get('userId'), status: 'pending' }, { $set: { status: 'cancelled' } });
+  return context.json({ ok: true });
+});
+
 app.get('/v1/wallets', async (context) => {
   const db = await collections();
   const wallets = await db.wallets.find({
@@ -95,16 +112,17 @@ app.post('/v1/wallets', async (context) => {
   const walletId = randomUUID();
   const createdAt = new Date();
   try {
-    const db = await collections();
-    await db.wallets.insertOne({
-      _id: walletId,
-      userId: context.get('userId'),
-      name: parsed.data.name,
-      address: parsed.data.address,
-      chain: parsed.data.chain,
-      status: 'active',
-      createdAt,
-      deletedAt: null,
+    await withAccountMutation(context.get('userId'), async (db, session, accountId) => {
+      await db.wallets.insertOne({
+        _id: walletId,
+        userId: accountId,
+        name: parsed.data.name,
+        address: parsed.data.address,
+        chain: parsed.data.chain,
+        status: 'active',
+        createdAt,
+        deletedAt: null,
+      }, { session });
     });
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
@@ -118,15 +136,15 @@ app.post('/v1/wallets', async (context) => {
 });
 
 app.delete('/v1/wallets/:walletId', async (context) => {
-  const db = await collections();
-  const result = await db.wallets.updateOne(
+  const result = await withAccountMutation(context.get('userId'), (db, session, accountId) => db.wallets.updateOne(
     {
       _id: context.req.param('walletId'),
-      userId: context.get('userId'),
+      userId: accountId,
       deletedAt: null,
     },
     { $set: { deletedAt: new Date() } },
-  );
+    { session },
+  ));
   if (!result.matchedCount) return context.json({ error: 'Wallet not found.' }, 404);
 
   return context.json({ ok: true });
@@ -169,9 +187,12 @@ app.get('/v1/activities/:activityId', async (context) => {
   const transaction = await db.transactions.findOne({
     _id: context.req.param('activityId'),
     userId: context.get('userId'),
-    suppressed: { $ne: true },
   });
-  if (!transaction) return context.json({ error: 'Activity not found.' }, 404);
+  if (transaction?.mergedIntoTransactionId) {
+    const retained = await db.transactions.findOne({ _id: transaction.mergedIntoTransactionId, userId: context.get('userId'), suppressed: { $ne: true } });
+    if (retained) return context.json({ data: activityView({ ...retained, ...await enrichActivityMetadata(retained) }, await db.wallets.findOne({ _id: retained.walletId }) ?? undefined) });
+  }
+  if (!transaction || transaction.suppressed) return context.json({ error: 'Activity not found.' }, 404);
   const wallet = await db.wallets.findOne({ _id: transaction.walletId });
   const [classified] = await reclassifyStoredActivities(
     [transaction], new Map(wallet ? [[wallet._id, wallet]] : []), db,
@@ -184,19 +205,20 @@ app.get('/v1/activities/:activityId', async (context) => {
 app.post('/v1/devices', async (context) => {
   const parsed = deviceSchema.safeParse(await context.req.json().catch(() => null));
   if (!parsed.success) return context.json({ error: parsed.error.issues[0]?.message ?? 'Invalid push token.' }, 400);
-  const db = await collections();
   const now = new Date();
-  await db.deviceTokens.updateOne(
-    { token: parsed.data.token },
-    {
-      $set: {
-        userId: context.get('userId'), platform: parsed.data.platform, lastSeenAt: now,
+  await withAccountMutation(context.get('userId'), async (db, session, accountId) => {
+    await db.deviceTokens.updateOne(
+      { token: parsed.data.token },
+      {
+        $set: {
+          userId: accountId, platform: parsed.data.platform, lastSeenAt: now,
+        },
+        $setOnInsert: { _id: randomUUID(), token: parsed.data.token, createdAt: now },
+        $unset: { disabledAt: '' },
       },
-      $setOnInsert: { _id: randomUUID(), token: parsed.data.token, createdAt: now },
-      $unset: { disabledAt: '' },
-    },
-    { upsert: true },
-  );
+      { upsert: true, session },
+    );
+  });
   return context.json({ ok: true }, 201);
 });
 

@@ -5,6 +5,12 @@ vi.mock('../db.js', () => ({ collections: async () => ({
   telegramChats: { updateOne: mocks.chatUpdate, findOne: mocks.chatFind }, telegramUpdates: { findOne: mocks.updateFind, updateOne: mocks.updateSave }, telegramJobs: { updateOne: mocks.jobUpdate },
 }) }));
 vi.mock('../services/token-metadata.js', () => ({ enrichActivityMetadata: async (a: unknown) => a }));
+vi.mock('../services/accounts.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/accounts.js')>(),
+  canonicalAccountId: async (userId: string) => userId,
+  withAccountMutation: async (userId: string, work: Function) => work(await (await import('../db.js')).collections(), undefined, userId),
+}));
+
 import { authorizedTelegramWebhook, enqueueTelegramTransaction, handleTelegramUpdate, telegramNotification, telegramWebhookSecret, validSolanaAddress } from '../services/telegram.js';
 import type { WalletDocument } from '../db.js';
 import type { NormalizedActivity } from '../chains/types.js';
@@ -37,6 +43,7 @@ describe('Telegram tracker', () => {
     ])); expect(notification.text).toContain('Bought TEST');
   });
   it('retains generic and failed transactions', async () => {
+    mocks.walletFind.mockResolvedValue(wallet);
     await enqueueTelegramTransaction(wallet, { ...transaction, status: 'error' }, []);
     expect(mocks.jobUpdate).toHaveBeenCalledWith({ walletId: 'w1', txHash: 'sig' }, expect.objectContaining({ $setOnInsert: expect.objectContaining({ chatId: '123', text: expect.stringContaining('Failed transaction'), slot: 123 }) }), { upsert: true });
     expect(telegramNotification(wallet, transaction, []).text).toContain('On-chain transaction');
@@ -52,7 +59,7 @@ describe('Telegram tracker', () => {
   });
   it('scopes removal to the current owner', async () => {
     await handleTelegramUpdate({ update_id: 2, callback_query: { id: 'cb', data: 'remove:other-wallet', from: { id: 123 }, message: { chat: { id: 123, type: 'private' } } } });
-    expect(mocks.walletUpdate).toHaveBeenCalledWith({ _id: 'other-wallet', userId: 'telegram:123', deletedAt: null }, expect.anything());
+    expect(mocks.walletUpdate).toHaveBeenCalledWith({ _id: 'other-wallet', userId: 'telegram:123', deletedAt: null }, expect.anything(), { session: undefined });
   });
   it('ignores groups and callbacks from a different user', async () => {
     await handleTelegramUpdate(update(`/add ${address}`, -100, 'supergroup'));

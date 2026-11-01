@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Context, Next } from 'hono';
 
 import { collections } from './db.js';
+import { canonicalAccountId } from './services/accounts.js';
 
 export type Variables = { userId: string };
 
@@ -28,10 +29,11 @@ export async function createAnonymousSession() {
 export async function authenticateSessionToken(token: string) {
   if (!token) return null;
   const db = await collections();
-  return db.sessions.findOne({
+  const session = await db.sessions.findOne({
     tokenHash: hashToken(token),
     expiresAt: { $gt: new Date() },
   });
+  return session ? { ...session, userId: await canonicalAccountId(session.userId, db) } : null;
 }
 
 export async function requireSession(context: Context<{ Variables: Variables }>, next: Next) {

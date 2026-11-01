@@ -10,7 +10,14 @@ const LOCAL_WALLETS_KEY = 'whoaped.local-wallets';
 
 type SessionResponse = { token: string };
 
+let sessionRequest: Promise<string | null> | undefined;
 async function getSessionToken() {
+  if (sessionRequest) return sessionRequest;
+  sessionRequest = loadSessionToken().finally(() => { sessionRequest = undefined; });
+  return sessionRequest;
+}
+
+async function loadSessionToken() {
   const saved = await Keychain.getGenericPassword({ service: SESSION_KEY });
   if (saved) return saved.password;
   if (!API_URL) return null;
@@ -177,4 +184,27 @@ export async function registerPushToken(token: string, platform: string) {
     method: 'POST',
     body: JSON.stringify({ token, platform }),
   });
+}
+
+
+export type Account = {
+  id: string;
+  telegram: { connected: true; username: string | null; linkedAt?: string } | null;
+  entitlements: Array<{ feature: string; expiresAt: string | null }>;
+};
+export type TelegramLink = { url: string; code: string; expiresAt: string };
+const TELEGRAM_LINK_KEY = 'whoaped.telegram-link';
+export const getAccount = () => apiFetch<Account>('/v1/account');
+export const createTelegramLink = () => apiFetch<TelegramLink>('/v1/account/telegram-link', { method: 'POST' });
+export const cancelTelegramLink = () => apiFetch('/v1/account/telegram-link', { method: 'DELETE' });
+export async function saveTelegramLink(link: TelegramLink | null) {
+  if (!link) { await Keychain.resetGenericPassword({ service: TELEGRAM_LINK_KEY }); return; }
+  await Keychain.setGenericPassword('telegram-link', JSON.stringify(link), {
+    service: TELEGRAM_LINK_KEY, accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
+}
+export async function getSavedTelegramLink(): Promise<TelegramLink | null> {
+  const saved = await Keychain.getGenericPassword({ service: TELEGRAM_LINK_KEY });
+  if (!saved) return null;
+  try { return JSON.parse(saved.password) as TelegramLink; } catch { return null; }
 }

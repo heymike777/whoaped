@@ -1,8 +1,17 @@
-import { MongoClient, type Collection, type Db } from 'mongodb';
+import { MongoClient, type ClientSession, type Collection, type Db } from 'mongodb';
 
 import type { ChainId, NormalizedActivity } from './chains/types.js';
 
-export type UserDocument = { _id: string; createdAt: Date };
+export type UserDocument = { _id: string; createdAt: Date; mergedInto?: string; mergedAt?: Date; writeVersion?: number };
+export type AccountLinkDocument = {
+  _id: string; userId: string; code: string; createdAt: Date; expiresAt: Date;
+  status: 'pending' | 'confirmed' | 'cancelled'; confirmedChatId?: string; claimedChatId?: string;
+};
+// Provider event IDs remain unique across account merges; billing can grant entitlements here later.
+export type AccountEntitlementDocument = {
+  _id: string; userId: string; provider: string; externalId: string;
+  feature: string; expiresAt?: Date; revokedAt?: Date; createdAt: Date;
+};
 export type SessionDocument = {
   _id: string; userId: string; tokenHash: string; expiresAt: Date; createdAt: Date;
 };
@@ -16,6 +25,8 @@ export type WalletDocument = {
   syncError?: string;
   createdAt: Date;
   deletedAt?: Date | null;
+  mergedIntoWalletId?: string;
+  telegramAlertsFrom?: Date;
 };
 export type IngestionEventDocument = {
   _id: string; provider: string; externalId: string; slot: number; payload: unknown; receivedAt: Date;
@@ -36,6 +47,7 @@ export type TransactionDocument = {
   occurredAt: Date;
   metadata: Record<string, unknown>;
   suppressed?: boolean;
+  mergedIntoTransactionId?: string;
   createdAt: Date;
 };
 export type TokenMetadataDocument = {
@@ -86,7 +98,10 @@ export type TelegramJobDocument = {
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
 };
-export type TelegramChatDocument = { _id: string; createdAt: Date; disabledAt?: Date; pendingAction?: 'add' | 'remove' };
+export type TelegramChatDocument = {
+  _id: string; createdAt: Date; disabledAt?: Date; pendingAction?: 'add' | 'remove';
+  userId?: string; linkedAt?: Date; username?: string;
+};
 
 export type Collections = {
   users: Collection<UserDocument>;
@@ -101,6 +116,8 @@ export type Collections = {
   telegramJobs: Collection<TelegramJobDocument>;
   telegramUpdates: Collection<TelegramUpdateDocument>;
   telegramChats: Collection<TelegramChatDocument>;
+  accountLinks: Collection<AccountLinkDocument>;
+  accountEntitlements: Collection<AccountEntitlementDocument>;
 };
 
 const mongoUri = process.env.MONGODB_URI;
@@ -126,6 +143,8 @@ function databaseCollections(database: Db): Collections {
     telegramJobs: database.collection<TelegramJobDocument>('telegram_jobs'),
     telegramUpdates: database.collection<TelegramUpdateDocument>('telegram_updates'),
     telegramChats: database.collection<TelegramChatDocument>('telegram_chats'),
+    accountLinks: database.collection<AccountLinkDocument>('account_links'),
+    accountEntitlements: database.collection<AccountEntitlementDocument>('account_entitlements'),
   };
 }
 
@@ -159,6 +178,11 @@ async function ensureIndexes(database: Db) {
     db.telegramJobs.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
     db.telegramJobs.createIndex({ chatId: 1, createdAt: -1, _id: -1 }),
     db.telegramUpdates.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
+    db.telegramChats.createIndex({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'string' } } }),
+    db.accountLinks.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.accountLinks.createIndex({ userId: 1, status: 1 }),
+    db.accountEntitlements.createIndex({ provider: 1, externalId: 1 }, { unique: true }),
+    db.accountEntitlements.createIndex({ userId: 1 }),
   ]);
 }
 
@@ -181,6 +205,14 @@ export async function getDatabase() {
 
 export async function collections() {
   return databaseCollections(await getDatabase());
+}
+
+export async function withDatabaseTransaction<T>(work: (db: Collections, session: ClientSession) => Promise<T>) {
+  const database = await getDatabase();
+  const session = client!.startSession();
+  try {
+    return await session.withTransaction(() => work(databaseCollections(database), session));
+  } finally { await session.endSession(); }
 }
 
 export async function closeDatabase() {
