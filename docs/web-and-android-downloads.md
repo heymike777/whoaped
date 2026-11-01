@@ -2,9 +2,13 @@
 
 The static website lives in `apps/web`. Its `/download/` page reads public APK assets from GitHub Releases in `Danger-Valley/whoaped-downloads`, newest first. Every release with an `.apk` asset appears in the archive; draft and prerelease assets do not. The page intentionally shows an empty state until the public downloads repository and first signed release exist. It never links to an unsigned or debug APK.
 
-## Website deployment
+## Website deployment on Vercel
 
-Create a separate **DigitalOcean App Platform Static Site** from `heymike777/whoaped`, branch `main`, source directory `apps/web`. Use `npm run build` as the build command and `dist` as the output directory. Attach `whoaped.com` and, if desired, `www.whoaped.com` to this website app. Keep `api.whoaped.com` on the existing API app; do not change its routes or secrets. Copy the DNS targets DigitalOcean shows for the website domains into your DNS provider, then verify both `/` and `/download/` over HTTPS.
+1. Import the GitHub repository `heymike777/whoaped` as a **new Vercel project**. Grant Vercel access to the private repository if prompted.
+2. Set **Root Directory** to `apps/web` and **Framework Preset** to `Other`. Keep the project on the `main` branch. The root directory must be set in Vercel; it cannot be inferred from the `vercel.json` inside `apps/web`.
+3. The checked-in `apps/web/vercel.json` sets the build command to `npm run build`, the output directory to `dist`, and canonical trailing slashes. No environment variables or framework installation are required.
+4. Deploy, then check both `/` and `/download/` on the Vercel URL. The download page shows an honest empty state until the separate public APK releases repository has a published build.
+5. Add `whoaped.com` (and optionally `www.whoaped.com`) in the Vercel project's Domains settings. Add the exact DNS records Vercel requests at your DNS provider. Leave `api.whoaped.com` on the existing DigitalOcean API app; do not change its routes or secrets.
 
 The site has no runtime secrets and does not need a web server, database, or API integration. `npm run check && npm run build` validates and stages its static files locally.
 
