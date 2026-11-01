@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
+import { BalanceChanges } from '../components/BalanceChanges';
 import { BrandMark } from '../components/BrandMark';
 import { LaunchActivityCard } from '../components/LaunchActivityCard';
 import { SolscanWebView } from '../components/SolscanWebView';
@@ -74,6 +75,7 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
                 : activity.kind === 'launch' && activity.metadata?.launch
                   ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} onOpenSolscan={() => setSolscanSignature(activity.signature)} />
                   : <ActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} />}
+            <BalanceChanges lines={activity.metadata?.balanceChanges} />
           </View>
         ))}
         {!feed.error && feed.hasMore && (

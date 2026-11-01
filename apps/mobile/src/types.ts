@@ -82,7 +82,7 @@ export type Activity = {
   valueUsd?: number;
   signature: string;
   occurredAt: string;
-  metadata?: { swap?: SwapMetadata; yield?: YieldMetadata; launch?: LaunchMetadata; tokenActions?: TokenAction[]; [key: string]: unknown };
+  metadata?: { balanceChanges?: string[]; swap?: SwapMetadata; yield?: YieldMetadata; launch?: LaunchMetadata; tokenActions?: TokenAction[]; [key: string]: unknown };
 };
 
 export type FeedState = {
