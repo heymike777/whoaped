@@ -9,6 +9,7 @@ import { createAnonymousSession, requireSession, type Variables } from './auth.j
 import { collections, getDatabase, hasDatabase } from './db.js';
 import { activityBeforeCursor, decodeActivityCursor, encodeActivityCursor } from './services/activity-pagination.js';
 import { activityView } from './services/activity-view.js';
+import { withActivityBalances } from './services/activity-balances.js';
 import { reclassifyStoredActivities } from './services/activity-reclassification.js';
 import { drainNotificationJobs } from './services/push.js';
 import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
@@ -204,7 +205,8 @@ app.get('/v1/activities', async (context) => {
     ...transaction,
     ...await enrichActivityMetadata(transaction),
   })));
-  const rows = enrichedTransactions.map((transaction) => activityView(
+  const withBalances = await withActivityBalances(enrichedTransactions, walletById, db);
+  const rows = withBalances.map((transaction) => activityView(
     transaction,
     walletById.get(transaction.walletId),
   ));
@@ -219,7 +221,11 @@ app.get('/v1/activities/:activityId', async (context) => {
   });
   if (transaction?.mergedIntoTransactionId) {
     const retained = await db.transactions.findOne({ _id: transaction.mergedIntoTransactionId, userId: context.get('userId'), suppressed: { $ne: true } });
-    if (retained) return context.json({ data: activityView({ ...retained, ...await enrichActivityMetadata(retained) }, await db.wallets.findOne({ _id: retained.walletId }) ?? undefined) });
+    if (retained) {
+      const wallet = await db.wallets.findOne({ _id: retained.walletId });
+      const [withBalances] = await withActivityBalances([{ ...retained, ...await enrichActivityMetadata(retained) }], new Map(wallet ? [[wallet._id, wallet]] : []), db);
+      return context.json({ data: activityView(withBalances, wallet ?? undefined) });
+    }
   }
   if (!transaction || transaction.suppressed) return context.json({ error: 'Activity not found.' }, 404);
   const wallet = await db.wallets.findOne({ _id: transaction.walletId });
@@ -228,7 +234,8 @@ app.get('/v1/activities/:activityId', async (context) => {
   );
   if (!classified) return context.json({ error: 'Activity not found.' }, 404);
   const enriched = await enrichActivityMetadata(classified);
-  return context.json({ data: activityView({ ...classified, ...enriched }, wallet ?? undefined) });
+  const [withBalances] = await withActivityBalances([{ ...classified, ...enriched }], new Map(wallet ? [[wallet._id, wallet]] : []), db);
+  return context.json({ data: activityView(withBalances, wallet ?? undefined) });
 });
 
 app.post('/v1/devices', async (context) => {

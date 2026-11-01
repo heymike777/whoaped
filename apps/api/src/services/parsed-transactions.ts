@@ -7,6 +7,7 @@ import { admitAccountTransaction, walletTrackingEligible } from './rate-limits.j
 import { withAccountMutation } from './accounts.js';
 import { enqueueTelegramTransaction } from './telegram.js';
 import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
+import { transactionBalanceLines } from './transaction-balances.js';
 
 export async function ingestParsedTransaction(
   transaction: ParsedSolanaTransaction,
@@ -74,7 +75,10 @@ export async function ingestParsedTransaction(
   let activities = 0;
   for (const { wallet, activities: normalizedActivities } of normalizedByWallet) {
     for (const normalizedActivity of normalizedActivities) {
-      const activity = await enrichActivityMetadata(normalizedActivity);
+      const enriched = await enrichActivityMetadata(normalizedActivity);
+      const activity = { ...enriched, metadata: { ...enriched.metadata,
+        balanceChanges: transactionBalanceLines(transaction, wallet.address, [enriched]),
+      } };
       activities += await withAccountMutation(wallet.userId, async (database, session, accountId) => {
         if (failed && (await database.users.findOne({ _id: accountId }, { session }))?.trackFailedTransactions !== true) return 0;
         const original = await database.wallets.findOne({ _id: wallet._id }, { session });
