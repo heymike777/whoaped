@@ -1,4 +1,4 @@
-import { BellRing, Plus, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react-native';
+import { BellRing, Plus, RefreshCw, WalletCards } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import { useActivityFeed } from '../hooks/useActivityFeed';
 import { getActivityEmptyMode } from '../lib/emptyState';
 import { colors, layout, typography } from '../theme';
 
-export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () => void; reduceMotion: boolean }) {
+export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
   const insets = useSafeAreaInsets();
   const feed = useActivityFeed();
   const [walletCount, setWalletCount] = useState<number | null>(null);
@@ -59,7 +59,7 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
         <Text style={styles.feedMeta}>{walletStatus}</Text>
       </View>
 
-      <View style={styles.ledger}>
+      <View style={styles.feedList}>
         {(feed.isLoading || waitingForState) && <LoadingState />}
         {feed.error && <ErrorState message={feed.error} onRetry={feed.refresh} />}
         {!feed.isLoading && !waitingForState && !feed.error && feed.activities.length === 0 && <EmptyState onAddWallet={onAddWallet} walletCount={walletCount} />}
@@ -84,10 +84,6 @@ export function ActivityScreen({ onAddWallet, reduceMotion }: { onAddWallet: () 
         )}
       </View>
 
-      <View style={styles.finalityRow}>
-        <ShieldCheck color={colors.textFaint} size={14} />
-        <Text style={styles.footerNote}>{reduceMotion ? 'Reduced motion · ' : ''}Shown after on-chain finality</Text>
-      </View>
       </ScrollView>
       <SolscanWebView onClose={() => setSolscanSignature(null)} signature={solscanSignature} />
     </>
@@ -129,13 +125,12 @@ function EmptyState({ onAddWallet, walletCount }: { onAddWallet: () => void; wal
     return (
       <View style={styles.state}>
         <View style={styles.stateIcon}><WalletCards color={colors.text} size={26} strokeWidth={1.8} /></View>
-        <Text style={styles.stateTitle}>Your live ledger starts here</Text>
+        <Text style={styles.stateTitle}>Your activity starts here</Text>
         <Text style={styles.stateBody}>Add a public Solana address. New activity will land here as soon as it confirms.</Text>
         <Pressable accessibilityRole="button" onPress={onAddWallet} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
           <Plus color={colors.primaryInk} size={18} strokeWidth={2.5} />
           <Text style={styles.primaryActionText}>Add wallet</Text>
         </Pressable>
-        <View style={styles.safetyRow}><ShieldCheck color={colors.textFaint} size={14} /><Text style={styles.safetyText}>Watch-only. No keys, no signatures.</Text></View>
       </View>
     );
   }
@@ -161,7 +156,7 @@ const styles = StyleSheet.create({
   feedHeader: { marginTop: 28, minHeight: 38, flexDirection: 'row', alignItems: 'baseline', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.text },
   feedTitle: { color: colors.text, fontFamily: typography.semibold, fontSize: 20, letterSpacing: -0.35 },
   feedMeta: { marginLeft: 'auto', color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
-  ledger: { gap: 8, paddingTop: 12 },
+  feedList: { gap: 8, paddingTop: 12 },
   activityItem: {
     overflow: 'hidden',
     borderRadius: 16,
@@ -192,11 +187,7 @@ const styles = StyleSheet.create({
   secondaryAction: { minHeight: 48, marginTop: 20, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.text },
   secondaryActionText: { color: colors.surface, fontFamily: typography.medium, fontWeight: '700', fontSize: 14 },
   pressed: { opacity: 0.75, transform: [{ scale: 0.98 }] },
-  safetyRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  safetyText: { color: colors.textFaint, fontFamily: typography.regular, fontSize: 12 },
   listeningRow: { minHeight: 38, marginTop: 20, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, backgroundColor: colors.positiveSoft },
   positiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.positive },
   listeningText: { color: colors.positive, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
-  finalityRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  footerNote: { color: colors.textFaint, fontFamily: typography.regular, fontSize: 11 },
 });

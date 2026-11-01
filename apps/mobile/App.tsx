@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, StatusBar, StyleSheet, View } from 'react-native';
+import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { GlassTabBar, TabKey } from './src/components/GlassTabBar';
@@ -12,17 +12,6 @@ import { colors } from './src/theme';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('activity');
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      setReduceMotion,
-    );
-    return () => subscription.remove();
-  }, []);
-
   useEffect(() => {
     enablePushNotifications().catch(() => undefined);
     return observePushTokenRefresh();
@@ -38,7 +27,6 @@ export default function App() {
           {activeTab === 'activity' && (
             <ActivityScreen
               onAddWallet={() => setActiveTab('wallets')}
-              reduceMotion={reduceMotion}
             />
           )}
           {activeTab === 'wallets' && <WalletsScreen />}
