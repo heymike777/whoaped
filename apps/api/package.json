@@ -11,7 +11,8 @@
     "start:stream": "node --env-file-if-exists=.env dist/stream.js",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "setup:telegram": "node --env-file-if-exists=.env dist/telegram-setup.js"
+    "setup:telegram": "node --env-file-if-exists=.env dist/telegram-setup.js",
+    "check:streamflow": "tsx --env-file-if-exists=.env src/streamflow-check.ts"
   },
   "engines": {
     "node": ">=22.13"
@@ -21,6 +22,9 @@
     "@solana-program/memo": "^0.16.0",
     "@solana-program/token": "^0.18.0",
     "@solana/kit": "^8.6.0",
+    "@solana/web3.js": "^1.99.0",
+    "@streamflow/common": "^13.4.0",
+    "@streamflow/staking": "^13.4.0",
     "firebase-admin": "^14.3.0",
     "hono": "^4.13.5",
     "mongodb": "^7.7.0",

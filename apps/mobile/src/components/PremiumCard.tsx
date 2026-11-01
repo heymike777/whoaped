@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getBillingCatalog, getPaymentStatus, getStakeOffer, type BillingCatalog, type StakeOffer } from '../api/client';
 import { type ThemeColors, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
@@ -45,19 +45,16 @@ export function PremiumCard() {
     return () => { mounted.current = false; subscription.remove(); };
   }, [refresh]);
 
-  if (Platform.OS !== 'android' && !catalog?.premium.active) return null;
   return (
     <View style={styles.section}>
       <Text style={styles.label}>PREMIUM</Text>
       <View style={styles.card}>
-        <Text style={styles.title}>{catalog?.premium.active ? 'Premium active' : 'Lock tokens for Premium'}</Text>
+        <Text style={styles.title}>{catalog?.premium.active ? 'Premium active' : 'Premium · Coming Soon'}</Text>
         <Text style={styles.body}>{catalog?.premium.active
           ? `Valid until ${new Date(catalog.premium.expiresAt!).toLocaleDateString()}. Shared across the app and Telegram.`
           : 'Premium raises tracking limits to 60/min · 1,000/hour · 3,000/day.'}</Text>
-        {Platform.OS === 'android' && <>
-          <Text style={styles.body}>The planned lock is {offer?.amount.toLocaleString('en-US') ?? '1,000,000'} {offer?.tokenSymbol ?? 'BONK'}. You can request an unlock at any time, followed by a 7-day withdrawal cooldown.</Text>
-          <Text style={styles.warning}>Token locking is not live yet. Do not send tokens to any address claiming to activate Premium.</Text>
-        </>}
+        <Text style={styles.body}>Planned: stake {offer?.amount.toLocaleString('en-US') ?? '1,000,000'} project tokens with Streamflow. Request unstaking at any time, then wait 7 days before withdrawal.</Text>
+        <Text style={styles.warning}>Coming Soon. Staking is not live; never send tokens to an address claiming to activate Premium.</Text>
         {message && <Text accessibilityRole="alert" style={styles.notice}>{message}</Text>}
         {pending && <Pressable accessibilityRole="button" onPress={refresh} style={styles.secondary}><Text style={styles.buttonText}>Check earlier payment</Text></Pressable>}
       </View>

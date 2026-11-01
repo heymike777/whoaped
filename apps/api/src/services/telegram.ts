@@ -11,7 +11,7 @@ import type { ParsedSolanaTransaction } from '../chains/solana.js';
 import { enrichActivityMetadata } from './token-metadata.js';
 import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, previewTelegramLink, setTrackFailedTransactions, withAccountMutation } from './accounts.js';
 import { buildTokenActionLinks } from '../config/token-actions.js';
-import { STAKING_OFFER } from '../config/staking.js';
+import { stakingOffer } from '../config/staking.js';
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
@@ -116,7 +116,8 @@ export async function handleTelegramUpdate(update: Update) {
   if (command === '/premium' || command === 'premium') {
     const catalog = await billingCatalog(userId);
     const status = catalog.premium.active ? `Premium active until ${catalog.premium.expiresAt?.toISOString()}.\n\n` : '';
-    return send(chatId, `${status}WhoAped Premium\n\n60 transactions/minute · 1,000/hour · 3,000/day.\n\nThe planned option is to lock ${STAKING_OFFER.amount.toLocaleString('en-US')} ${STAKING_OFFER.tokenSymbol} for Premium. You may request an unlock at any time; withdrawal follows a 7-day cooldown.\n\nThe lock is not live yet. Do not send tokens to the bot or to any address claiming to activate Premium. New purchases are paused.`, menu);
+    const offer = stakingOffer();
+    return send(chatId, `${status}WhoAped Premium · Coming Soon\n\n60 transactions/minute · 1,000/hour · 3,000/day.\n\nPlanned: stake ${offer.amount.toLocaleString('en-US')} project tokens through Streamflow. Request unstaking at any time, then wait 7 days to withdraw.\n\nStaking and new purchases are not live. Do not send tokens to this bot or any address claiming to activate Premium.`, menu);
   }
   if (command.startsWith('purchase:')) {
     return send(chatId, 'New Premium purchases are paused. Existing invoices and refunds remain supported via /paysupport. Do not send tokens to any address claiming to activate staking.');

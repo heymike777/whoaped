@@ -221,7 +221,7 @@ export type BillingCatalog = {
   usdcAvailable: boolean; terms: string; termsVersion: string;
   premium: { active: boolean; expiresAt: string | null };
 };
-export type StakeOffer = { chain: 'solana'; tokenSymbol: string; tokenMint: string; amount: number; cooldownSeconds: number; available: boolean };
+export type StakeOffer = { chain: 'solana'; provider: 'streamflow'; status: 'coming_soon'; tokenSymbol: string; tokenMint: string | null; amount: number; cooldownSeconds: number; cluster: 'devnet' | 'mainnet'; poolAddress: null; available: false };
 export const getStakeOffer = () => apiFetch<StakeOffer>('/v1/staking/offer');
 export type UsdcCheckout = { id: string; transaction: string; amount: number; mint: string; recipient: string; reference: string; expiresAt: string };
 export type PaymentStatus = { id: string; status: 'pending' | 'paid' | 'expired' | 'refunded'; premiumUntil: string | null };

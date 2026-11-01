@@ -48,10 +48,10 @@ describe('wallet routes', () => {
     expect(response.status).toBe(410);
   });
 
-  it('exposes the BONK prototype as unavailable, not as a live deposit address', async () => {
+  it('exposes Streamflow as coming soon without a deposit address', async () => {
     const response = await app.request('/v1/staking/offer');
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ tokenSymbol: 'BONK', amount: 1_000_000, available: false });
+    await expect(response.json()).resolves.toMatchObject({ provider: 'streamflow', status: 'coming_soon', amount: 1_000_000, available: false, poolAddress: null });
   });
 
   it('returns a transaction count for the last 24 hours with each wallet', async () => {

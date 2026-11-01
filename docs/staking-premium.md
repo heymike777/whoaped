@@ -1,27 +1,35 @@
-# Premium by token lock — prototype, not live
+# Streamflow Premium staging
 
-The payment UI is hidden in Telegram and Android/Seeker. The API rejects new USDC orders and the bot rejects old purchase callbacks. Existing USDC orders, Telegram Stars receipts, refunds, and support remain processable so no in-flight payment is stranded.
+Premium staking is **Coming Soon**. The purchase flow is hidden in the app and Telegram. Existing payment receipts and support remain processable, but new paid orders are disabled. No WhoAped Streamflow pool has been created and no mainnet fee has been paid.
 
-## Intended rules
+## Product rule
 
-- The test token is mainnet BONK mint `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263` (5 decimals). A million BONK is `100000000000` raw units. The production mint will be chosen later.
-- One owner locks exactly the configured amount in a PDA-controlled SPL vault. The user retains control of the withdrawal path; the operator cannot transfer the deposit.
-- The owner can request unlock at any time. The 7-day clock starts at that request. Premium stays active during cooldown and ends only when the deposit is withdrawn. The owner may cancel an unlock request.
-- Pausing the pool blocks new locks, never normal withdrawals. An owner can immediately withdraw while the pool is emergency-paused.
-- No staking rewards or yield are promised. The accurate product term is **token lock for Premium**.
+The intended product is a token lock, not a yield promise: lock 1,000,000 WhoAped tokens for Premium, request unstaking at any time, and wait seven days before withdrawal. The actual token mint and pool address are not yet known. A token balance or pasted address alone never grants Premium.
 
-## Local program prototype
+Streamflow staking supports devnet and a pool-level `unstakePeriod`. The proposed pool parameters are `minDuration=0`, user stake `duration=0`, `unstakePeriod=604800`, `autoUnstake=false`, and `freezeStakeMint=true`. Verify the exact request/withdraw behavior and receipt-token freezing in a funded devnet end-to-end test before using these settings on mainnet. Never create a mainnet pool or pay a setup fee as part of staging.
 
-`programs/premium-lock` contains the escrow state machine and pure deadline tests. The program ID in source is a local prototype ID, **not** an audited or deployed mainnet program. The public API's `/v1/staking/offer` returns `available: false`; no backend entitlement is granted from this prototype.
+## What is wired now
 
-## Required before enabling deposits
+- `/v1/staking/offer` returns `provider: streamflow`, `status: coming_soon`, the planned amount and cooldown, and `available: false`. A compile-time `STAKING_LIVE=false` prevents environment variables alone from switching on deposits.
+- The app shows Premium · Coming Soon with no staking or purchase button. The Telegram `/premium` command says the same and never asks users to send tokens to the bot.
+- The API includes a read-only Streamflow pool/position inspector. It rejects any pool whose mint, seven-day cooldown, immediate requestability, or frozen receipt-mint setting differs from the configured product. The position summarizer counts only matching, open, zero-duration entries; it does **not** grant an entitlement.
+- `npm run check:streamflow` in `apps/api` checks the devnet program and, when configured, the candidate pool. It does not send a transaction.
 
-1. Test lock, request, cancel, seven-day time travel, withdraw, emergency withdraw, duplicate position, wrong owner/mint/vault, and account-closure attacks in a Solana local validator or Surfpool fork with the BONK mint. Fuzz state transitions and vault conservation.
-2. Obtain independent contract security review. Specify upgrade authority, pause authority, and multisig custody of privileged keys. Do not enable the feature or deploy mainnet custody before review.
-3. Add wallet ownership proof: a nonce-bound, short-lived signed challenge for a canonical WhoAped account. The Telegram bot needs a wallet-signing Mini App; the Seeker app can use its existing native Mobile Wallet Adapter. Never accept a pasted address or a transaction signature alone as proof of ownership.
-4. Build transaction construction and signing for lock, request unlock, cancel, and withdraw. Confirm onchain at finalized commitment and handle retries, app switching, and lost network connectivity.
-5. Derive the position PDA server-side, verify program ownership, owner, mint, config, locked raw amount, and vault state from finalized RPC. Resolve Premium dynamically from that verified position; do not issue a permanent paid entitlement for a lock. One staked position must not unlock unrelated accounts.
-6. Add reconciliation for account-link merges, withdrawals and RPC outages. Fail closed on unverifiable new grants; do not silently revoke an already verified active lock during a brief RPC outage.
-7. Replace BONK with the actual token mint, verify decimals and token program, and update the offer and pool configuration together. Coordinate backend deployment and Android/bot rollout. Keep iOS out of this flow pending App Review/legal review.
+## Devnet test recipe
 
-The present UI intentionally says the lock is not live and warns users not to transfer tokens to a bot or arbitrary address.
+1. Fund a dedicated devnet-only wallet with test SOL through the official faucet; the public RPC airdrop can be rate-limited. Keep its key out of Git. Do not use a mainnet production key for testing.
+2. Create a devnet test SPL mint with the intended decimals and mint at least 1,000,000 test units to that wallet.
+3. Create a **devnet** Streamflow pool with the parameters above. The pool should be permissionless, have no automatic unstaking, and use a frozen/nontransferable receipt mint. Record pool and mint addresses.
+4. Configure `STREAMFLOW_CLUSTER=devnet`, `STREAMFLOW_RPC_URL`, `STREAMFLOW_POOL_ADDRESS`, `STREAMFLOW_TOKEN_MINT`, `STREAMFLOW_TOKEN_SYMBOL`, and `STREAMFLOW_REQUIRED_AMOUNT_RAW` (one million times ten to the mint decimals). Run `npm run check:streamflow`.
+5. Test stake, repeated stakes, request unstake, early withdrawal rejection, seven-day completion, actual withdrawal, wrong-owner access, and pool/mint mismatch. Also inspect what happens to position entries after withdrawal and if the receipt can be transferred. The entitlement rule must be tested against those onchain states.
+
+## Before any live launch
+
+1. Set the real project-token mint and decimals. Create and verify a devnet pool first; then make a deliberate separate mainnet deployment decision and budget the Streamflow setup fee.
+2. Implement nonce-bound wallet ownership proof linked to a canonical WhoAped account. For Telegram, this needs a wallet-signing Mini App or another verifiable signing flow. Android/Seeker can use native Mobile Wallet Adapter. Do not trust a pasted wallet address or a transaction signature by itself.
+3. Add wallet-signed stake, request-unstake, and withdraw transaction flows, with error handling and finalized confirmation. Verify that Streamflow's cooldown matches the promised rule. If cancel-request is desired, verify that the deployed program actually supports it before advertising it.
+4. Grant and reconcile Premium only from finalized, verified Streamflow positions tied to the signed owner; handle withdrawal, account linking, chain reorgs, RPC outages, and replay attempts. One position must not unlock unrelated accounts.
+5. Audit the SDK's transitive dependency advisories and review the pool's privileged authorities, upgradeability, fees, and operational recovery. Review App Store/legal policy before showing any token-lock CTA on iOS.
+6. Only then change the hard-off switch, deploy backend, and release clients together. Keep old payment support intact for existing orders.
+
+The older local escrow prototype at `programs/premium-lock` remains **unshipped** and is not the selected provider. Do not deploy it for this feature.

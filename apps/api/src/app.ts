@@ -18,7 +18,7 @@ import { answerStarsPreCheckout, billingCatalog } from './services/billing.js';
 import { getPaymentOrder, reportUsdcSignature } from './services/usdc-payments.js';
 import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-limits.js';
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
-import { STAKING_OFFER } from './config/staking.js';
+import { stakingOffer } from './config/staking.js';
 
 const walletSchema = z.object({
   name: z.string().trim().min(2).max(40),
@@ -101,7 +101,7 @@ app.delete('/v1/account/telegram-link', async (context) => {
 });
 
 app.get('/v1/billing/products', async (context) => context.json(await billingCatalog(context.get('userId'))));
-app.get('/v1/staking/offer', (context) => context.json(STAKING_OFFER));
+app.get('/v1/staking/offer', (context) => context.json(stakingOffer()));
 app.post('/v1/billing/usdc/orders', (context) => context.json({ error: 'Premium purchases are paused.' }, 410));
 app.get('/v1/billing/orders/:id', async (context) => {
   try { return context.json(await getPaymentOrder(context.get('userId'), context.req.param('id'))); }
