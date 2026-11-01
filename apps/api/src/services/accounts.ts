@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import type { ClientSession } from 'mongodb';
+import { getTrackingStatus, mergeAccountRateLimits } from './rate-limits.js';
 import { collections, withDatabaseTransaction, type Collections } from '../db.js';
 
 export class AccountLinkError extends Error {}
@@ -36,6 +37,7 @@ export async function getAccount(userId: string) {
   return {
     id: accountId,
     telegram: chat ? { connected: true as const, username: chat.username ?? null, linkedAt: chat.linkedAt } : null,
+    tracking: await getTrackingStatus(accountId),
     entitlements: entitlements.map(e => ({ feature: e.feature, expiresAt: e.expiresAt ?? null })),
   };
 }
@@ -121,4 +123,5 @@ export async function mergeAccountData(db: Collections, session: ClientSession, 
   await db.deviceTokens.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await db.notificationJobs.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await db.accountEntitlements.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
+  await mergeAccountRateLimits(db, session, sourceId, targetId, now);
 }

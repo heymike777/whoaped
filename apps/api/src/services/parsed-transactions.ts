@@ -3,13 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
 import { collections } from '../db.js';
 import { enrichActivityMetadata } from './token-metadata.js';
+import { admitAccountTransaction, walletTrackingEligible } from './rate-limits.js';
 import { withAccountMutation } from './accounts.js';
 import { enqueueTelegramTransaction } from './telegram.js';
 import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
 
 export async function ingestParsedTransaction(
   transaction: ParsedSolanaTransaction,
-  options: { provider: 'helius-parsed-stream' | 'helius-parsed-events'; watchedAddresses?: string[] },
+  options: { provider: 'helius-parsed-stream' | 'helius-parsed-events'; watchedAddresses?: string[]; onCooldown?: () => Promise<void> },
 ) {
   if (!transaction.signature || !Number.isFinite(transaction.slot)) return { activities: 0 };
   const failed = transaction.status === 'error' || transaction.transactionStatus === 'ERROR';
@@ -25,8 +26,23 @@ export async function ingestParsedTransaction(
     address: { $in: addresses },
   }).toArray();
 
-  transaction = await reconcileNativeBalanceChanges(transaction, wallets.map((wallet) => wallet.address));
-  const normalizedByWallet = wallets.map((wallet) => ({
+  const admissions = new Map<string, boolean>();
+  const eligibleWallets = [];
+  let cooldownStarted = false;
+  for (const wallet of wallets) {
+    if (!await walletTrackingEligible(wallet, transaction.slot, transaction.blockTime)) continue;
+    // Admission itself resolves aliases and serializes concurrent stream connections.
+    if (!admissions.has(wallet.userId)) {
+      const decision = await admitAccountTransaction(wallet.userId, transaction.signature, transaction.slot);
+      admissions.set(wallet.userId, decision.allowed);
+      cooldownStarted ||= decision.cooldownStarted;
+    }
+    if (admissions.get(wallet.userId)) eligibleWallets.push(wallet);
+  }
+  // Rebuild upstream subscriptions before processing another queued stream message.
+  if (cooldownStarted) await options.onCooldown?.();
+  transaction = await reconcileNativeBalanceChanges(transaction, eligibleWallets.map((wallet) => wallet.address));
+  const normalizedByWallet = eligibleWallets.map((wallet) => ({
     wallet,
     activities: failed ? [] : solanaAdapter.normalize(transaction, wallet.address),
   }));

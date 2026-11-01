@@ -29,6 +29,15 @@ describe('Telegram delivery queue', () => {
     expect(db.wallets.findOne).toHaveBeenCalledWith({ _id: 'w1', userId: 'telegram:123', deletedAt: null });
     expect(db.telegramJobs.updateOne).toHaveBeenCalledWith({ _id: 'j1' }, { $set: expect.objectContaining({ status: 'failed' }) });
   });
+  it('delivers an account cooldown notice even without an active wallet', async () => {
+    db.telegramJobs.findOneAndUpdate.mockReset().mockResolvedValue(null).mockResolvedValueOnce({ ...job, kind: 'account', userId: 'telegram:123' });
+    db.wallets.findOne.mockResolvedValue(null);
+    await drainTelegramJobs();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(db.wallets.findOne).not.toHaveBeenCalled();
+    expect(db.telegramJobs.updateOne).toHaveBeenCalledWith({ _id: 'j1' }, { $set: expect.objectContaining({ status: 'sent' }) });
+    expect(db.telegramJobs.findOneAndUpdate.mock.calls[0][2].sort).toEqual({ priority: -1, createdAt: 1 });
+  });
   it('retries rate limits after retry_after and stops the tick', async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: false, status: 429, json: async () => ({ ok: false, error_code: 429, parameters: { retry_after: 60 } }) } as Response);
     const start = Date.now(); await drainTelegramJobs();

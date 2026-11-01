@@ -44,10 +44,9 @@ export function useTelegramAccount() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!pending) return;
     const timer = setInterval(() => {
       if (AppState.currentState === 'active') refresh();
-    }, 3000);
+    }, pending ? 3000 : 15000);
     return () => clearInterval(timer);
   }, [pending, refresh]);
 

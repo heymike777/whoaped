@@ -13,6 +13,7 @@ import { reclassifyStoredActivities } from './services/activity-reclassification
 import { drainNotificationJobs } from './services/push.js';
 import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
 import { AccountLinkError, createTelegramLink, getAccount, withAccountMutation } from './services/accounts.js';
+import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-limits.js';
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
 
 const walletSchema = z.object({
@@ -220,6 +221,16 @@ app.post('/v1/devices', async (context) => {
     );
   });
   return context.json({ ok: true }, 201);
+});
+
+app.post('/internal/accounts/:userId/tracking', async (context) => {
+  const secret = context.req.header('authorization')?.replace('Bearer ', '') ?? '';
+  const expected = process.env.INTERNAL_JOB_SECRET ?? '';
+  if (!expected || !safeSecretEqual(secret, expected)) return context.json({ error: 'Unauthorized.' }, 401);
+  const parsed = z.object({ paused: z.boolean() }).safeParse(await context.req.json().catch(() => null));
+  if (!parsed.success) return context.json({ error: 'Expected a paused boolean.' }, 400);
+  const result = await setAccountTrackingPaused(context.req.param('userId'), parsed.data.paused);
+  return context.json({ ...result, tracking: await getTrackingStatus(result.accountId) });
 });
 
 app.post('/internal/jobs/drain', async (context) => {

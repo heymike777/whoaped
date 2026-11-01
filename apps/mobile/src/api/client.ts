@@ -191,6 +191,7 @@ export type Account = {
   id: string;
   telegram: { connected: true; username: string | null; linkedAt?: string } | null;
   entitlements: Array<{ feature: string; expiresAt: string | null }>;
+  tracking?: { paused: boolean; cooldownUntil: string | null; resuming: boolean; reason: string | null; limits: { minute: number; hour: number; day: number } };
 };
 export type TelegramLink = { url: string; code: string; expiresAt: string };
 const TELEGRAM_LINK_KEY = 'whoaped.telegram-link';

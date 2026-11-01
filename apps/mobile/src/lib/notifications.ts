@@ -106,3 +106,14 @@ export function observePushTokenRefresh() {
     return () => undefined;
   }
 }
+
+
+export function observeTrackingNotifications(onNotice: (title: string, body: string) => void) {
+  try {
+    return onMessage(messagingInstance(), message => {
+      if (message.data?.type !== 'tracking_cooldown') return;
+      onNotice(message.notification?.title ?? 'WhoAped · Tracking paused',
+        message.notification?.body ?? 'Tracking is paused for your account. Check Settings for details.');
+    });
+  } catch { return () => undefined; }
+}

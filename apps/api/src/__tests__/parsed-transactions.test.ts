@@ -26,6 +26,11 @@ vi.mock('../services/accounts.js', async (importOriginal) => ({
   withAccountMutation: async (userId: string, work: Function) => work(await (await import('../db.js')).collections(), undefined, userId),
 }));
 
+vi.mock('../services/rate-limits.js', () => ({
+  walletTrackingEligible: async () => true,
+  admitAccountTransaction: async (userId: string) => ({ allowed: true, cooldownStarted: false, accountId: userId }),
+}));
+
 import type { ParsedSolanaTransaction } from '../chains/solana.js';
 import { ingestParsedTransaction } from '../services/parsed-transactions.js';
 

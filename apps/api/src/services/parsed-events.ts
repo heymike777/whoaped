@@ -1,4 +1,5 @@
 import type { ParsedSolanaTransaction } from '../chains/solana.js';
+import { backfillStartSlot } from './rate-limits.js';
 import { ingestParsedTransaction } from './parsed-transactions.js';
 
 type ParsedEventResult = {
@@ -41,6 +42,7 @@ export async function backfillParsedEvents(
   fromSlot: number,
   toSlot: number,
   maxPages = 20,
+  options: { onCooldown?: () => Promise<void>; shouldContinue?: () => boolean } = {},
 ) {
   const configuredMaxPages = Number(process.env.HELIUS_BACKFILL_MAX_PAGES);
   const pageLimit = Number.isFinite(configuredMaxPages) && configuredMaxPages > 0
@@ -51,6 +53,10 @@ export async function backfillParsedEvents(
   let processed = 0;
 
   do {
+    if (options.shouldContinue && !options.shouldContinue()) return { pages, processed };
+    const eligibleFrom = await backfillStartSlot(address, fromSlot, toSlot);
+    if (eligibleFrom === null) return { pages, processed };
+    if (eligibleFrom > fromSlot) { fromSlot = eligibleFrom; paginationToken = undefined; }
     const page = await parsedEventsRequest<ParsedHistoryPage>('/transaction-history', {
       address,
       limit: 100,
@@ -62,11 +68,14 @@ export async function backfillParsedEvents(
     pages += 1;
 
     for (const result of page.data) {
+      if (options.shouldContinue && !options.shouldContinue()) return { pages, processed };
+      if (await backfillStartSlot(address, fromSlot, toSlot) === null) return { pages, processed };
       const transaction = parsedEventTransaction(result);
       if (!transaction) continue;
       await ingestParsedTransaction(transaction, {
         provider: 'helius-parsed-events',
         watchedAddresses: [address],
+        onCooldown: options.onCooldown,
       });
       processed += 1;
     }

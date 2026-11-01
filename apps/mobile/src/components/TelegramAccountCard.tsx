@@ -8,6 +8,8 @@ export function TelegramAccountCard() {
   const { colors, styles } = useThemedStyles(createStyles);
   const { account, pending, loading, busy, error, connect, reopen, cancel, refresh } = useTelegramAccount();
   const connected = Boolean(account?.telegram);
+  const tracking = account?.tracking;
+  const coolingDown = Boolean(tracking?.cooldownUntil && new Date(tracking.cooldownUntil).getTime() > Date.now());
   return (
     <View style={styles.section}>
       <Text style={styles.label}>ACCOUNT</Text>
@@ -30,6 +32,20 @@ export function TelegramAccountCard() {
             <Text style={styles.body}>Match this code in @whoapedbot, then tap Confirm connection.</Text>
             <Text selectable accessibilityLabel={`Verification code ${pending.code}`} style={styles.code}>{pending.code}</Text>
             <Text style={styles.body}>Your wallet lists will be combined. The link expires after 10 minutes.</Text>
+          </View>
+        )}
+        {tracking && (
+          <View style={styles.verification}>
+            <Text style={styles.title}>Free tracking limits</Text>
+            <Text style={styles.body}>{tracking.limits.minute}/min · {tracking.limits.hour}/hour · {tracking.limits.day}/day across all your wallets.</Text>
+            {(tracking.paused || coolingDown || tracking.resuming) && (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {tracking.paused ? 'Tracking is paused for your account.' : coolingDown
+                  ? `Cooldown until ${new Date(tracking.cooldownUntil!).toLocaleString()}. Tracking will resume automatically.`
+                  : 'Reconnecting your wallets…'}
+                {'\n'}Transactions during a pause are not collected.
+              </Text>
+            )}
           </View>
         )}
         {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}

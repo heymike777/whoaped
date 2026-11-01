@@ -63,6 +63,13 @@ export type TokenMetadataDocument = {
   updatedAt: Date;
 };
 export type PipelineCheckpointDocument = { _id: string; lastSlot: number; updatedAt: Date };
+export type TrackingStateDocument = {
+  _id: string; paused?: boolean; cooldownUntil?: Date; cooldownStartedAt?: Date;
+  reason?: string; resumePending?: boolean; ignoreThroughSlot?: number; updatedAt: Date;
+};
+export type RateEventDocument = {
+  _id: string; userId: string; chain: 'solana'; txHash: string; slot: number; observedAt: Date;
+};
 export type DeviceTokenDocument = {
   _id: string;
   userId: string;
@@ -94,6 +101,7 @@ export type TelegramUpdateDocument = {
 };
 export type TelegramJobDocument = {
   _id: string; chatId: string; walletId: string; txHash: string; slot: number;
+  kind?: 'account'; userId?: string; priority?: number;
   text: string; buttons: Array<Array<{ text: string; url: string }>>;
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
@@ -118,6 +126,8 @@ export type Collections = {
   telegramChats: Collection<TelegramChatDocument>;
   accountLinks: Collection<AccountLinkDocument>;
   accountEntitlements: Collection<AccountEntitlementDocument>;
+  trackingStates: Collection<TrackingStateDocument>;
+  rateEvents: Collection<RateEventDocument>;
 };
 
 const mongoUri = process.env.MONGODB_URI;
@@ -145,6 +155,8 @@ function databaseCollections(database: Db): Collections {
     telegramChats: database.collection<TelegramChatDocument>('telegram_chats'),
     accountLinks: database.collection<AccountLinkDocument>('account_links'),
     accountEntitlements: database.collection<AccountEntitlementDocument>('account_entitlements'),
+    trackingStates: database.collection<TrackingStateDocument>('tracking_states'),
+    rateEvents: database.collection<RateEventDocument>('rate_events'),
   };
 }
 
@@ -183,6 +195,9 @@ async function ensureIndexes(database: Db) {
     db.accountLinks.createIndex({ userId: 1, status: 1 }),
     db.accountEntitlements.createIndex({ provider: 1, externalId: 1 }, { unique: true }),
     db.accountEntitlements.createIndex({ userId: 1 }),
+    db.trackingStates.createIndex({ cooldownUntil: 1 }),
+    db.rateEvents.createIndex({ userId: 1, chain: 1, txHash: 1 }, { unique: true }),
+    db.rateEvents.createIndex({ userId: 1, observedAt: -1 }),
   ]);
 }
 

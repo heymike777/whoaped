@@ -25,7 +25,7 @@ export const telegramUpdateSchema = z.object({
 type Update = z.infer<typeof telegramUpdateSchema>;
 type Button = { text: string; url?: string; callback_data?: string };
 const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }]];
-const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/cancel — cancel wallet input\n\nEvery detected on-chain transaction is sent directly to this chat, including unclassified and failed transactions.';
+const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/cancel — cancel wallet input\n\nEvery detected on-chain transaction is sent directly to this chat, including unclassified and failed transactions.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
 const addPrompt = 'Send one or many wallets, one per line, in this format:\nADDRESS Name\nADDRESS Another name\n\nYou can also send /add followed by the list. Use /cancel to cancel.';
 const removePrompt = 'Send the wallet addresses to remove, one per line:\nADDRESS\nADDRESS\n\nYou can also paste ADDRESS Name lines or send /remove followed by the list. Use /cancel to cancel.';
 
@@ -278,13 +278,15 @@ export async function drainTelegramJobs() {
   for (let i = 0; i < 20; i++) {
     const job = await db.telegramJobs.findOneAndUpdate({ status: { $in: ['pending', 'processing'] }, availableAt: { $lte: new Date() }, chatId: { $nin: chats } }, {
       $set: { status: 'processing', availableAt: new Date(Date.now() + 60_000) }, $inc: { attempts: 1 },
-    }, { sort: { createdAt: 1 }, returnDocument: 'after' });
+    }, { sort: { priority: -1, createdAt: 1 }, returnDocument: 'after' });
     if (!job) break;
     chats.push(job.chatId);
     try {
       const chat = await db.telegramChats.findOne({ _id: job.chatId });
-      const wallet = await db.wallets.findOne({ _id: job.walletId, userId: chat?.userId ?? `telegram:${job.chatId}`, deletedAt: null });
-      if (!wallet || !chat || chat.disabledAt) {
+      const userId = chat?.userId ?? `telegram:${job.chatId}`;
+      const subscriptionActive = job.kind === 'account' ? job.userId === userId
+        : Boolean(await db.wallets.findOne({ _id: job.walletId, userId, deletedAt: null }));
+      if (!subscriptionActive || !chat || chat.disabledAt) {
         await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'failed', lastError: 'Subscription inactive' } });
         continue;
       }
