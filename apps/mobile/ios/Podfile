@@ -20,6 +20,7 @@ setup_permissions(['Notifications'])
 # several React Native UI pods when linked as standalone dynamic frameworks.
 $RNFirebaseDisableSPM = true
 $RNFirebaseAsStaticFramework = true
+$RNFirebaseAnalyticsWithoutAdIdSupport = true
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil

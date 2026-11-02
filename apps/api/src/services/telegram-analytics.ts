@@ -2,16 +2,20 @@ import type { Collections, TelegramAnalyticsEventDocument } from '../db.js';
 
 // No message text, wallet address, username or callback payload is stored.
 export function interactionLabel(command: string, callback: boolean): Pick<TelegramAnalyticsEventDocument, 'command' | 'surface'> {
+  const known = new Set(['start', 'help', 'add', 'remove', 'wallets', 'settings', 'premium', 'cancel', 'terms', 'paysupport', 'purchase', 'connect', 'cancel-connect']);
   if (callback) {
     const label = command.split(':')[0] || 'unknown';
-    return { command: label, surface: 'button' };
+    return { command: known.has(label) ? label : 'other', surface: 'button' };
   }
-  if (command.startsWith('/')) return { command: command.slice(1) || 'unknown', surface: 'command' };
+  if (command.startsWith('/')) {
+    const label = command.slice(1);
+    return { command: known.has(label) ? label : 'other', surface: 'command' };
+  }
   return { surface: 'message' };
 }
 
 export async function recordTelegramEvent(db: Collections, updateId: number, chatId: string,
-  type: TelegramAnalyticsEventDocument['type'], suffix = '', details: Pick<TelegramAnalyticsEventDocument, 'command' | 'surface'> = {}) {
+  type: TelegramAnalyticsEventDocument['type'], suffix = '', details: Pick<TelegramAnalyticsEventDocument, 'command' | 'surface' | 'userStatus'> = {}) {
   const event: TelegramAnalyticsEventDocument = {
     _id: `${updateId}:${type}:${suffix}`, chatId, type, ...details, occurredAt: new Date(),
   };

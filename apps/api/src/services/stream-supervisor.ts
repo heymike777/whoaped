@@ -10,6 +10,7 @@ import { ingestParsedTransaction } from './parsed-transactions.js';
 import { drainNotificationJobs } from './push.js';
 import { drainUsdcPayments } from './usdc-payments.js';
 import { drainTelegramJobs } from './telegram.js';
+import { drainTelegramGa4Events } from './telegram-ga4.js';
 import { eligibleSubscriptionPlan, resumeAccountsAtSlot } from './rate-limits.js';
 
 function positiveInteger(value: string | undefined, fallback: number, maximum = Number.MAX_SAFE_INTEGER) {
@@ -131,7 +132,7 @@ export class ParsedStreamSupervisor {
     if (this.drainingPush) return;
     this.drainingPush = true;
     try {
-      const results = await Promise.allSettled([drainNotificationJobs(), drainTelegramJobs(), drainUsdcPayments()]);
+      const results = await Promise.allSettled([drainNotificationJobs(), drainTelegramJobs(), drainUsdcPayments(), drainTelegramGa4Events()]);
       for (const result of results) if (result.status === 'rejected') console.error('Notification delivery failed', result.reason);
     } finally {
       this.drainingPush = false;

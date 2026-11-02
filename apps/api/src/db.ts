@@ -125,8 +125,9 @@ export type TelegramChatDocument = {
 };
 export type TelegramAnalyticsEventDocument = {
   _id: string; chatId: string; type: 'interaction' | 'wallet_added' | 'wallet_removed';
-  command?: string; surface?: 'command' | 'button' | 'message';
-  occurredAt: Date;
+  command?: string; surface?: 'command' | 'button' | 'message'; userStatus?: 'new' | 'returning';
+  occurredAt: Date; gaStatus?: 'processing' | 'sent' | 'pending' | 'expired';
+  gaAvailableAt?: Date; gaAttempts?: number; gaSentAt?: Date;
 };
 
 export type Collections = {
@@ -217,6 +218,7 @@ async function ensureIndexes(database: Db) {
     db.telegramChats.createIndex({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'string' } } }),
     db.telegramAnalyticsEvents.createIndex({ occurredAt: 1, type: 1 }),
     db.telegramAnalyticsEvents.createIndex({ chatId: 1, occurredAt: 1 }),
+    db.telegramAnalyticsEvents.createIndex({ gaStatus: 1, gaAvailableAt: 1, occurredAt: 1 }),
     db.accountLinks.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.accountLinks.createIndex({ userId: 1, status: 1 }),
     db.accountEntitlements.createIndex({ provider: 1, externalId: 1 }, { unique: true }),

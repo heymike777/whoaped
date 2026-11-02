@@ -97,7 +97,9 @@ export async function handleTelegramUpdate(update: Update) {
   const text = callback ? '' : message.text?.trim() ?? '';
   const rawCommand = text.split(/\s+/)[0] ?? '';
   const command = callback?.data ?? rawCommand.toLowerCase().split('@')[0];
-  await recordTelegramEvent(db, update.update_id, chatId, 'interaction', '', interactionLabel(command, Boolean(callback)))
+  const userStatus = (telegramChat?.createdAt ?? new Date()).toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)
+    ? 'new' as const : 'returning' as const;
+  await recordTelegramEvent(db, update.update_id, chatId, 'interaction', '', { ...interactionLabel(command, Boolean(callback)), userStatus })
     .catch(error => console.error('Telegram analytics interaction failed', error));
   if (command === '/settings' || command === 'settings' || command.startsWith('settings:failed:')) {
     if (command === 'settings:failed:on' || command === 'settings:failed:off') {

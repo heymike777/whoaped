@@ -1,3 +1,4 @@
+import { logMobileEvent } from '../lib/analytics';
 import { BellRing, Check, Plus, Search, ShieldCheck, Trash2, WalletCards, X } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -76,8 +77,9 @@ export function WalletsScreen() {
           onPress: () => {
             setRemovingId(wallet.id);
             deleteWallet(wallet.id)
-              .then(() => setWallets((current) => current.filter((item) => item.id !== wallet.id)))
+              .then(() => { logMobileEvent('wallet_removed', { chain: wallet.chain }); setWallets((current) => current.filter((item) => item.id !== wallet.id)); })
               .catch((reason) => {
+                logMobileEvent('wallet_remove_failed');
                 Alert.alert(
                   'Could not remove wallet',
                   reason instanceof Error ? reason.message : 'Please try again.',
@@ -325,6 +327,7 @@ function AddWalletModal({
     setSaving(true); setError(null);
     try {
       const wallet = await addWallet({ name: cleanName, address: cleanAddress, chain: 'solana' });
+      logMobileEvent('wallet_added', { chain: 'solana', source: 'manual' });
       ReactNativeHapticFeedback.trigger('notificationSuccess', {
         enableVibrateFallback: true,
         ignoreAndroidSystemSettings: false,
@@ -332,6 +335,7 @@ function AddWalletModal({
       onCreated(wallet);
       setSaving(false); close(true);
     } catch (reason) {
+      logMobileEvent('wallet_add_failed');
       setError(reason instanceof Error ? reason.message : 'Wallet could not be added.');
       setSaving(false);
     }
