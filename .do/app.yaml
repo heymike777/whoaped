@@ -10,6 +10,11 @@ services:
     dockerfile_path: apps/api/Dockerfile
     run_command: npm start
     http_port: 8787
+    envs:
+      - key: PAYBOX_REDIRECT_URI
+        value: "https://api.whoaped.com/integrations/paybox/callback"
+        scope: RUN_TIME
+        type: GENERAL
     instance_count: 1
     routes:
       - path: /

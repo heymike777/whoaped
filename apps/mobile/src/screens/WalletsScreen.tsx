@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
+import { PayboxImport } from '../components/PayboxImport';
 import { addWallet, deleteWallet, getWallets } from '../api/client';
 import { isWalletAlreadyTracked, transactionCount24hLabel } from '../lib/wallets';
 import { type ThemeColors, layout, typography } from '../theme';
@@ -112,6 +113,8 @@ export function WalletsScreen() {
             <Plus color={colors.primaryInk} size={21} strokeWidth={2.7} />
           </Pressable>
         </View>
+
+        <PayboxImport wallets={wallets} onCreated={wallet => setWallets(current => current.some(item => item.id === wallet.id) ? current : [wallet, ...current])} />
 
         {(loading || wallets.length > 0) && (
           <>

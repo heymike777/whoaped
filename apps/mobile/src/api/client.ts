@@ -231,3 +231,11 @@ export const createUsdcCheckout = (plan: PremiumPlanId, payer: string, requestKe
 });
 export const confirmUsdcPayment = (id: string, signature: string) => apiFetch<PaymentStatus>(`/v1/billing/orders/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: JSON.stringify({ signature }) });
 export const getPaymentStatus = (id: string) => apiFetch<PaymentStatus>(`/v1/billing/orders/${encodeURIComponent(id)}`);
+
+export type PayboxWallet = { name: string; address: string };
+export type PayboxImport = { status: 'pending' | 'processing' | 'ready' | 'error'; wallets: PayboxWallet[] };
+export const getPayboxAvailability = () => API_URL
+  ? apiFetch<{ available: boolean }>('/v1/integrations/paybox') : Promise.resolve({ available: false });
+export const startPayboxImport = () => apiFetch<{ id: string; url: string }>('/v1/integrations/paybox/imports', { method: 'POST' });
+export const getPayboxImport = (id: string) => apiFetch<PayboxImport>(`/v1/integrations/paybox/imports/${encodeURIComponent(id)}`);
+export const cancelPayboxImport = (id: string) => apiFetch(`/v1/integrations/paybox/imports/${encodeURIComponent(id)}`, { method: 'DELETE' });

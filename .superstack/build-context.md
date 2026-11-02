@@ -15,10 +15,17 @@
   },
   "pipeline": {
     "ingestion_method": "websocket",
-    "data_types": ["transactions", "token-transfers", "decoded-instructions"],
+    "data_types": ["transactions", "failed-transactions", "token-transfers", "decoded-instructions"],
     "storage": "mongodb",
     "commitment": "confirmed",
     "backfill_implemented": true
+  },
+  "defi": {
+    "protocol_type": "vault",
+    "program_id": "local-prototype-only",
+    "security_review": "none",
+    "oracle_integration": "none-required-for-fixed-token-lock",
+    "emergency_pause": true
   },
   "debug": {
     "issues_resolved": [

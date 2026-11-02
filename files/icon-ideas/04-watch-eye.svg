@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
-  <title>WhoAped icon direction 04 — Watch Eye</title>
-  <rect width="1024" height="1024" fill="#111313"/>
-  <path d="M142 512C238 358 354 282 512 282C670 282 786 358 882 512C786 666 670 742 512 742C354 742 238 666 142 512Z" stroke="#F4F4EF" stroke-width="76" stroke-linejoin="round"/>
-  <path d="M380 512C380 438 438 380 512 380C586 380 644 438 644 512C644 586 586 644 512 644" stroke="#F4F4EF" stroke-width="70" stroke-linecap="round"/>
-  <circle cx="512" cy="512" r="54" fill="#F04B2F"/>
-</svg>

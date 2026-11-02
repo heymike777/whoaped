@@ -1,0 +1,7 @@
+{
+  "purpose": "WhoAped USDC payment recipient",
+  "network": "solana-mainnet",
+  "publicKey": "WBhft3SnsvkPJ5ucvjUeNuLftTWQHPmFQDvs2qCAPED",
+  "privateKeyFile": "files/private/wallets/vanity-W-APED/WBhft3SnsvkPJ5ucvjUeNuLftTWQHPmFQDvs2qCAPED.json",
+  "createdAt": "2026-11-01T21:41:02.993645+00:00"
+}

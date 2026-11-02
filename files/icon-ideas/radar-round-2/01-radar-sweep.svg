@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
-  <title>WhoAped radar direction 01 — Radar Sweep</title>
-  <rect width="1024" height="1024" fill="#111313"/>
-  <circle cx="512" cy="512" r="304" stroke="#F4F4EF" stroke-width="72"/>
-  <path d="M512 512L706 318" stroke="#F4F4EF" stroke-width="72" stroke-linecap="round"/>
-  <path d="M512 380A132 132 0 0 0 380 512M512 282A230 230 0 0 0 282 512" stroke="#F4F4EF" stroke-width="48" stroke-linecap="round"/>
-  <circle cx="690" cy="394" r="58" fill="#F04B2F"/>
-</svg>

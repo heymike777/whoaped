@@ -19,6 +19,7 @@ import { answerStarsPreCheckout, billingCatalog } from './services/billing.js';
 import { getPaymentOrder, reportUsdcSignature } from './services/usdc-payments.js';
 import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-limits.js';
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
+import { completePayboxImport, createPayboxImport, deletePayboxImport, getPayboxImport, payboxAvailable } from './services/paybox.js';
 import { stakingOffer } from './config/staking.js';
 
 const walletSchema = z.object({
@@ -39,7 +40,10 @@ function safeSecretEqual(received: string, expected: string) {
 }
 
 export const app = new Hono<{ Variables: Variables }>();
-app.use('*', logger());
+app.use('*', async (context, next) => {
+  if (context.req.path === '/integrations/paybox/callback') return next();
+  return logger()(context, next);
+});
 app.use('*', cors({ origin: process.env.CORS_ORIGIN ?? '*', allowHeaders: ['Authorization', 'Content-Type'] }));
 
 app.post('/telegram/webhook', async (context) => {
@@ -72,12 +76,34 @@ app.get('/health', async (context) => {
   }
 });
 
+// OAuth codes and state must never enter the request logger.
+app.get('/integrations/paybox/callback', async (context) => {
+  context.header('Cache-Control', 'no-store');
+  context.header('Referrer-Policy', 'no-referrer');
+  const ok = await completePayboxImport(context.req.query('state') ?? '', context.req.query('code'));
+  return context.html(`<!doctype html><meta name="viewport" content="width=device-width"><title>WhoAped</title><main><h1>${ok ? 'Wallets ready' : 'Connection not completed'}</h1><p>Return to WhoAped to ${ok ? 'choose the wallets to track' : 'try again'}.</p></main>`);
+});
+
 app.post('/v1/sessions', async (context) => {
   if (!hasDatabase()) return context.json({ error: 'Database is not configured.' }, 503);
   return context.json(await createAnonymousSession(), 201);
 });
 
 app.use('/v1/*', requireSession);
+
+app.get('/v1/integrations/paybox', context => context.json({ available: payboxAvailable() }));
+app.post('/v1/integrations/paybox/imports', async context => {
+  try { return context.json(await createPayboxImport(context.get('userId')), 201); }
+  catch { return context.json({ error: 'Paybox connection could not start. Please try again shortly.' }, 503); }
+});
+app.get('/v1/integrations/paybox/imports/:id', async context => {
+  const result = await getPayboxImport(context.get('userId'), context.req.param('id'));
+  return result ? context.json(result) : context.json({ error: 'Paybox connection expired. Please reconnect.' }, 404);
+});
+app.delete('/v1/integrations/paybox/imports/:id', async context => {
+  await deletePayboxImport(context.get('userId'), context.req.param('id'));
+  return context.json({ ok: true });
+});
 
 app.get('/v1/account', async (context) => context.json(await getAccount(context.get('userId'))));
 

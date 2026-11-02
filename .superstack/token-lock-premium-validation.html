@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WhoAped × Fluid — проверка идеи token-lock Premium</title>
+  <style>
+    :root{color-scheme:dark;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#101512;color:#edf2ed}
+    body{max-width:960px;margin:auto;padding:48px 24px 80px}
+    h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;letter-spacing:-.045em;margin:.3em 0}
+    h2{font-size:1.25rem;margin:2.1em 0 .6em}p{max-width:75ch}
+    .eyebrow{color:#ff826c;text-transform:uppercase;font-size:.72rem;font-weight:800;letter-spacing:.14em}
+    .lead{font-size:1.2rem;color:#bdc9bf}.verdict{border:1px solid #3a5143;background:#1b2a20;padding:20px 24px;border-radius:18px;margin:28px 0}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card{border:1px solid #354039;background:#1b231e;border-radius:16px;padding:16px}
+    .card strong{display:block;margin-bottom:8px}.risk{color:#ffad99}.good{color:#83d6a7}.muted{color:#aebbb0}
+    ol{padding-left:22px}li{margin:.45em 0}a{color:#a7c9ff}code{color:#d6f1da}
+    footer{margin-top:44px;border-top:1px solid #354039;padding-top:20px;color:#aebbb0;font-size:.85rem}
+  </style>
+</head>
+<body>
+  <div class="eyebrow">WhoAped × Fluid · 1 ноября 2026</div>
+  <h1>Не заменять подписку.<br>Проверить lock как альтернативу.</h1>
+  <p class="lead">Вердикт: <strong>go validate</strong>. Механика может дать токену реальное применение и пользователю выбор, но пока нет доказательств спроса именно у WhoAped, а прямой token-gate Premium в iOS конфликтует с правилами App Store.</p>
+  <div class="verdict"><strong>Рекомендация</strong><br>Для iOS предусмотреть IAP как способ оплаты Premium; текущий USDC/Stars checkout тоже требует проверки на соответствие правилам Apple. Сначала проверить optional lock на web и Android APK. Не называть доступ «бесплатным»: пользователь несёт риск цены токена и потери ликвидности.</div>
+  <div class="grid">
+    <div class="card"><strong>Спрос · слабый</strong>Есть соседние прецеденты — <a href="https://docs.accessprotocol.co/">Access Protocol</a> и <a href="https://docs.streamflow.finance/en/articles/9869372-stream-token">Streamflow</a>, но нет подтверждённых обязательств пользователей WhoAped залочить Fluid.</div>
+    <div class="card"><strong>Конкуренция · умеренная</strong>Stake-to-access уже существует на Solana; отличие должно быть в полезности WhoAped, а не в самом механизме.</div>
+    <div class="card"><strong>Техника · от простой до сложной</strong>Hold-to-access без custody быстрый. «Withdraw в любой момент, но через 7 дней» — отдельная escrow-механика, вероятно custom program и аудит.</div>
+    <div class="card"><strong>Экономика · не доказана</strong>Лок токенов не оплачивает Helius, MongoDB и пуши. Фиксированные 1 млн токенов могут стать слишком дешёвыми или неподъёмными.</div>
+  </div>
+  <h2>Главный риск дистрибуции</h2>
+  <p class="risk">Apple <a href="https://developer.apple.com/app-store/review/guidelines/">3.1.1</a> требует IAP для разблокировки функций и прямо упоминает криптовалюты и кошельки как недопустимый собственный механизм. <a href="https://developer.apple.com/app-store/review/guidelines/">3.1.3(b)</a> допускает доступ к функциям, полученным на другом сайте, когда те же функции доступны через IAP в приложении. Применение этой нормы к token lock требует проверки с App Review/юристом; не считать обходом. При дистрибуции через Google Play также действует <a href="https://support.google.com/googleplay/android-developer/answer/9858738?hl=en">политика платежей</a>.</p>
+  <h2>Как проверить за 2 недели</h2>
+  <ol>
+    <li>Спросить 10 активных пользователей не «нравится ли идея», а готовы ли они сейчас залочить конкретную сумму и на какой срок; измерить подписанные обязательства.</li>
+    <li>Смоделировать стоимость порога при нескольких ценах и supply токена, а также предельные расходы на каждого Premium-пользователя.</li>
+    <li>Сделать web/Android MVP: связанный кошелёк, проверка владения, серверный entitlement, повторная проверка при переводе. Без custody и без обещания cooldown на этом этапе.</li>
+    <li>Если спрос доказан, сравнить <a href="https://docs.streamflow.finance/en/articles/9680408-staking-sdk">существующие staking pools</a> с точной семантикой 7-дневного unbonding. Фиксированный lock-период — не то же самое.</li>
+    <li>Определить правило: Premium сохраняется до фактического вывода или заканчивается при запросе. Рекомендация — до вывода, чтобы cooldown не выглядел штрафом.</li>
+  </ol>
+  <p class="muted">Крипто необходимо только для проверяемого, переносимого владения/лока токенов. Сама функция отслеживания кошельков работает и без токена. Если lock не добавляет измеримой конверсии или удержания, оставить обычный Premium.</p>
+  <footer>Предварительная продуктовая оценка, не юридическое или инвестиционное заключение. Публичный запуск токена в ЕС требует отдельной проверки применимости MiCA: <a href="https://www.esma.europa.eu/esmas-activities/digital-finance-and-innovation/markets-crypto-assets-regulation-mica">ESMA</a>.</footer>
+</body>
+</html>

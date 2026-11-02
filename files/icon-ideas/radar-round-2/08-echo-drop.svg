@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
-  <title>WhoAped radar direction 08 — Echo Drop</title>
-  <rect width="1024" height="1024" fill="#111313"/>
-  <path d="M512 156C512 156 790 430 790 624C790 778 666 868 512 868C358 868 234 778 234 624C234 430 512 156 512 156Z" stroke="#F4F4EF" stroke-width="76" stroke-linejoin="round"/>
-  <path d="M364 620C364 538 430 472 512 472M364 700C364 574 466 472 592 472" stroke="#F4F4EF" stroke-width="54" stroke-linecap="round"/>
-  <circle cx="512" cy="620" r="58" fill="#F04B2F"/>
-</svg>
