@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "node build.mjs",
-    "check": "node --check download.js && node --check theme.js && node --check build.mjs"
+    "test": "node --test analytics.test.mjs",
+    "check": "node --check download.js && node --check theme.js && node --check analytics.js && node --check build.mjs"
   }
 }
