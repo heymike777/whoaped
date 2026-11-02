@@ -58,3 +58,22 @@ test('declining analytics never loads the tag', () => {
   assert.equal(result.tags.length, 0);
   assert.equal(runAnalytics('G-TEST123', 'no').tags.length, 0);
 });
+
+test('consent UI still initializes when another script defines a global button binding', () => {
+  const source = `const button = 'site theme control';\n${script}`;
+  const footer = { children: [], append(child) { this.children.push(child); } };
+  const body = { children: [], append(child) { this.children.push(child); } };
+  class Element {
+    constructor() { this.children = []; this.listeners = {}; }
+    append(...children) { this.children.push(...children); }
+    addEventListener(type, listener) { this.listeners[type] = listener; }
+    setAttribute() {}
+  }
+  runInNewContext(source, {
+    document: { currentScript: { dataset: { measurementId: 'G-TEST123' } }, body, head: {},
+      querySelector: () => footer, createElement: () => new Element(), addEventListener() {} },
+    localStorage: { getItem: () => null }, window: {}, location: { hostname: 'whoaped.com' }, Element, URL,
+  });
+  assert.equal(footer.children.length, 1);
+  assert.equal(body.children.length, 1);
+});

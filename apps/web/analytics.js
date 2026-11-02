@@ -1,4 +1,5 @@
 // Basic consent mode: do not load Google's script or send measurements until opted in.
+(() => {
 const measurementId = document.currentScript?.dataset.measurementId ?? '';
 if (/^G-[A-Z0-9]+$/.test(measurementId)) {
   const consentKey = 'whoaped.analytics.consent.v1';
@@ -102,3 +103,4 @@ if (/^G-[A-Z0-9]+$/.test(measurementId)) {
     }
   });
 }
+})();
