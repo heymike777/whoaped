@@ -14,7 +14,7 @@ The site has no runtime secrets and does not need a web server, database, or API
 
 ## Landing-page analytics
 
-Use a GA4 **web data stream** for `https://whoaped.com` (the same GA4 property can have other streams). Set its public `G-...` measurement ID as the Vercel **build-time** environment variable `GA_MEASUREMENT_ID` for the production environment, then redeploy the website. Do not use a Firebase app ID (`1:...:web:...`) or a secret API key here. The site builds without this variable, but analytics and the consent prompt remain disabled.
+Use the GA4 **whoaped.com web data stream** in the Firebase-linked property. Set its public measurement ID `G-N6ZMCJLS6S` as the Vercel **build-time** environment variable `GA_MEASUREMENT_ID` for the production environment, then redeploy the website. Do not use the separate Telegram bot stream ID, a Firebase app ID (`1:...:web:...`), or a secret API key here. The site builds without this variable, but analytics and the consent prompt remain disabled.
 
 The lightweight Google tag loads only after a visitor chooses **Allow analytics**. Declining leaves the tag unloaded. The choice is stored locally, can be revisited through **Privacy choices** in the footer, and applies to `/` and `/download/`. GA4 records page views and a `download_apk` event when a visitor clicks a GitHub APK link. No mobile-app analytics are enabled by this setting. Validate in GA4 Realtime/DebugView after consenting; no events should appear from a browser that declined.
 

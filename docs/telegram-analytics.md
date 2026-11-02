@@ -4,7 +4,7 @@ The API stores first-party Telegram product events in MongoDB collection `telegr
 
 Set these **server-side runtime secrets** on the stream-worker component in DigitalOcean:
 
-- `GA4_TELEGRAM_MEASUREMENT_ID`: the bot Web stream's `G-...` ID.
+- `GA4_TELEGRAM_MEASUREMENT_ID`: `G-K64PZX5YSP` for the dedicated WhoAped Telegram Bot Web stream.
 - `GA4_TELEGRAM_API_SECRET`: create a Measurement Protocol API secret for **that same stream** in GA4 Admin → Data streams → Measurement Protocol API secrets.
 - `INTERNAL_JOB_SECRET`: already used by the backend; also HMACs Telegram chat IDs into pseudonymous GA4 `client_id` values. Do not rotate it casually, or GA4 will treat existing bot users as new client IDs.
 
