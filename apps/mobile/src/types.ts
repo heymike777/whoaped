@@ -40,6 +40,8 @@ export type SwapMetadata = {
   dexName: string;
   input: SwapToken;
   output: SwapToken;
+  steps?: Array<{ dex: SwapDex; dexName: string; input: SwapToken; output: SwapToken }>;
+  arbitrage?: { profit: number | null; mint: string; symbol: string; includesNetworkFee: boolean };
   tradeUrl?: string;
   tradeProvider?: string;
   tradeProviderName?: string;

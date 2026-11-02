@@ -28,6 +28,9 @@ export type ParsedSummary = {
 };
 
 export type ParsedInstruction = {
+  instructionIndex?: number;
+  innerInstructionIndex?: number | null;
+  stackHeight?: number;
   programId?: string;
   programName?: string | null;
   instructionName?: string | null;
@@ -632,6 +635,78 @@ function inferredSwapLegs(transaction: ParsedSolanaTransaction, watchedAddress: 
   return legs;
 }
 
+type SwapStep = {
+  dex: string;
+  dexName: string;
+  input: { mint: string; symbol: string; amount: number };
+  output: { mint: string; symbol: string; amount: number };
+};
+
+function swapStep(transaction: ParsedSolanaTransaction, data: Record<string, unknown>, fallbackProtocol?: string): SwapStep | null {
+  const inputMint = parsedValue(data, 'input_mint', 'inputMint', 'source_mint', 'sourceMint');
+  const outputMint = parsedValue(data, 'output_mint', 'outputMint', 'destination_mint', 'destinationMint');
+  if (!inputMint || !outputMint || inputMint === outputMint) return null;
+  const inputAmount = displayAmount(parsedValue(data, 'input_amount', 'in_amount', 'inputAmount', 'amount_in'), decimalsForMint(transaction, inputMint));
+  const outputAmount = displayAmount(parsedValue(data, 'output_amount', 'actual_out_amount', 'out_amount', 'outputAmount', 'amount_out'), decimalsForMint(transaction, outputMint));
+  if (!inputAmount || !outputAmount) return null;
+  const rawProtocol = parsedValue(data, 'amm_program_name', 'protocol', 'source', 'platform', 'dex') ?? fallbackProtocol ?? 'DEX';
+  const normalized = canonical(rawProtocol);
+  const known = DEXES.find((dex) => dex.aliases.some((alias) => normalized.includes(canonical(alias))));
+  return {
+    dex: known?.id ?? normalized,
+    dexName: known?.name ?? rawProtocol.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    input: { mint: inputMint, symbol: tokenSymbol(inputMint), amount: inputAmount },
+    output: { mint: outputMint, symbol: tokenSymbol(outputMint), amount: outputAmount },
+  };
+}
+
+function swapSteps(transaction: ParsedSolanaTransaction): SwapStep[] {
+  const roots = (transaction.instructions ?? []).filter((instruction) => instruction.innerInstructionIndex == null && instruction.summary?.parsedData);
+  const summaries = roots.length ? roots : [{ summary: transaction.summary, programName: undefined }];
+  const steps: SwapStep[] = [];
+  for (const instruction of summaries) {
+    const data = instruction.summary?.parsedData;
+    if (!data) continue;
+    const children = Array.isArray(data.inner_swaps) ? data.inner_swaps : [];
+    if (children.length) {
+      for (const child of children) {
+        if (!child || typeof child !== 'object' || Array.isArray(child)) continue;
+        const step = swapStep(transaction, child as Record<string, unknown>, instruction.programName ?? undefined);
+        if (step) steps.push(step);
+      }
+    } else if (canonical(instruction.summary?.type).includes('swap')) {
+      const step = swapStep(transaction, data, instruction.programName ?? undefined);
+      if (step) steps.push(step);
+    }
+  }
+  if (steps.length) return steps;
+  const data = transaction.summary?.parsedData;
+  if (!data) return [];
+  const children = Array.isArray(data.inner_swaps) ? data.inner_swaps : [];
+  return children.flatMap((child) => {
+    if (!child || typeof child !== 'object' || Array.isArray(child)) return [];
+    const step = swapStep(transaction, child as Record<string, unknown>);
+    return step ? [step] : [];
+  });
+}
+
+function walletNetChange(transaction: ParsedSolanaTransaction, watchedAddress: string, mint: string): number | null {
+  if (mint === SOL_MINT) {
+    const native = transaction.nativeBalanceChanges?.[watchedAddress]
+      ?? transaction.accountData?.find((account) => account.account === watchedAddress)?.nativeBalanceChange;
+    return typeof native === 'number' && Number.isFinite(native) ? native / 1e9 : null;
+  }
+  const changes = transaction.accountData?.flatMap((account) => account.tokenBalanceChanges ?? [])
+    .filter((change) => change.userAccount === watchedAddress && change.mint === mint) ?? [];
+  if (!changes.length) return null;
+  return changes.reduce((total, change) => {
+    const raw = typeof change.rawTokenAmount === 'object' ? change.rawTokenAmount.tokenAmount : change.rawTokenAmount;
+    const decimals = typeof change.rawTokenAmount === 'object'
+      ? change.rawTokenAmount.decimals ?? change.decimals ?? 0 : change.decimals ?? 0;
+    return total + displayAmount(raw, decimals);
+  }, 0);
+}
+
 function swapActivity(
   transaction: ParsedSolanaTransaction,
   watchedAddress: string,
@@ -655,23 +730,27 @@ function swapActivity(
   if (!isTrade) return null;
 
   const data = tradeSummary?.parsedData ?? transaction.summary?.parsedData;
+  const steps = swapSteps(transaction);
   const inferred = inferredSwapLegs(transaction, watchedAddress);
-  const inputMint = parsedValue(data, 'input_mint', 'inputMint', 'source_mint', 'sourceMint', 'token_in_mint')
-    ?? inferred.find((leg) => leg.amount < 0)?.mint;
-  const outputMint = parsedValue(data, 'output_mint', 'outputMint', 'destination_mint', 'destinationMint', 'token_out_mint')
-    ?? inferred.find((leg) => leg.amount > 0)?.mint;
-  if (!inputMint || !outputMint || inputMint === outputMint) return null;
+  const inputMint = (steps.length > 1 ? steps[0].input.mint : undefined)
+    ?? parsedValue(data, 'input_mint', 'inputMint', 'source_mint', 'sourceMint', 'token_in_mint')
+    ?? steps[0]?.input.mint ?? inferred.find((leg) => leg.amount < 0)?.mint;
+  const outputMint = (steps.length > 1 ? steps.at(-1)?.output.mint : undefined)
+    ?? parsedValue(data, 'output_mint', 'outputMint', 'destination_mint', 'destinationMint', 'token_out_mint')
+    ?? steps.at(-1)?.output.mint ?? inferred.find((leg) => leg.amount > 0)?.mint;
+  const isArbitrage = steps.length >= 2 && inputMint === outputMint;
+  if (!inputMint || !outputMint || (inputMint === outputMint && !isArbitrage)) return null;
 
-  const inputRaw = parsedValue(data, 'in_amount', 'input_amount', 'inputAmount', 'amount_in');
-  const outputRaw = parsedValue(data, 'actual_out_amount', 'out_amount', 'output_amount', 'outputAmount', 'amount_out');
+  const inputRaw = parsedValue(transaction.summary?.parsedData ?? data, 'in_amount', 'input_amount', 'inputAmount', 'amount_in');
+  const outputRaw = parsedValue(transaction.summary?.parsedData ?? data, 'actual_out_amount', 'out_amount', 'output_amount', 'outputAmount', 'amount_out');
   const inferredInput = inferred.find((leg) => leg.mint === inputMint && leg.amount < 0);
   const inferredOutput = inferred.find((leg) => leg.mint === outputMint && leg.amount > 0);
-  const inputAmount = inferredInput
+  const inputAmount = isArbitrage ? steps[0].input.amount : inferredInput
     ? Math.abs(inferredInput.amount)
-    : displayAmount(inputRaw, decimalsForMint(transaction, inputMint));
-  const outputAmount = inferredOutput
+    : displayAmount(inputRaw, decimalsForMint(transaction, inputMint)) || steps[0]?.input.amount;
+  const outputAmount = isArbitrage ? steps.at(-1)!.output.amount : inferredOutput
     ? Math.abs(inferredOutput.amount)
-    : displayAmount(outputRaw, decimalsForMint(transaction, outputMint));
+    : displayAmount(outputRaw, decimalsForMint(transaction, outputMint)) || steps.at(-1)?.output.amount;
   if (!inputAmount || !outputAmount) return null;
 
   const inputSymbol = tokenSymbol(inputMint);
@@ -679,10 +758,11 @@ function swapActivity(
   const displayInput = formatAmount(-inputAmount, inputSymbol).slice(1);
   const displayOutput = formatAmount(outputAmount, outputSymbol).slice(1);
   const tradeLink = buildDexTradeLink(dex.id, dex.name, inputMint, outputMint);
+  const profit = isArbitrage ? walletNetChange(transaction, watchedAddress, inputMint) : null;
   return {
     ...base,
     kind: 'swap',
-    title: `Swapped ${displayInput} → ${displayOutput}`,
+    title: isArbitrage ? `${steps.length}-swap arbitrage${profit == null ? '' : ` · ${formatAmount(profit, inputSymbol)}`}` : `Swapped ${displayInput} → ${displayOutput}`,
     detail: dex.name,
     source: dex.name,
     metadata: {
@@ -692,6 +772,8 @@ function swapActivity(
         dexName: dex.name,
         input: { mint: inputMint, symbol: inputSymbol, amount: inputAmount },
         output: { mint: outputMint, symbol: outputSymbol, amount: outputAmount },
+        ...(steps.length > 1 ? { steps } : {}),
+        ...(isArbitrage ? { arbitrage: { profit: profit == null ? null : profit, mint: inputMint, symbol: inputSymbol, includesNetworkFee: inputMint === SOL_MINT } } : {}),
         tradeUrl: tradeLink.url,
         tradeProvider: tradeLink.provider,
         tradeProviderName: tradeLink.providerName,

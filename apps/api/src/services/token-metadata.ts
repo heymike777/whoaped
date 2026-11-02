@@ -205,12 +205,14 @@ export async function enrichSwapActivity(activity: NormalizedActivity) {
   const typedSwap = swap as {
     input?: { mint?: string; symbol?: string; amount?: number };
     output?: { mint?: string; symbol?: string; amount?: number };
+    steps?: Array<{ dex: string; dexName: string; input: { mint: string; symbol: string; amount: number }; output: { mint: string; symbol: string; amount: number } }>;
+    arbitrage?: { profit: number | null; mint: string; symbol: string; includesNetworkFee: boolean };
   };
   const inputMint = typedSwap.input?.mint;
   const outputMint = typedSwap.output?.mint;
   if (!inputMint || !outputMint) return activity;
 
-  const metadata = await resolveTokenMetadata([inputMint, outputMint]);
+  const metadata = await resolveTokenMetadata([inputMint, outputMint, ...(typedSwap.steps ?? []).flatMap((step) => [step.input.mint, step.output.mint])]);
   const inputMetadata = metadata.get(inputMint) ?? {};
   const outputMetadata = metadata.get(outputMint) ?? {};
   const inputSymbol = inputMetadata.symbol ?? typedSwap.input?.symbol ?? 'token';
@@ -218,13 +220,28 @@ export async function enrichSwapActivity(activity: NormalizedActivity) {
   const amount = (value?: number) => new Intl.NumberFormat('en-US', {
     maximumFractionDigits: Math.abs(value ?? 0) >= 1 ? 4 : 9,
   }).format(Math.abs(value ?? 0));
+  const enrichToken = <T extends { mint: string; symbol: string; amount: number }>(token: T) => {
+    const resolved = metadata.get(token.mint) ?? {};
+    return { ...token, symbol: resolved.symbol ?? token.symbol,
+      ...(resolved.name ? { name: resolved.name } : {}),
+      ...(resolved.iconUrl ? { iconUrl: resolved.iconUrl } : {}),
+      ...(resolved.decimals == null ? {} : { decimals: resolved.decimals }),
+      ...(resolved.isVerified == null ? {} : { isVerified: resolved.isVerified }),
+    };
+  };
+  const profit = typedSwap.arbitrage?.profit;
+  const profitSymbol = metadata.get(typedSwap.arbitrage?.mint ?? '')?.symbol ?? typedSwap.arbitrage?.symbol;
   return {
     ...activity,
-    title: `Swapped ${amount(typedSwap.input?.amount)} ${inputSymbol} → ${amount(typedSwap.output?.amount)} ${outputSymbol}`,
+    title: typedSwap.arbitrage
+      ? `${typedSwap.steps?.length ?? 0}-swap arbitrage${profit == null ? '' : ` · ${profit >= 0 ? '+' : '−'}${amount(profit)} ${profitSymbol ?? inputSymbol}`}`
+      : `Swapped ${amount(typedSwap.input?.amount)} ${inputSymbol} → ${amount(typedSwap.output?.amount)} ${outputSymbol}`,
     metadata: {
       ...activity.metadata,
       swap: {
         ...(swap as Record<string, unknown>),
+        ...(typedSwap.steps ? { steps: typedSwap.steps.map((step) => ({ ...step, input: enrichToken(step.input), output: enrichToken(step.output) })) } : {}),
+        ...(typedSwap.arbitrage ? { arbitrage: { ...typedSwap.arbitrage, symbol: profitSymbol ?? inputSymbol } } : {}),
         input: {
           ...typedSwap.input,
           symbol: inputSymbol,
@@ -333,8 +350,9 @@ function candidateTokens(activity: NormalizedActivity) {
   if (Array.isArray(raw)) raw.forEach((token) => {
     if (token && typeof token === 'object') add(token as { mint?: string; decimals?: number });
   });
-  const swap = activity.metadata.swap as { input?: { mint?: string; symbol?: string; name?: string; iconUrl?: string }; output?: { mint?: string; symbol?: string; name?: string; iconUrl?: string } } | undefined;
+  const swap = activity.metadata.swap as { input?: { mint?: string; symbol?: string; name?: string; iconUrl?: string }; output?: { mint?: string; symbol?: string; name?: string; iconUrl?: string }; steps?: Array<{ input: { mint: string }; output: { mint: string } }> } | undefined;
   add(swap?.input); add(swap?.output);
+  swap?.steps?.forEach((step) => { add(step.input); add(step.output); });
   const yieldEvent = activity.metadata.yield as { assets?: Array<{ mint?: string; symbol?: string; name?: string; iconUrl?: string }> } | undefined;
   yieldEvent?.assets?.forEach(add);
   const launch = activity.metadata.launch as { token?: { mint?: string; symbol?: string; name?: string; iconUrl?: string } } | undefined;

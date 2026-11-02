@@ -1,6 +1,13 @@
 import { isDustInboundTransfer, solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
 import type { Collections, TransactionDocument, WalletDocument } from '../db.js';
 import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
+import { enrichActivityMetadata } from './token-metadata.js';
+
+function hasRoute(value: unknown) {
+  if (!value || typeof value !== 'object') return false;
+  const swap = (value as { swap?: { steps?: unknown[] } }).swap;
+  return Array.isArray(swap?.steps) && swap.steps.length > 1;
+}
 
 function isParsedSolanaTransaction(value: unknown): value is ParsedSolanaTransaction {
   if (!value || typeof value !== 'object') return false;
@@ -51,20 +58,22 @@ export async function reclassifyStoredActivities(
     if (!normalized) return transaction;
     if (transaction.kind === 'balance' && normalized.kind === 'balance'
       && normalized.title === transaction.title) return transaction;
-    if (transaction.kind === 'swap' && (normalized.kind !== 'swap' || normalized.source === transaction.source)) return transaction;
+    if (transaction.kind === 'swap' && (normalized.kind !== 'swap' || (normalized.source === transaction.source && (!hasRoute(normalized.metadata) || hasRoute(transaction.metadata))))) return transaction;
+
+    const enriched = normalized.kind === 'swap' ? await enrichActivityMetadata(normalized) : normalized;
 
     const mutableFields = {
-      kind: normalized.kind,
-      title: normalized.title,
-      detail: normalized.detail,
-      occurredAt: normalized.occurredAt,
-      metadata: normalized.metadata,
-      ...(normalized.source ? { source: normalized.source } : {}),
-      ...(normalized.valueUsd == null ? {} : { valueUsd: normalized.valueUsd }),
+      kind: enriched.kind,
+      title: enriched.title,
+      detail: enriched.detail,
+      occurredAt: enriched.occurredAt,
+      metadata: { ...transaction.metadata, ...enriched.metadata },
+      ...(enriched.source ? { source: enriched.source } : {}),
+      ...(enriched.valueUsd == null ? {} : { valueUsd: enriched.valueUsd }),
     };
     const unsetFields = {
-      ...(normalized.source ? {} : { source: '' as const }),
-      ...(normalized.valueUsd == null ? { valueUsd: '' as const } : {}),
+      ...(enriched.source ? {} : { source: '' as const }),
+      ...(enriched.valueUsd == null ? { valueUsd: '' as const } : {}),
     };
     await db.transactions.updateOne(
       { _id: transaction._id },

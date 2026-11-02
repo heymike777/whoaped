@@ -70,6 +70,23 @@ describe('Telegram tracker', () => {
     expect(text).toContain('• <code>−1.000005 SOL</code>');
     expect(text).toContain('• <code>+98.5 USDC</code>');
   });
+  it('shows each arbitrage swap and wallet net profit in order', () => {
+    const route = [
+      { dex: 'raydium', dexName: 'Raydium', input: { mint: 'SOL', symbol: 'SOL', amount: 1 }, output: { mint: 'BONK', symbol: 'BONK', amount: 1000 } },
+      { dex: 'meteora', dexName: 'Meteora', input: { mint: 'BONK', symbol: 'BONK', amount: 1000 }, output: { mint: 'USDC', symbol: 'USDC', amount: 100 } },
+      { dex: 'orca', dexName: 'Orca', input: { mint: 'USDC', symbol: 'USDC', amount: 100 }, output: { mint: 'SOL', symbol: 'SOL', amount: 1.05 } },
+    ];
+    const arb: NormalizedActivity = { ...activity, metadata: { swap: {
+      dex: 'jupiter', dexName: 'Jupiter', input: route[0].input, output: route[2].output, steps: route,
+      arbitrage: { profit: 0.049995, mint: 'SOL', symbol: 'SOL', includesNetworkFee: true },
+    } } };
+    const text = telegramNotification(wallet, { ...transaction, nativeBalanceChanges: { [address]: 49_995_000 } }, [arb]).text;
+    expect(text).toContain('<b>ARBITRAGE</b>');
+    expect(text).toContain('1. <b>1 SOL</b> → <b>1,000 BONK</b> · Raydium');
+    expect(text).toContain('2. <b>1,000 BONK</b> → <b>100 USDC</b> · Meteora');
+    expect(text).toContain('3. <b>100 USDC</b> → <b>1.05 SOL</b> · Orca');
+    expect(text).toContain('Net result: +0.049995 SOL');
+  });
   it('shows transfer recipients without dumping a long raw description', () => {
     const recipient = 'Recipient111111111111111111111111111111111';
     const text = telegramNotification(wallet, { ...transaction, feePayer: address, fee: 5000,

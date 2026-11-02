@@ -135,4 +135,32 @@ describe('activity reclassification', () => {
     expect(result).toMatchObject({ kind: 'swap', source: 'Meteora', metadata: { swap: { dex: 'meteora' } } });
     expect(updateOne).toHaveBeenCalledOnce();
   });
+
+  it('upgrades an already stored swap with newly parsed route steps', async () => {
+    const sol = 'So11111111111111111111111111111111111111112';
+    const usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+    const transaction = {
+      _id: 'route-old', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
+      txHash: 'route-signature', eventIndex: 0, slot: 123, kind: 'swap', source: 'Jupiter',
+      title: 'Swapped SOL → SOL', detail: 'Jupiter', metadata: { swap: { dex: 'jupiter' } },
+      occurredAt: new Date(), createdAt: new Date(),
+    } as TransactionDocument;
+    const wallet = { _id: 'wallet-1', userId: 'user-1', name: 'Wallet', address: walletAddress,
+      chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null } as WalletDocument;
+    const payload = { signature: transaction.txHash, slot: 123, feePayer: walletAddress,
+      nativeBalanceChanges: { [walletAddress]: 10_000_000 },
+      summary: { type: 'swap', parsedData: { protocol: 'jupiter', input_mint: sol, output_mint: sol, inner_swaps: [
+        { amm_program_name: 'raydium', input_mint: sol, output_mint: usdc, input_amount: '1000000000', output_amount: '100000000' },
+        { amm_program_name: 'orca', input_mint: usdc, output_mint: sol, input_amount: '100000000', output_amount: '1010000000' },
+      ] } },
+      tokenTransfers: [{ mint: usdc, decimals: 6 }],
+    };
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    const db = { ingestionEvents: { find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([{ externalId: transaction.txHash, payload, receivedAt: new Date() }]),
+    }) }) }, transactions: { updateOne } };
+    const [result] = await reclassifyStoredActivities([transaction], new Map([[wallet._id, wallet]]), db as never);
+    expect(result).toMatchObject({ kind: 'swap', metadata: { swap: { steps: [{ dex: 'raydium' }, { dex: 'orca' }], arbitrage: { profit: 0.01 } } } });
+    expect(updateOne).toHaveBeenCalledOnce();
+  });
 });

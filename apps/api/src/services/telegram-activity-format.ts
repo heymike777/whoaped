@@ -61,6 +61,24 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
   const metadata = record(activity.metadata);
   if (activity.kind === 'swap') {
     const swap = record(metadata?.swap);
+    const steps = Array.isArray(swap?.steps) ? swap.steps : [];
+    if (steps.length > 1) {
+      const lines = steps.slice(0, 12).flatMap((rawStep, index) => {
+        const step = record(rawStep);
+        if (!step) return [];
+        const input = tokenLeg(step.input);
+        const output = tokenLeg(step.output);
+        if (!input || !output) return [];
+        return [`${index + 1}. <b>${html(input)}</b> → <b>${html(output)}</b> · ${html(limited(step.dexName, 28) || 'DEX')}`];
+      });
+      if (steps.length > 12) lines.push(`…and ${steps.length - 12} more swaps`);
+      const arbitrage = record(swap?.arbitrage);
+      if (arbitrage && typeof arbitrage.profit === 'number' && Number.isFinite(arbitrage.profit)) {
+        const sign = arbitrage.profit >= 0 ? '+' : '−';
+        lines.push(`<b>Net result: ${sign}${html(amount(Math.abs(arbitrage.profit)))} ${html(limited(arbitrage.symbol, 20))}</b>${arbitrage.includesNetworkFee ? ' (incl. network fee)' : ''}`);
+      }
+      if (lines.length) return lines;
+    }
     const input = tokenLeg(swap?.input);
     const output = tokenLeg(swap?.output);
     if (input && output) return [`<b>${html(input)}</b>  →  <b>${html(output)}</b>`];
@@ -114,10 +132,11 @@ export function formatTelegramActivity(wallet: WalletDocument, transaction: Pars
     transfer.fromUserAccount === wallet.address || transfer.toUserAccount === wallet.address);
   const kind = failed ? 'failed' : hasTransfer ? 'transfer' : primary?.kind ?? 'unknown';
   const { icon, label } = kindLabels[kind];
+  const isArbitrage = kind === 'swap' && Boolean(record(record(primary?.metadata)?.swap)?.arbitrage);
   const source = limited(primary?.source, 28);
   const walletName = limited(wallet.name, 40) || 'Wallet';
   const lines = [
-    `${icon} <b>${label}</b>${source ? ` · ${html(source)}` : ''}`,
+    `${icon} <b>${isArbitrage ? 'ARBITRAGE' : label}</b>${source && !isArbitrage ? ` · ${html(source)}` : ''}`,
     `<b>${html(walletName)}</b>  <code>${html(shortAddress(wallet.address))}</code>`,
   ];
 

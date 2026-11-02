@@ -593,6 +593,46 @@ describe('solanaAdapter balance changes', () => {
     });
   });
 
+  it('keeps all DEX hops and derives arbitrage profit from the watched wallet net delta', () => {
+    const bonk = 'DezXAZ8z7PnrnRJjz3wXBoRgixCaKGpPB2637iu72W7';
+    const route = [
+      { amm_program_name: 'raydium', input_mint: sol, output_mint: bonk, input_amount: '1000000000', output_amount: '100000000' },
+      { amm_program_name: 'meteora', input_mint: bonk, output_mint: usdc, input_amount: '100000000', output_amount: '100000000' },
+      { amm_program_name: 'orca_whirlpool', input_mint: usdc, output_mint: sol, input_amount: '100000000', output_amount: '1050000000' },
+    ];
+    const payload = parsedTransaction({
+      feePayer: wallet,
+      nativeBalanceChanges: { [wallet]: 49_995_000 },
+      summary: { type: 'swap', parsedData: { protocol: 'jupiter', input_mint: sol, output_mint: sol, in_amount: '1000000000', actual_out_amount: '1050000000', inner_swaps: route } },
+      tokenTransfers: [{ mint: bonk, decimals: 5 }, { mint: usdc, decimals: 6 }],
+      instructions: [{ programName: 'jupiter', instructionName: 'route', summary: { type: 'swap', parsedData: { inner_swaps: route } } }],
+    });
+    const activity = solanaAdapter.normalize(payload, wallet)[0];
+    expect(activity).toMatchObject({ kind: 'swap', title: '3-swap arbitrage · +0.049995 SOL', metadata: { swap: {
+      input: { mint: sol, amount: 1 }, output: { mint: sol, amount: 1.05 },
+      steps: [
+        { dex: 'raydium', input: { amount: 1 }, output: { amount: 1000 } },
+        { dex: 'meteora', input: { amount: 1000 }, output: { amount: 100 } },
+        { dex: 'orca', input: { amount: 100 }, output: { amount: 1.05 } },
+      ],
+      arbitrage: { profit: 0.049995, symbol: 'SOL', includesNetworkFee: true },
+    } } });
+  });
+
+  it('keeps split Jupiter route hops without calling an ordinary swap arbitrage', () => {
+    const route = [
+      { amm_program_name: 'meteora', input_mint: sol, output_mint: usdc, input_amount: '500000000', output_amount: '50000000' },
+      { amm_program_name: 'raydium', input_mint: sol, output_mint: usdc, input_amount: '500000000', output_amount: '51000000' },
+    ];
+    const payload = parsedTransaction({
+      summary: { type: 'swap', parsedData: { protocol: 'jupiter', input_mint: sol, output_mint: usdc, in_amount: '1000000000', actual_out_amount: '101000000', inner_swaps: route } },
+      tokenTransfers: [{ mint: sol, decimals: 9 }, { mint: usdc, decimals: 6 }],
+    });
+    const swap = solanaAdapter.normalize(payload, wallet)[0].metadata.swap as { steps?: unknown[]; arbitrage?: unknown };
+    expect(swap.steps).toHaveLength(2);
+    expect(swap.arbitrage).toBeUndefined();
+  });
+
   it('prefers the watched wallet balance deltas for exact swap amounts', () => {
     const payload = parsedTransaction({
       summary: {

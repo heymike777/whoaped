@@ -62,24 +62,56 @@ function formatAmount(value: number) {
   return new Intl.NumberFormat('en-US', { maximumSignificantDigits: 6 }).format(absolute);
 }
 
-function TokenIcon({ token }: { token: SwapToken }) {
+function TokenIcon({ token, compact = false }: { token: SwapToken; compact?: boolean }) {
   const { styles } = useThemedStyles(createStyles);
   const [failed, setFailed] = useState(false);
   if (!token.iconUrl || failed) {
     return (
-      <View style={styles.tokenFallback}>
+      <View style={[styles.tokenFallback, compact && styles.compactTokenIcon]}>
         <Text style={styles.tokenFallbackText}>{token.symbol.slice(0, 1).toUpperCase()}</Text>
       </View>
     );
   }
   if (/\.svg(?:\?|$)/i.test(token.iconUrl)) {
     return (
-      <View style={styles.tokenIcon}>
+      <View style={[styles.tokenIcon, compact && styles.compactTokenIcon]}>
         <SvgUri height="100%" onError={() => setFailed(true)} uri={token.iconUrl} width="100%" />
       </View>
     );
   }
-  return <Image onError={() => setFailed(true)} source={{ uri: token.iconUrl }} style={styles.tokenIcon} />;
+  return <Image onError={() => setFailed(true)} source={{ uri: token.iconUrl }} style={[styles.tokenIcon, compact && styles.compactTokenIcon]} />;
+}
+
+function SwapRoute({ swap }: { swap: SwapMetadata }) {
+  const { colors, styles } = useThemedStyles(createStyles);
+  const steps = swap.steps ?? [];
+  return (
+    <View style={styles.stepsPanel}>
+      <Text style={styles.routeHeading}>{swap.arbitrage ? 'ARBITRAGE ROUTE' : 'SWAP ROUTE'} · {steps.length} STEPS</Text>
+      {steps.map((step, index) => (
+        <View key={`${index}-${step.dex}`} style={[styles.step, index > 0 && styles.stepBorder]}>
+          <View style={styles.stepIndex}><Text style={styles.stepIndexText}>{index + 1}</Text></View>
+          <View style={styles.stepContent}>
+            <View style={styles.stepAmounts}>
+              <Text numberOfLines={1} style={styles.stepAmount}>{formatAmount(step.input.amount)} {step.input.symbol}</Text>
+              <ArrowDown color={colors.textFaint} size={13} strokeWidth={2} style={styles.stepArrow} />
+              <Text numberOfLines={1} style={styles.stepAmount}>{formatAmount(step.output.amount)} {step.output.symbol}</Text>
+            </View>
+            <Text style={styles.stepDex}>{step.dexName}</Text>
+          </View>
+          <TokenIcon compact token={step.output} />
+        </View>
+      ))}
+      {swap.arbitrage && (
+        <View style={styles.profitRow}>
+          <Text style={styles.profitLabel}>NET RESULT{swap.arbitrage.includesNetworkFee ? ' · INCL. NETWORK FEE' : ''}</Text>
+          <Text style={[styles.profitValue, swap.arbitrage.profit != null && swap.arbitrage.profit < 0 && styles.lossValue]}>
+            {swap.arbitrage.profit == null ? 'Unavailable' : `${swap.arbitrage.profit >= 0 ? '+' : '−'}${formatAmount(swap.arbitrage.profit)} ${swap.arbitrage.symbol}`}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 function TokenLeg({ label, token, output }: { label: string; token: SwapToken; output?: boolean }) {
@@ -113,18 +145,16 @@ export function SwapActivityCard({
       <View style={styles.solscanAction}><SolscanButton onPress={onOpenSolscan} /></View>
       <View style={styles.header}>
         <View style={styles.metaRow}>
-          <View style={styles.signal} />
           <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
           <View style={styles.dot} />
           <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
         </View>
         <View style={styles.dexBadge}>
-          <DexIcon swap={swap} />
-          <Text style={styles.dexName}>{swap.dexName}</Text>
+          {swap.steps && swap.steps.length > 1 ? <Text style={styles.dexName}>{swap.arbitrage ? 'Arbitrage' : `${swap.steps.length} swaps`}</Text> : <><DexIcon swap={swap} /><Text style={styles.dexName}>{swap.dexName}</Text></>}
         </View>
       </View>
 
-      <View style={styles.swapPanel}>
+      {swap.steps && swap.steps.length > 1 ? <SwapRoute swap={swap} /> : <View style={styles.swapPanel}>
         <TokenLeg label="Sent" token={swap.input} />
         <View style={styles.route}>
           <View style={styles.routeLine} />
@@ -134,7 +164,7 @@ export function SwapActivityCard({
           <View style={styles.routeLine} />
         </View>
         <TokenLeg label="Received" output token={swap.output} />
-      </View>
+      </View>}
 
       <TokenActionButtons actions={activity.metadata?.tokenActions} />
     </View>
@@ -149,7 +179,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   solscanAction: { position: 'absolute', zIndex: 2, right: 14, top: 16 },
-  signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: colors.blue },
   header: { paddingRight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   metaRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   wallet: { maxWidth: 180, flexShrink: 1, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
@@ -183,6 +212,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   outputAmount: { color: colors.positive },
   symbol: { marginTop: 1, color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
   tokenIcon: { width: 48, height: 48, marginLeft: 14, overflow: 'hidden', borderRadius: 24, backgroundColor: colors.surfaceRaised },
+  compactTokenIcon: { width: 30, height: 30, marginLeft: 8, borderRadius: 15 },
   tokenFallback: {
     width: 48,
     height: 48,
@@ -207,4 +237,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderStrong,
   },
+  stepsPanel: { paddingHorizontal: 13, paddingTop: 12, paddingBottom: 4, borderRadius: 14, backgroundColor: colors.background },
+  routeHeading: { marginBottom: 4, color: colors.textMuted, fontFamily: typography.semibold, fontSize: 10, letterSpacing: 0.8 },
+  step: { minHeight: 57, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepBorder: { borderTopWidth: 1, borderColor: colors.border },
+  stepIndex: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.surface },
+  stepIndexText: { color: colors.textMuted, fontFamily: typography.mono, fontSize: 10 },
+  stepContent: { flex: 1, minWidth: 0 },
+  stepAmounts: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  stepAmount: { flexShrink: 1, color: colors.text, fontFamily: typography.semibold, fontSize: 11 },
+  stepArrow: { transform: [{ rotate: '-90deg' }] },
+  stepDex: { marginTop: 3, color: colors.textMuted, fontFamily: typography.regular, fontSize: 10 },
+  profitRow: { minHeight: 52, paddingTop: 9, borderTopWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  profitLabel: { flexShrink: 1, color: colors.textMuted, fontFamily: typography.semibold, fontSize: 9, letterSpacing: 0.6 },
+  profitValue: { color: colors.positive, fontFamily: typography.semibold, fontSize: 15 },
+  lossValue: { color: colors.destructive },
 });

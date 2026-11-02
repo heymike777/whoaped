@@ -49,15 +49,15 @@ export async function ingestParsedTransaction(
   if (cooldownStarted) await options.onCooldown?.();
   if (!eligibleWallets.length) return { activities: 0 };
   if (!failed) transaction = await reconcileNativeBalanceChanges(transaction, eligibleWallets.map((wallet) => wallet.address));
-  const normalizedByWallet = eligibleWallets.map((wallet) => ({
+  const normalizedByWallet = await Promise.all(eligibleWallets.map(async (wallet) => ({
     wallet,
-    activities: failed ? [{
+    activities: await Promise.all((failed ? [{
       chain: 'solana' as const, txHash: transaction.signature, eventIndex: 0,
       kind: 'failed' as const, title: 'Transaction failed', detail: 'Execution failed on Solana.',
       occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
       metadata: { failed: true },
-    }] : solanaAdapter.normalize(transaction, wallet.address),
-  }));
+    }] : solanaAdapter.normalize(transaction, wallet.address)).map(enrichActivityMetadata)),
+  })));
   // Persist independently of mobile activity classification, including dust and failed transactions.
   await Promise.all(normalizedByWallet.map(({ wallet, activities }) =>
     enqueueTelegramTransaction(wallet, transaction, activities)));
@@ -75,9 +75,8 @@ export async function ingestParsedTransaction(
   let activities = 0;
   for (const { wallet, activities: normalizedActivities } of normalizedByWallet) {
     for (const normalizedActivity of normalizedActivities) {
-      const enriched = await enrichActivityMetadata(normalizedActivity);
-      const activity = { ...enriched, metadata: { ...enriched.metadata,
-        balanceChanges: transactionBalanceLines(transaction, wallet.address, [enriched]),
+      const activity = { ...normalizedActivity, metadata: { ...normalizedActivity.metadata,
+        balanceChanges: transactionBalanceLines(transaction, wallet.address, [normalizedActivity]),
       } };
       activities += await withAccountMutation(wallet.userId, async (database, session, accountId) => {
         if (failed && (await database.users.findOne({ _id: accountId }, { session }))?.trackFailedTransactions !== true) return 0;

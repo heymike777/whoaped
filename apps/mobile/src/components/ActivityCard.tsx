@@ -57,7 +57,6 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
         </View>
         <View style={styles.copy}>
           <View style={styles.metaRow}>
-            <View style={[styles.signal, { backgroundColor: accent }]} />
             <Text numberOfLines={1} style={styles.wallet}>{activity.walletName}</Text>
             <View style={styles.dot} />
             <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
@@ -87,7 +86,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   failedCard: { backgroundColor: `${colors.destructive}0D` },
   solscanAction: { position: 'absolute', zIndex: 2, right: 12, top: 12 },
-  signal: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
   mainRow: { paddingRight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconWrap: {
     width: 38,
