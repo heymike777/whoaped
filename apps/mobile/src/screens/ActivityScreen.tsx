@@ -34,10 +34,6 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
   }, []);
 
   const waitingForState = !feed.error && feed.activities.length === 0 && !walletsLoaded;
-  const hasNoWallets = walletsLoaded && walletCount === 0;
-  const walletStatus = walletCount == null
-    ? 'Solana watchlist'
-    : `${walletCount} ${walletCount === 1 ? 'wallet' : 'wallets'} on watch`;
 
   return (
     <>
@@ -51,15 +47,6 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
           <View style={styles.mark}><BrandMark size={22} /></View>
           <Text style={styles.brand}>WhoAped</Text>
         </View>
-      </View>
-
-      <View style={styles.intro}>
-        <Text style={styles.heading}>Activity</Text>
-      </View>
-
-      <View style={styles.feedHeader}>
-        <Text style={styles.feedTitle}>{hasNoWallets ? 'Get started' : 'Latest'}</Text>
-        <Text style={styles.feedMeta}>{walletStatus}</Text>
       </View>
 
       <View style={styles.feedList}>
@@ -158,12 +145,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.black },
   brand: { color: colors.text, fontFamily: typography.bold, fontSize: 16, letterSpacing: -0.3 },
-  intro: { marginTop: 34, maxWidth: 340 },
-  heading: { color: colors.text, fontFamily: typography.bold, fontSize: 46, lineHeight: 50, letterSpacing: -1.5 },
-  feedHeader: { marginTop: 28, minHeight: 38, flexDirection: 'row', alignItems: 'baseline', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.text },
-  feedTitle: { color: colors.text, fontFamily: typography.semibold, fontSize: 20, letterSpacing: -0.35 },
-  feedMeta: { marginLeft: 'auto', color: colors.textMuted, fontFamily: typography.regular, fontWeight: '600', fontSize: 12 },
-  feedList: { gap: 8, paddingTop: 12 },
+  feedList: { gap: 8, paddingTop: 24 },
   activityItem: {
     overflow: 'hidden',
     borderRadius: 16,
