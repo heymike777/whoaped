@@ -156,7 +156,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: { paddingHorizontal: layout.gutter, paddingBottom: 124 },
   brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center' },
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.text },
+  mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.black },
   brand: { color: colors.text, fontFamily: typography.bold, fontSize: 16, letterSpacing: -0.3 },
   intro: { marginTop: 34, maxWidth: 340 },
   heading: { color: colors.text, fontFamily: typography.bold, fontSize: 46, lineHeight: 50, letterSpacing: -1.5 },
