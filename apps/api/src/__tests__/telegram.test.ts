@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ walletUpdate: vi.fn(), walletCount: vi.fn(), jobUpdate: vi.fn(), chatUpdate: vi.fn(), walletFind: vi.fn(), chatFind: vi.fn(), updateFind: vi.fn(), updateSave: vi.fn(), userFind: vi.fn(), userUpdate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ walletUpdate: vi.fn(), walletCount: vi.fn(), jobUpdate: vi.fn(), chatUpdate: vi.fn(), walletFind: vi.fn(), chatFind: vi.fn(), updateFind: vi.fn(), updateSave: vi.fn(), userFind: vi.fn(), userUpdate: vi.fn(), analyticsUpdate: vi.fn() }));
 vi.mock('../db.js', () => ({ collections: async () => ({
   wallets: { updateOne: mocks.walletUpdate, countDocuments: mocks.walletCount, findOne: mocks.walletFind },
   telegramChats: { updateOne: mocks.chatUpdate, findOne: mocks.chatFind }, telegramUpdates: { findOne: mocks.updateFind, updateOne: mocks.updateSave }, telegramJobs: { updateOne: mocks.jobUpdate },
+  telegramAnalyticsEvents: { updateOne: mocks.analyticsUpdate },
   users: { findOne: mocks.userFind, updateOne: mocks.userUpdate },
 }) }));
 vi.mock('../services/token-metadata.js', () => ({ enrichActivityMetadata: async (a: unknown) => a }));
@@ -121,10 +122,12 @@ describe('Telegram tracker', () => {
   it('adds wallets under the Telegram owner using stable command IDs', async () => {
     await handleTelegramUpdate(update(`/add ${address} Whale`));
     expect(mocks.walletUpdate).toHaveBeenCalledWith({ _id: 'tg:123:1:0' }, { $setOnInsert: expect.objectContaining({ userId: 'telegram:123', address, name: 'Whale', status: 'active' }) }, { upsert: true });
+    expect(mocks.analyticsUpdate).toHaveBeenCalledWith({ _id: '1:wallet_added:0' }, expect.anything(), { upsert: true });
   });
   it('scopes removal to the current owner', async () => {
     await handleTelegramUpdate({ update_id: 2, callback_query: { id: 'cb', data: 'remove:other-wallet', from: { id: 123 }, message: { chat: { id: 123, type: 'private' } } } });
     expect(mocks.walletUpdate).toHaveBeenCalledWith({ _id: 'other-wallet', userId: 'telegram:123', deletedAt: null }, expect.anything(), { session: undefined });
+    expect(mocks.analyticsUpdate).toHaveBeenCalledWith({ _id: '2:wallet_removed:0' }, expect.anything(), { upsert: true });
   });
   it('ignores groups and callbacks from a different user', async () => {
     await handleTelegramUpdate(update(`/add ${address}`, -100, 'supergroup'));

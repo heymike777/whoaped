@@ -12,7 +12,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "setup:telegram": "node --env-file-if-exists=.env dist/telegram-setup.js",
-    "check:streamflow": "tsx --env-file-if-exists=.env src/streamflow-check.ts"
+    "check:streamflow": "tsx --env-file-if-exists=.env src/streamflow-check.ts",
+    "analytics:telegram": "tsx --env-file-if-exists=.env src/telegram-analytics-report.ts"
   },
   "engines": {
     "node": ">=22.13"

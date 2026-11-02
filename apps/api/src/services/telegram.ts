@@ -13,6 +13,7 @@ import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, pr
 import { buildTokenActionLinks } from '../config/token-actions.js';
 import { stakingOffer } from '../config/staking.js';
 import { formatTelegramActivity } from './telegram-activity-format.js';
+import { interactionLabel, recordTelegramEvent } from './telegram-analytics.js';
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
@@ -96,6 +97,8 @@ export async function handleTelegramUpdate(update: Update) {
   const text = callback ? '' : message.text?.trim() ?? '';
   const rawCommand = text.split(/\s+/)[0] ?? '';
   const command = callback?.data ?? rawCommand.toLowerCase().split('@')[0];
+  await recordTelegramEvent(db, update.update_id, chatId, 'interaction', '', interactionLabel(command, Boolean(callback)))
+    .catch(error => console.error('Telegram analytics interaction failed', error));
   if (command === '/settings' || command === 'settings' || command.startsWith('settings:failed:')) {
     if (command === 'settings:failed:on' || command === 'settings:failed:off') {
       await setTrackFailedTransactions(userId, command.endsWith(':on'));
@@ -153,6 +156,8 @@ export async function handleTelegramUpdate(update: Update) {
   }
   if (command.startsWith('remove:')) {
     const result = await withAccountMutation(userId, (database, session, accountId) => database.wallets.updateOne({ _id: command.slice(7), userId: accountId, deletedAt: null }, { $set: { deletedAt: new Date() } }, { session }));
+    if (result.matchedCount) await recordTelegramEvent(db, update.update_id, chatId, 'wallet_removed', '0')
+      .catch(error => console.error('Telegram analytics wallet removal failed', error));
     return send(chatId, result.matchedCount ? 'Wallet removed. Notifications stopped.' : 'Wallet not found.');
   }
   const explicitAction: 'add' | 'remove' | undefined = ['/add', 'add'].includes(command) ? 'add'
@@ -175,9 +180,10 @@ export async function handleTelegramUpdate(update: Update) {
     await db.telegramUpdates.updateOne({ _id: String(update.update_id) }, { $set: { walletAction: action } });
     const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     if (lines.length > 100) return send(chatId, 'Send at most 100 wallets per message.');
-    const { results, completed } = await withAccountMutation(userId, async (database, session, accountId) => {
+    const { results, completed, changedIndexes } = await withAccountMutation(userId, async (database, session, accountId) => {
       const options = { session };
       const results: string[] = [];
+      const changedIndexes: number[] = [];
       let completed = 0;
       for (const [index, line] of lines.entries()) {
         const [address = '', ...nameParts] = line.split(/\s+/);
@@ -186,7 +192,7 @@ export async function handleTelegramUpdate(update: Update) {
         if (!validSolanaAddress(address)) { results.push(`${label}: invalid Solana address.`); continue; }
         if (action === 'remove') {
           const result = await database.wallets.updateOne({ address, userId: accountId, deletedAt: null }, { $set: { deletedAt: new Date() } }, options);
-          if (result.matchedCount) completed++;
+          if (result.matchedCount) { completed++; changedIndexes.push(index); }
           else results.push(`${label}: wallet is not tracked.`);
           continue;
         }
@@ -194,7 +200,7 @@ export async function handleTelegramUpdate(update: Update) {
         const walletId = `tg:${chatId}:${update.update_id}:${index}`;
         const existing = await database.wallets.findOne({ userId: accountId, address, deletedAt: null }, options);
         if (existing) {
-          if (existing._id === walletId) completed++;
+          if (existing._id === walletId) { completed++; changedIndexes.push(index); }
           else results.push(`${label}: wallet is already tracked.`);
           continue;
         }
@@ -204,16 +210,20 @@ export async function handleTelegramUpdate(update: Update) {
             userId: accountId, name, address, chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
           } }, { ...options, upsert: true });
           completed++;
+          changedIndexes.push(index);
         } catch (error) {
           if (error instanceof MongoServerError && error.code === 11000) results.push(`${label}: wallet is already tracked.`);
           else throw error;
         }
       }
-      return { results, completed };
+      return { results, completed, changedIndexes };
     });
     // Keep the mode on invalid input so the user can correct and resend the list.
     if (!results.length) await db.telegramChats.updateOne({ _id: chatId }, { $unset: { pendingAction: '' } });
     else await db.telegramChats.updateOne({ _id: chatId }, { $set: { pendingAction: action } });
+    for (const index of changedIndexes) await recordTelegramEvent(db, update.update_id, chatId,
+      action === 'add' ? 'wallet_added' : 'wallet_removed', String(index))
+      .catch(error => console.error('Telegram analytics wallet change failed', error));
     return send(chatId, [
       `${action === 'add' ? 'Added' : 'Removed'} ${completed} of ${lines.length} wallets.`,
       action === 'add' ? 'Every detected transaction will be sent directly to this chat.' : 'Notifications stopped for removed wallets.',

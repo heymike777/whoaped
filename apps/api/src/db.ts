@@ -123,6 +123,11 @@ export type TelegramChatDocument = {
   _id: string; createdAt: Date; disabledAt?: Date; pendingAction?: 'add' | 'remove';
   userId?: string; linkedAt?: Date; username?: string;
 };
+export type TelegramAnalyticsEventDocument = {
+  _id: string; chatId: string; type: 'interaction' | 'wallet_added' | 'wallet_removed';
+  command?: string; surface?: 'command' | 'button' | 'message';
+  occurredAt: Date;
+};
 
 export type Collections = {
   users: Collection<UserDocument>;
@@ -137,6 +142,7 @@ export type Collections = {
   telegramJobs: Collection<TelegramJobDocument>;
   telegramUpdates: Collection<TelegramUpdateDocument>;
   telegramChats: Collection<TelegramChatDocument>;
+  telegramAnalyticsEvents: Collection<TelegramAnalyticsEventDocument>;
   accountLinks: Collection<AccountLinkDocument>;
   accountEntitlements: Collection<AccountEntitlementDocument>;
   trackingStates: Collection<TrackingStateDocument>;
@@ -168,6 +174,7 @@ function databaseCollections(database: Db): Collections {
     telegramJobs: database.collection<TelegramJobDocument>('telegram_jobs'),
     telegramUpdates: database.collection<TelegramUpdateDocument>('telegram_updates'),
     telegramChats: database.collection<TelegramChatDocument>('telegram_chats'),
+    telegramAnalyticsEvents: database.collection<TelegramAnalyticsEventDocument>('telegram_analytics_events'),
     accountLinks: database.collection<AccountLinkDocument>('account_links'),
     accountEntitlements: database.collection<AccountEntitlementDocument>('account_entitlements'),
     trackingStates: database.collection<TrackingStateDocument>('tracking_states'),
@@ -208,6 +215,8 @@ async function ensureIndexes(database: Db) {
     db.telegramJobs.createIndex({ chatId: 1, createdAt: -1, _id: -1 }),
     db.telegramUpdates.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
     db.telegramChats.createIndex({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'string' } } }),
+    db.telegramAnalyticsEvents.createIndex({ occurredAt: 1, type: 1 }),
+    db.telegramAnalyticsEvents.createIndex({ chatId: 1, occurredAt: 1 }),
     db.accountLinks.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.accountLinks.createIndex({ userId: 1, status: 1 }),
     db.accountEntitlements.createIndex({ provider: 1, externalId: 1 }, { unique: true }),
