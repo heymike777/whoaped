@@ -51,7 +51,12 @@ function tokenLeg(value: unknown) {
   return quantity && symbol ? `${quantity} ${symbol}` : '';
 }
 
-function actionLines(activity: NormalizedActivity | undefined, transaction: ParsedSolanaTransaction, walletAddress: string) {
+function participant(address: string, addressLabels: ReadonlyMap<string, string>) {
+  const label = limited(addressLabels.get(address), 40);
+  return `${label ? `<b>${html(label)}</b>  ` : ''}<code>${html(shortAddress(address))}</code>`;
+}
+
+function actionLines(activity: NormalizedActivity | undefined, transaction: ParsedSolanaTransaction, walletAddress: string, addressLabels: ReadonlyMap<string, string>) {
   if (!activity) return [];
   const metadata = record(activity.metadata);
   if (activity.kind === 'swap') {
@@ -79,7 +84,7 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
     );
     if (outgoing.length) {
       const lines = outgoing.slice(0, 3).map(transfer =>
-        `↳ <b>${html(amount(Number(transfer.amount) / 1e9))} SOL</b> → <code>${html(shortAddress(transfer.toUserAccount!))}</code>`,
+        `↳ <b>${html(amount(Number(transfer.amount) / 1e9))} SOL</b> → ${participant(transfer.toUserAccount!, addressLabels)}`,
       );
       if (outgoing.length > 3) lines.push(`↳ and ${outgoing.length - 3} more recipients`);
       return lines;
@@ -90,7 +95,7 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
     );
     if (incoming.length) {
       const lines = incoming.slice(0, 3).map(transfer =>
-        `↳ <b>${html(amount(Number(transfer.amount) / 1e9))} SOL</b> ← <code>${html(shortAddress(transfer.fromUserAccount!))}</code>`,
+        `↳ <b>${html(amount(Number(transfer.amount) / 1e9))} SOL</b> ← ${participant(transfer.fromUserAccount!, addressLabels)}`,
       );
       if (incoming.length > 3) lines.push(`↳ and ${incoming.length - 3} more senders`);
       return lines;
@@ -102,7 +107,7 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
 }
 
 /** One compact Telegram message per transaction, with wallet-scoped net balance changes. */
-export function formatTelegramActivity(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
+export function formatTelegramActivity(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[], addressLabels: ReadonlyMap<string, string> = new Map()) {
   const failed = transaction.status === 'error' || transaction.transactionStatus === 'ERROR';
   const primary = failed ? undefined : [...activities].sort((left, right) => kindPriority[left.kind] - kindPriority[right.kind])[0];
   const hasTransfer = !failed && primary?.kind === 'balance' && (transaction.nativeTransfers ?? []).some(transfer =>
@@ -118,7 +123,7 @@ export function formatTelegramActivity(wallet: WalletDocument, transaction: Pars
 
   if (failed) lines.push('', 'Transaction failed; only onchain fees may have changed.');
   else {
-    const actions = actionLines(primary, transaction, wallet.address);
+    const actions = actionLines(primary, transaction, wallet.address, addressLabels);
     if (actions.length) lines.push('', ...actions);
     const extra = activities.filter(activity => activity !== primary && activity.kind !== 'balance').slice(0, 2)
       .map(activity => limited(activity.title, 100)).filter(Boolean).map(html);

@@ -233,8 +233,8 @@ export async function handleTelegramUpdate(update: Update) {
   return send(chatId, help);
 }
 
-export function telegramNotification(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
-  const text = formatTelegramActivity(wallet, transaction, activities);
+export function telegramNotification(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[], addressLabels?: ReadonlyMap<string, string>) {
+  const text = formatTelegramActivity(wallet, transaction, activities, addressLabels);
   const buttons: Array<Array<{ text: string; url: string }>> = [];
   const seen = new Set<string>();
   for (const activity of activities) {
@@ -282,11 +282,21 @@ export async function enqueueTelegramTransaction(wallet: WalletDocument, transac
       ? await database.wallets.findOne({ _id: original.mergedIntoWalletId }, { session }) : original;
     if (!currentWallet || currentWallet.deletedAt) return;
     if (transaction.blockTime && currentWallet.telegramAlertsFrom && transaction.blockTime * 1000 < currentWallet.telegramAlertsFrom.getTime() - 1000) return;
+    const counterparties = [...new Set((transaction.nativeTransfers ?? []).flatMap(transfer =>
+      transfer.fromUserAccount === currentWallet.address ? [transfer.toUserAccount] :
+        transfer.toUserAccount === currentWallet.address ? [transfer.fromUserAccount] : [],
+    ).filter((address): address is string => Boolean(address && address !== currentWallet.address)))];
+    const addressLabels = new Map<string, string>();
+    if (counterparties.length) {
+      const named = await database.wallets.find({ userId: accountId, chain: 'solana', deletedAt: null,
+        address: { $in: counterparties.slice(0, 20) } }, { session }).toArray();
+      named.forEach(item => addressLabels.set(item.address, item.name));
+    }
     const now = new Date();
     await database.telegramJobs.updateOne({ walletId: currentWallet._id, txHash: transaction.signature }, { $setOnInsert: {
       _id: randomUUID(), chatId, walletId: currentWallet._id, userId: accountId,
       ...((transaction.status === 'error' || transaction.transactionStatus === 'ERROR') ? { kind: 'failed' as const } : {}),
-      txHash: transaction.signature, slot: transaction.slot, ...telegramNotification(currentWallet, transaction, enriched),
+      txHash: transaction.signature, slot: transaction.slot, ...telegramNotification(currentWallet, transaction, enriched, addressLabels),
       status: 'pending', attempts: 0, availableAt: now, createdAt: now,
     } }, { upsert: true, session });
   });

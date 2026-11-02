@@ -71,11 +71,13 @@ describe('Telegram tracker', () => {
     expect(text).toContain('• <code>+98.5 USDC</code>');
   });
   it('shows transfer recipients without dumping a long raw description', () => {
+    const recipient = 'Recipient111111111111111111111111111111111';
     const text = telegramNotification(wallet, { ...transaction, feePayer: address, fee: 5000,
-      nativeTransfers: [{ fromUserAccount: address, toUserAccount: 'Recipient111111111111111111111111111111111', amount: 10000000 }],
-    }, [{ ...activity, kind: 'balance', title: '−0.010005 SOL', detail: 'Balance change', metadata: {} }]).text;
+      nativeTransfers: [{ fromUserAccount: address, toUserAccount: recipient, amount: 10000000 }],
+    }, [{ ...activity, kind: 'balance', title: '−0.010005 SOL', detail: 'Balance change', metadata: {} }],
+    new Map([[recipient, 'Cashflow Fees']])).text;
     expect(text).toContain('💸 <b>TRANSFER</b>');
-    expect(text).toContain('↳ <b>0.01 SOL</b> → <code>Recipi…11111</code>');
+    expect(text).toContain('↳ <b>0.01 SOL</b> → <b>Cashflow Fees</b>  <code>Recipi…11111</code>');
     expect(text).toContain('• <code>−0.010005 SOL</code>');
   });
   it('escapes wallet and token text before sending Telegram HTML', () => {
