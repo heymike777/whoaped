@@ -62,7 +62,7 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
             <View style={styles.dot} />
             <Text style={styles.time}>{relativeTime(activity.occurredAt)}</Text>
           </View>
-          <Text style={[styles.title, activity.kind === 'failed' && styles.failedTitle]}>{activity.title}</Text>
+          <Text style={[styles.title, activity.kind === 'failed' && styles.failedTitle]}>{activity.kind === 'balance' && activity.metadata?.balanceChanges?.length ? 'Balance change' : activity.title}</Text>
           {activity.kind !== 'balance' && <Text numberOfLines={1} style={styles.detail}>{activity.detail}</Text>}
         </View>
         {activity.valueUsd != null && (

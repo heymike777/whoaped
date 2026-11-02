@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock('../db.js', () => ({ collections: async () => db }));
 import { drainTelegramJobs } from '../services/telegram.js';
-const job = { _id: 'j1', walletId: 'w1', chatId: '123', text: 'Bought TEST', buttons: [], attempts: 1 };
+const job = { _id: 'j1', walletId: 'w1', chatId: '123', text: '<b>Bought TEST</b>', parseMode: 'HTML', buttons: [], attempts: 1 };
 describe('Telegram delivery queue', () => {
   beforeEach(() => {
     vi.clearAllMocks(); vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
@@ -20,6 +20,7 @@ describe('Telegram delivery queue', () => {
   it('sends and marks a job sent, excluding the chat from the rest of the tick', async () => {
     await drainTelegramJobs();
     expect(fetch).toHaveBeenCalledOnce();
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)).toMatchObject({ parse_mode: 'HTML', text: '<b>Bought TEST</b>' });
     expect(db.telegramJobs.updateOne).toHaveBeenCalledWith({ _id: 'j1' }, { $set: expect.objectContaining({ status: 'sent' }) });
     expect(db.telegramJobs.findOneAndUpdate.mock.calls[1][0].chatId).toEqual({ $nin: ['123'] });
   });

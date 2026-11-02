@@ -43,15 +43,47 @@ describe('Telegram tracker', () => {
       expect.objectContaining({ text: 'BonkBot: $TEST', url: expect.stringContaining(`ref_ceqh3_ca_${address}`) }),
       expect.objectContaining({ text: 'GMGN: $TEST', url: expect.stringContaining(`i_gSWRgmGL_c_${address}`) }),
     ])); expect(notification.text).toContain('Bought TEST');
+    expect(notification.parseMode).toBe('HTML');
+    expect(notification.text).not.toContain('Slot:');
+    expect(notification.text).not.toContain(wallet.address);
   });
   it('retains generic and failed transactions', async () => {
     mocks.walletFind.mockResolvedValue(wallet);
     await enqueueTelegramTransaction(wallet, { ...transaction, status: 'error' }, []);
-    expect(mocks.jobUpdate).toHaveBeenCalledWith({ walletId: 'w1', txHash: 'sig' }, expect.objectContaining({ $setOnInsert: expect.objectContaining({ chatId: '123', text: expect.stringContaining('Failed transaction'), slot: 123 }) }), { upsert: true });
-    expect(telegramNotification(wallet, { ...transaction, status: 'error' }, []).text.startsWith('🔴 Whale')).toBe(true);
-    expect(telegramNotification(wallet, transaction, []).text).toContain('On-chain transaction');
+    expect(mocks.jobUpdate).toHaveBeenCalledWith({ walletId: 'w1', txHash: 'sig' }, expect.objectContaining({ $setOnInsert: expect.objectContaining({ chatId: '123', text: expect.stringContaining('FAILED TRANSACTION'), slot: 123 }) }), { upsert: true });
+    expect(telegramNotification(wallet, { ...transaction, status: 'error' }, []).text.startsWith('🔴 <b>FAILED TRANSACTION</b>')).toBe(true);
+    expect(telegramNotification(wallet, transaction, []).text).toContain('<b>ACTIVITY</b>');
     expect(telegramNotification(wallet, { ...transaction, status: 'error', feePayer: address, fee: 5000 }, []).text)
-      .toContain('Balance changes\n−0.000005 SOL');
+      .toContain('<b>Balance changes</b>\n• <code>−0.000005 SOL</code>');
+  });
+  it('structures a swap into an action and wallet-scoped balance section', () => {
+    const swap: NormalizedActivity = { ...activity, metadata: { swap: {
+      dex: 'jupiter', dexName: 'Jupiter',
+      input: { mint: 'SOL', symbol: 'SOL', amount: 1 }, output: { mint: 'USDC', symbol: 'USDC', amount: 98.5 },
+    } }, source: 'Jupiter' };
+    const text = telegramNotification(wallet, { ...transaction, feePayer: address, fee: 5000,
+      nativeBalanceChanges: { [address]: -1000005000 },
+      tokenTransfers: [{ toUserAccount: address, mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', rawTokenAmount: '98500000', decimals: 6 }],
+    }, [swap]).text;
+    expect(text).toContain('🔁 <b>SWAP</b> · Jupiter');
+    expect(text).toContain('<b>1 SOL</b>  →  <b>98.5 USDC</b>');
+    expect(text).toContain('• <code>−1.000005 SOL</code>');
+    expect(text).toContain('• <code>+98.5 USDC</code>');
+  });
+  it('shows transfer recipients without dumping a long raw description', () => {
+    const text = telegramNotification(wallet, { ...transaction, feePayer: address, fee: 5000,
+      nativeTransfers: [{ fromUserAccount: address, toUserAccount: 'Recipient111111111111111111111111111111111', amount: 10000000 }],
+    }, [{ ...activity, kind: 'balance', title: '−0.010005 SOL', detail: 'Balance change', metadata: {} }]).text;
+    expect(text).toContain('💸 <b>TRANSFER</b>');
+    expect(text).toContain('↳ <b>0.01 SOL</b> → <code>Recipi…11111</code>');
+    expect(text).toContain('• <code>−0.010005 SOL</code>');
+  });
+  it('escapes wallet and token text before sending Telegram HTML', () => {
+    const text = telegramNotification({ ...wallet, name: 'Alice <admin> & Bob' }, transaction,
+      [{ ...activity, kind: 'nft', title: 'Minted <fake> NFT', metadata: {} }]).text;
+    expect(text).toContain('Alice &lt;admin&gt; &amp; Bob');
+    expect(text).toContain('Minted &lt;fake&gt; NFT');
+    expect(text).not.toContain('<fake>');
   });
   it('shows the failed-transaction setting in the bot', async () => {
     mocks.userFind.mockResolvedValue({ trackFailedTransactions: false });

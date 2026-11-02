@@ -16,11 +16,12 @@ describe('mobile balance changes', () => {
   it('preserves small fee amounts and distinguishes incoming and outgoing balances', () => {
     act(() => { root = TestRenderer.create(<BalanceChanges lines={['−0.000005 SOL', '+25 USDC']} />); });
     const texts = root.root.findAllByType(Text);
-    const fee = texts.find(node => node.props.children === '−0.000005 SOL')!;
-    const incoming = texts.find(node => node.props.children === '+25 USDC')!;
+    const fee = texts.find(node => node.props.children === '−0.000005')!;
+    const incoming = texts.find(node => node.props.children === '+25')!;
     expect(StyleSheet.flatten(fee.props.style).color).toBe(lightColors.destructive);
     expect(StyleSheet.flatten(incoming.props.style).color).toBe(lightColors.positive);
     expect(fee.props.numberOfLines).toBeUndefined();
+    expect(texts.map(node => node.props.children)).toEqual(expect.arrayContaining(['SOL', 'USDC']));
   });
   it('does not present missing history as a zero balance change', () => {
     act(() => { root = TestRenderer.create(<BalanceChanges />); });

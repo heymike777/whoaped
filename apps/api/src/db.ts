@@ -115,7 +115,7 @@ export type TelegramUpdateDocument = {
 export type TelegramJobDocument = {
   _id: string; chatId: string; walletId: string; txHash: string; slot: number;
   kind?: 'account' | 'failed'; userId?: string; priority?: number;
-  text: string; buttons: Array<Array<{ text: string; url: string }>>;
+  text: string; parseMode?: 'HTML'; buttons: Array<Array<{ text: string; url: string }>>;
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
 };

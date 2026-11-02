@@ -21,7 +21,7 @@ describe('balance changes in retained mobile history', () => {
     expect(updateOne).toHaveBeenCalledWith({ _id: '0' }, { $set: { 'metadata.balanceChanges': ['−0.000005 SOL'] } });
   });
   it('preserves computed balances and does not query expired ingestion payloads again', async () => {
-    const tx = { chain: 'solana', metadata: { balanceChanges: ['+1 SOL'] } } as TransactionDocument;
+    const tx = { chain: 'solana', metadata: { balanceChanges: ['+1 SOL'] } } as unknown as TransactionDocument;
     expect(await withActivityBalances([tx], new Map(), {} as Collections)).toEqual([tx]);
   });
   it('leaves missing history unknown rather than inventing balance changes', async () => {

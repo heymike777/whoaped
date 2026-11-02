@@ -12,7 +12,7 @@ import { enrichActivityMetadata } from './token-metadata.js';
 import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, previewTelegramLink, setTrackFailedTransactions, withAccountMutation } from './accounts.js';
 import { buildTokenActionLinks } from '../config/token-actions.js';
 import { stakingOffer } from '../config/staking.js';
-import { transactionBalanceLines } from './transaction-balances.js';
+import { formatTelegramActivity } from './telegram-activity-format.js';
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
@@ -48,9 +48,10 @@ export function authorizedTelegramWebhook(received: string) {
 }
 export { TelegramError, telegramCall } from './telegram-api.js';
 
-async function send(chatId: string, text: string, buttons: Button[][] = menu) {
+async function send(chatId: string, text: string, buttons: Button[][] = menu, parseMode?: 'HTML') {
   await telegramCall('sendMessage', {
     chat_id: chatId, text: text.slice(0, 4000), link_preview_options: { is_disabled: true },
+    ...(parseMode ? { parse_mode: parseMode } : {}),
     reply_markup: { inline_keyboard: buttons },
   });
 }
@@ -233,11 +234,7 @@ export async function handleTelegramUpdate(update: Update) {
 }
 
 export function telegramNotification(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
-  const failed = transaction.status === 'error' || transaction.transactionStatus === 'ERROR';
-  const at = new Date((transaction.blockTime ?? Date.now() / 1000) * 1000).toISOString();
-  const balances = `Balance changes\n${transactionBalanceLines(transaction, wallet.address, activities).join('\n')}`;
-  const summary = failed ? 'Failed transaction' : activities.map(a => [a.title, a.detail].filter(Boolean).join('\n')).join('\n\n') || 'On-chain transaction';
-  const text = `${failed ? '🔴 ' : ''}${wallet.name}\n${wallet.address}\n\n${balances}\n\n${summary}\n\n${at}\nSlot: ${transaction.slot}`.slice(0, 4000);
+  const text = formatTelegramActivity(wallet, transaction, activities);
   const buttons: Array<Array<{ text: string; url: string }>> = [];
   const seen = new Set<string>();
   for (const activity of activities) {
@@ -255,7 +252,7 @@ export function telegramNotification(wallet: WalletDocument, transaction: Parsed
     if (seen.size >= 2) break;
   }
   buttons.push([{ text: 'View transaction ↗', url: `https://solscan.io/tx/${encodeURIComponent(transaction.signature)}` }]);
-  return { text, buttons };
+  return { text, parseMode: 'HTML' as const, buttons };
 }
 
 export async function enqueueTelegramTransaction(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
@@ -333,7 +330,7 @@ export async function drainTelegramJobs() {
         await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'failed', lastError: 'Subscription inactive' } });
         continue;
       }
-      await send(job.chatId, job.text, job.buttons);
+      await send(job.chatId, job.text, job.buttons, job.parseMode);
       await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'sent', sentAt: new Date() } });
     } catch (error) {
       const apiError = error instanceof TelegramError ? error : undefined;
