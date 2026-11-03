@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <!-- Keep the mark inside Android's 66dp adaptive-icon safe zone. -->
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.9"
+        android:scaleY="0.9">
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M362,204 H250 C224,204 204,224 204,250 V362 M662,204 H774 C800,204 820,224 820,250 V362 M362,820 H250 C224,820 204,800 204,774 V662 M662,820 H774 C800,820 820,800 820,774 V662"
+            android:strokeColor="#F4F4EF"
+            android:strokeLineCap="round"
+            android:strokeWidth="76" />
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M322,512 C370,426 432,382 512,382 C592,382 654,426 702,512 C654,598 592,642 512,642 C432,642 370,598 322,512 Z"
+            android:strokeColor="#F4F4EF"
+            android:strokeLineJoin="round"
+            android:strokeWidth="66" />
+        <path
+            android:fillColor="#F04B2F"
+            android:pathData="M512,454 C544.03,454 570,479.97 570,512 C570,544.03 544.03,570 512,570 C479.97,570 454,544.03 454,512 C454,479.97 479.97,454 512,454 Z" />
+    </group>
+</vector>
