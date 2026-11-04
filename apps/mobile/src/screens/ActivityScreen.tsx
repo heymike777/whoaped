@@ -41,8 +41,8 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
       <ScrollView
       contentContainerStyle={[styles.content, width >= 700 && styles.wideContent, {
         paddingTop: insets.top + 18,
-        paddingLeft: layout.gutter + insets.left,
-        paddingRight: layout.gutter + insets.right,
+        paddingLeft: layout.gutter + (width >= 700 ? 0 : insets.left),
+        paddingRight: layout.gutter + (width >= 700 ? 0 : insets.right),
         paddingBottom: 90 + insets.bottom,
       }]}
       refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={feed.isRefreshing && !feed.isLoading} onRefresh={feed.refresh} tintColor={colors.primary} />}

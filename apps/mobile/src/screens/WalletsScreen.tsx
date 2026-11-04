@@ -100,8 +100,8 @@ export function WalletsScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, width >= 700 && styles.wideContent, {
           paddingTop: insets.top + 18,
-          paddingLeft: layout.gutter + insets.left,
-          paddingRight: layout.gutter + insets.right,
+          paddingLeft: layout.gutter + (width >= 700 ? 0 : insets.left),
+          paddingRight: layout.gutter + (width >= 700 ? 0 : insets.right),
           paddingBottom: 90 + insets.bottom,
         }]}
         keyboardShouldPersistTaps="handled"
