@@ -12,6 +12,12 @@ The static website lives in `apps/web`. Its `/download/` page reads public APK a
 
 The site has no runtime secrets and does not need a web server, database, or API integration. `npm run check && npm run build` validates and stages its static files locally.
 
+## Social link previews
+
+Both pages include canonical URLs, Open Graph metadata, and large-image Twitter cards for `@whoaped`. Public URLs use `https://whoaped.com`; `/download/` has its own title, description, and canonical URL. Metadata is in the initial HTML so crawlers do not need JavaScript.
+
+The shared preview image is `apps/web/assets/og-card.png` (1200 × 630), rendered from the editable `og-card.svg` beside it. Keep the PNG and its declared dimensions in both HTML heads in sync when changing the artwork. The build copies the image into `dist/assets/`. After deployment, verify the image URL returns `image/png` without authentication. Previously shared links may retain cached previews until the platform fetches them again.
+
 ## Landing-page analytics
 
 Use the GA4 **whoaped.com web data stream** in the Firebase-linked property. Set its public measurement ID `G-N6ZMCJLS6S` as the Vercel **build-time** environment variable `GA_MEASUREMENT_ID` for the production environment, then redeploy the website. Do not use the separate Telegram bot stream ID, a Firebase app ID (`1:...:web:...`), or a secret API key here. The site builds without this variable, but analytics and the consent prompt remain disabled.
