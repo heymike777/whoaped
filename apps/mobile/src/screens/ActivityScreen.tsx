@@ -54,7 +54,7 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
         {feed.error && <ErrorState message={feed.error} onRetry={feed.refresh} />}
         {!feed.isLoading && !waitingForState && !feed.error && feed.activities.length === 0 && <EmptyState onAddWallet={onAddWallet} walletCount={walletCount} />}
         {!feed.error && feed.activities.map((activity) => (
-          <View accessibilityLabel={`${activity.walletName}: ${activity.title}`} key={activity.id} style={[styles.activityItem, activity.kind === 'failed' && styles.failedActivityItem]}>
+          <View accessibilityLabel={`${activity.walletImpacts?.map(impact => impact.walletName).join(', ') ?? activity.walletName}: ${activity.title}`} key={activity.id} style={[styles.activityItem, activity.kind === 'failed' && styles.failedActivityItem]}>
             {activity.kind === 'swap' && activity.metadata?.swap
               ? <SwapActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} swap={activity.metadata.swap} />
               : activity.kind === 'yield' && activity.metadata?.yield
@@ -62,7 +62,13 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
                 : activity.kind === 'launch' && activity.metadata?.launch
                   ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} onOpenSolscan={() => setSolscanSignature(activity.signature)} />
                   : <ActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} />}
-            <BalanceChanges lines={activity.metadata?.balanceChanges} />
+            {activity.walletImpacts && activity.walletImpacts.length > 1
+              ? <View>
+                  <Text style={styles.walletGroupLabel}>TRACKED WALLETS</Text>
+                  {activity.walletImpacts.map(impact => <BalanceChanges key={impact.walletId} lines={impact.balanceChanges}
+                    walletName={`${impact.walletName} · ${impact.walletAddress.slice(0, 6)}…${impact.walletAddress.slice(-5)}`} />)}
+                </View>
+              : <BalanceChanges lines={activity.metadata?.balanceChanges} />}
           </View>
         ))}
         {!feed.error && feed.hasMore && (
@@ -154,6 +160,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   failedActivityItem: { borderColor: `${colors.destructive}52` },
+  walletGroupLabel: { marginHorizontal: 12, marginTop: 3, color: colors.textFaint, fontFamily: typography.mono, fontSize: 9, letterSpacing: 1.2 },
   loadMoreWrap: { alignItems: 'center', paddingVertical: 16 },
   loadMoreButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: colors.borderStrong },
   loadMoreText: { color: colors.text, fontFamily: typography.medium, fontSize: 13 },

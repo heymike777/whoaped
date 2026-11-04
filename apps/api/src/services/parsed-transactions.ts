@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import { solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
-import { collections } from '../db.js';
+import { collections, type WalletDocument } from '../db.js';
 import { enrichActivityMetadata } from './token-metadata.js';
 import { admitAccountTransaction, walletTrackingEligible } from './rate-limits.js';
 import { withAccountMutation } from './accounts.js';
-import { enqueueTelegramTransaction } from './telegram.js';
+import { enqueueTelegramTransactionGroup } from './telegram.js';
 import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
 import { transactionBalanceLines } from './transaction-balances.js';
 
@@ -59,8 +59,7 @@ export async function ingestParsedTransaction(
     }] : solanaAdapter.normalize(transaction, wallet.address)).map(enrichActivityMetadata)),
   })));
   // Persist independently of mobile activity classification, including dust and failed transactions.
-  await Promise.all(normalizedByWallet.map(({ wallet, activities }) =>
-    enqueueTelegramTransaction(wallet, transaction, activities)));
+  await enqueueTelegramTransactionGroup(normalizedByWallet, transaction);
   if (!normalizedByWallet.some(({ activities }) => activities.length)) return { activities: 0 };
 
   await db.ingestionEvents.updateOne(
@@ -73,17 +72,18 @@ export async function ingestParsedTransaction(
   );
 
   let activities = 0;
+  const insertedByAccount = new Map<string, Array<{ wallet: WalletDocument; title: string; balanceChanges: string[]; transactionId: string }>>();
   for (const { wallet, activities: normalizedActivities } of normalizedByWallet) {
     for (const normalizedActivity of normalizedActivities) {
       const activity = { ...normalizedActivity, metadata: { ...normalizedActivity.metadata,
         balanceChanges: transactionBalanceLines(transaction, wallet.address, [normalizedActivity]),
       } };
-      activities += await withAccountMutation(wallet.userId, async (database, session, accountId) => {
-        if (failed && (await database.users.findOne({ _id: accountId }, { session }))?.trackFailedTransactions !== true) return 0;
+      const inserted = await withAccountMutation(wallet.userId, async (database, session, accountId) => {
+        if (failed && (await database.users.findOne({ _id: accountId }, { session }))?.trackFailedTransactions !== true) return null;
         const original = await database.wallets.findOne({ _id: wallet._id }, { session });
         const currentWallet = original?.mergedIntoWalletId
           ? await database.wallets.findOne({ _id: original.mergedIntoWalletId }, { session }) : original;
-        if (!currentWallet || currentWallet.deletedAt) return 0;
+        if (!currentWallet || currentWallet.deletedAt) return null;
         const transactionId = randomUUID();
         const mutableFields = {
           kind: activity.kind,
@@ -121,35 +121,42 @@ export async function ingestParsedTransaction(
           },
           { upsert: true, session },
         );
-        if (!saved.upsertedCount) return 0;
-        const deviceTokens = await database.deviceTokens.find({
-          userId: accountId, disabledAt: { $exists: false },
-        }, { session }).toArray();
-        const now = new Date();
-        for (const device of deviceTokens) await database.notificationJobs.updateOne(
-          { deviceTokenId: device._id, transactionId },
-          {
-            $setOnInsert: {
-              _id: randomUUID(),
-              userId: accountId,
-              deviceTokenId: device._id,
-              transactionId,
-              ...(failed ? { failedTransaction: true } : {}),
-              title: currentWallet.name,
-              body: activity.title,
-              data: { transactionId, walletId: currentWallet._id },
-              status: 'pending',
-              attempts: 0,
-              availableAt: now,
-              createdAt: now,
-            },
-          },
-          { upsert: true, session },
-        );
-        return 1;
+        return saved.upsertedCount ? { wallet: currentWallet, accountId, title: activity.title,
+          balanceChanges: activity.metadata.balanceChanges as string[], transactionId } : null;
       });
+      if (inserted) {
+        activities += 1;
+        const group = insertedByAccount.get(inserted.accountId) ?? [];
+        group.push(inserted);
+        insertedByAccount.set(inserted.accountId, group);
+      }
     }
   }
+
+  for (const [userId, entries] of insertedByAccount) await withAccountMutation(userId, async (database, session, accountId) => {
+    const deviceTokens = await database.deviceTokens.find({
+      userId: accountId, disabledAt: { $exists: false },
+    }, { session }).toArray();
+    const uniqueWallets = [...new Map(entries.map(entry => [entry.wallet._id, entry])).values()];
+    const title = uniqueWallets.length === 1 ? uniqueWallets[0].wallet.name
+      : `${uniqueWallets.length} wallets in one transaction`;
+    const body = uniqueWallets.length === 1 ? uniqueWallets[0].title : uniqueWallets
+      .map(entry => `${entry.wallet.name}: ${entry.balanceChanges.slice(0, 2).join(', ')}`)
+      .join(' · ').slice(0, 240);
+    const primary = entries[0];
+    const now = new Date();
+    const dedupeKey = `${primary.wallet.chain}:${transaction.signature}`;
+    for (const device of deviceTokens) await database.notificationJobs.updateOne(
+      { deviceTokenId: device._id, dedupeKey },
+      { $setOnInsert: {
+        _id: randomUUID(), userId: accountId, deviceTokenId: device._id, dedupeKey,
+        transactionId: primary.transactionId, ...(failed ? { failedTransaction: true } : {}),
+        title, body, data: { transactionId: primary.transactionId, walletId: primary.wallet._id, signature: transaction.signature },
+        status: 'pending', attempts: 0, availableAt: now, createdAt: now,
+      } },
+      { upsert: true, session },
+    );
+  });
 
   return { activities };
 }

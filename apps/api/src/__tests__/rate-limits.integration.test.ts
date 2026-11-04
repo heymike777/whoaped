@@ -92,7 +92,30 @@ describe('per-account transaction limits', () => {
   it('charges one signature across all wallets, including unclassified transactions', async () => {
     await ingest({ signature: 'both-wallets', slot: 500, accountKeys: [address, exclusive] }, { provider: 'helius-parsed-stream' });
     expect(await db.rateEvents.countDocuments({ userId: user })).toBe(1);
-    expect(await db.telegramJobs.countDocuments({ txHash: 'both-wallets' })).toBe(2);
+    expect(await db.telegramJobs.countDocuments({ txHash: 'both-wallets' })).toBe(1);
+    const message = await db.telegramJobs.findOne({ txHash: 'both-wallets' });
+    expect(message?.text).toContain('2 tracked wallets');
+    expect(message?.text).toContain('Shared');
+    expect(message?.text).toContain('Exclusive');
+    expect(await db.notificationJobs.countDocuments({ dedupeKey: 'solana:both-wallets' })).toBe(0);
+  });
+  it('sends one push and one Telegram message for a transfer between two watched wallets', async () => {
+    await ingest({ signature: 'internal-transfer', slot: 501, accountKeys: [address, exclusive],
+      feePayer: address, fee: 5000,
+      nativeTransfers: [{ fromUserAccount: address, toUserAccount: exclusive, amount: 100_000_000 }],
+    }, { provider: 'helius-parsed-stream' });
+    expect(await db.transactions.countDocuments({ userId: user, txHash: 'internal-transfer' })).toBe(2);
+    expect(await db.telegramJobs.countDocuments({ txHash: 'internal-transfer' })).toBe(1);
+    const message = await db.telegramJobs.findOne({ txHash: 'internal-transfer' });
+    expect(message?.text).toContain('Shared');
+    expect(message?.text).toContain('Exclusive');
+    expect(message?.text).toContain('−0.100005 SOL');
+    expect(message?.text).toContain('+0.1 SOL');
+    const push = await db.notificationJobs.findOne({ dedupeKey: 'solana:internal-transfer' });
+    expect(push?.title).toBe('2 wallets in one transaction');
+    expect(push?.body).toContain('Shared:');
+    expect(push?.body).toContain('Exclusive:');
+    expect(await db.notificationJobs.countDocuments({ dedupeKey: 'solana:internal-transfer' })).toBe(1);
   });
   it('keeps a shared address for another account, but never ingests or backfills the paused account', async () => {
     await db.wallets.insertOne({ _id: 'shared-other', userId: other, address, name: 'Other', chain: 'solana', status: 'active', createdAt: new Date(0), deletedAt: null });

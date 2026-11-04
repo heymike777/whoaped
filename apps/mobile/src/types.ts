@@ -84,6 +84,7 @@ export type Activity = {
   valueUsd?: number;
   signature: string;
   occurredAt: string;
+  walletImpacts?: Array<{ walletId: string; walletName: string; walletAddress: string; balanceChanges: string[] }>;
   metadata?: { balanceChanges?: string[]; swap?: SwapMetadata; yield?: YieldMetadata; launch?: LaunchMetadata; tokenActions?: TokenAction[]; [key: string]: unknown };
 };
 

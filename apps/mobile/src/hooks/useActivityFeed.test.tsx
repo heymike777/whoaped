@@ -114,7 +114,7 @@ describe('useActivityFeed', () => {
     mockGetActivities.mockResolvedValueOnce({ data: [activity], nextCursor: 'page-2' });
     let root: TestRenderer.ReactTestRenderer;
     await act(async () => { root = TestRenderer.create(<Probe />); });
-    const older = { ...activity, id: 'activity-older', occurredAt: '2026-10-28T12:00:00.000Z' };
+    const older = { ...activity, id: 'activity-older', signature: 'older-signature', occurredAt: '2026-10-28T12:00:00.000Z' };
     mockGetActivities.mockResolvedValueOnce({ data: [older], nextCursor: null });
 
     await act(async () => { await latest?.loadMore(); });
@@ -122,6 +122,23 @@ describe('useActivityFeed', () => {
     expect(mockGetActivities).toHaveBeenLastCalledWith('page-2');
     expect(latest?.activities).toEqual([activity, older]);
     expect(latest?.hasMore).toBe(false);
+    act(() => root!.unmount());
+  });
+
+  it('shows two watched wallets in one transaction card as live events arrive', async () => {
+    let root: TestRenderer.ReactTestRenderer;
+    await act(async () => { root = TestRenderer.create(<Probe />); });
+    const second = { ...activity, id: 'activity-2', walletId: 'wallet-2', walletName: 'Secondary',
+      walletAddress: 'second-address', metadata: { balanceChanges: ['+0.1 SOL'] } };
+    const first = { ...activity, metadata: { balanceChanges: ['−0.100005 SOL'] } };
+
+    act(() => { streamHandler?.(first); streamHandler?.(second); });
+
+    expect(latest?.activities).toHaveLength(1);
+    expect(latest?.activities[0].walletImpacts).toEqual([
+      { walletId: 'wallet-2', walletName: 'Secondary', walletAddress: 'second-address', balanceChanges: ['+0.1 SOL'] },
+      { walletId: 'wallet-1', walletName: 'Primary', walletAddress: 'address', balanceChanges: ['−0.100005 SOL'] },
+    ]);
     act(() => root!.unmount());
   });
 });

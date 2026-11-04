@@ -126,30 +126,51 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
 
 /** One compact Telegram message per transaction, with wallet-scoped net balance changes. */
 export function formatTelegramActivity(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[], addressLabels: ReadonlyMap<string, string> = new Map()) {
+  return formatTelegramActivityGroup([{ wallet, activities }], transaction, addressLabels);
+}
+
+export function formatTelegramActivityGroup(
+  entries: Array<{ wallet: WalletDocument; activities: NormalizedActivity[] }>,
+  transaction: ParsedSolanaTransaction,
+  addressLabels: ReadonlyMap<string, string> = new Map(),
+) {
+  if (!entries.length) throw new Error('A Telegram transaction needs at least one wallet.');
   const failed = transaction.status === 'error' || transaction.transactionStatus === 'ERROR';
-  const primary = failed ? undefined : [...activities].sort((left, right) => kindPriority[left.kind] - kindPriority[right.kind])[0];
+  const allActivities = entries.flatMap(({ wallet, activities }) => activities.map(activity => ({ wallet, activity })));
+  const primaryEntry = failed ? undefined : [...allActivities].sort((left, right) => kindPriority[left.activity.kind] - kindPriority[right.activity.kind])[0];
+  const primary = primaryEntry?.activity;
+  const transferWallet = entries.find(({ wallet }) => (transaction.nativeTransfers ?? []).some(transfer => transfer.fromUserAccount === wallet.address))?.wallet
+    ?? primaryEntry?.wallet ?? entries[0].wallet;
   const hasTransfer = !failed && primary?.kind === 'balance' && (transaction.nativeTransfers ?? []).some(transfer =>
-    transfer.fromUserAccount === wallet.address || transfer.toUserAccount === wallet.address);
+    entries.some(({ wallet }) => transfer.fromUserAccount === wallet.address || transfer.toUserAccount === wallet.address));
   const kind = failed ? 'failed' : hasTransfer ? 'transfer' : primary?.kind ?? 'unknown';
   const { icon, label } = kindLabels[kind];
   const isArbitrage = kind === 'swap' && Boolean(record(record(primary?.metadata)?.swap)?.arbitrage);
   const source = limited(primary?.source, 28);
-  const walletName = limited(wallet.name, 40) || 'Wallet';
   const lines = [
     `${icon} <b>${isArbitrage ? 'ARBITRAGE' : label}</b>${source && !isArbitrage ? ` · ${html(source)}` : ''}`,
-    `<b>${html(walletName)}</b>  <code>${html(shortAddress(wallet.address))}</code>`,
   ];
+  if (entries.length === 1) {
+    const wallet = entries[0].wallet;
+    lines.push(`<b>${html(limited(wallet.name, 40) || 'Wallet')}</b>  <code>${html(shortAddress(wallet.address))}</code>`);
+  } else {
+    lines.push(`${entries.length} tracked wallets`);
+  }
 
   if (failed) lines.push('', 'Transaction failed; only onchain fees may have changed.');
   else {
-    const actions = actionLines(primary, transaction, wallet.address, addressLabels);
+    const actions = actionLines(primary, transaction, transferWallet.address, addressLabels);
     if (actions.length) lines.push('', ...actions);
-    const extra = activities.filter(activity => activity !== primary && activity.kind !== 'balance').slice(0, 2)
-      .map(activity => limited(activity.title, 100)).filter(Boolean).map(html);
+    const extra = [...new Set(allActivities.map(({ activity }) => activity).filter(activity => activity !== primary && activity.kind !== 'balance')
+      .map(activity => limited(activity.title, 100)).filter(Boolean).map(html))].slice(0, 2);
     if (extra.length) lines.push(...extra);
   }
 
-  const balances = transactionBalanceLines(transaction, wallet.address, activities).slice(0, 8);
-  lines.push('', '<b>Balance changes</b>', ...balances.map(line => `• <code>${html(limited(line, 100))}</code>`));
+  lines.push('', '<b>Balance changes</b>');
+  for (const { wallet, activities } of entries) {
+    if (entries.length > 1) lines.push(`<b>${html(limited(wallet.name, 40) || 'Wallet')}</b>  <code>${html(shortAddress(wallet.address))}</code>`);
+    const balances = transactionBalanceLines(transaction, wallet.address, activities).slice(0, 8);
+    lines.push(...balances.map(line => `• <code>${html(limited(line, 100))}</code>`));
+  }
   return lines.join('\n');
 }

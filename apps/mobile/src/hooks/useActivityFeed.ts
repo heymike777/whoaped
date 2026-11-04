@@ -3,12 +3,8 @@ import { AppState } from 'react-native';
 
 import { getActivities, getActivity, observeActivityStream } from '../api/client';
 import { observeActivityNotifications } from '../lib/notifications';
+import { mergeActivities } from '../lib/activityGrouping';
 import { Activity, FeedState } from '../types';
-
-function mergeActivities(...groups: Activity[][]) {
-  return [...new Map(groups.flat().map((activity) => [activity.id, activity])).values()]
-    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
-}
 
 export function useActivityFeed(): FeedState {
   const [activities, setActivities] = useState<Activity[]>([]);

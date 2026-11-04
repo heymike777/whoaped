@@ -12,7 +12,7 @@ import { enrichActivityMetadata } from './token-metadata.js';
 import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, previewTelegramLink, setTrackFailedTransactions, withAccountMutation } from './accounts.js';
 import { buildTokenActionLinks } from '../config/token-actions.js';
 import { stakingOffer } from '../config/staking.js';
-import { formatTelegramActivity } from './telegram-activity-format.js';
+import { formatTelegramActivity, formatTelegramActivityGroup } from './telegram-activity-format.js';
 import { interactionLabel, recordTelegramEvent } from './telegram-analytics.js';
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
@@ -246,10 +246,18 @@ export async function handleTelegramUpdate(update: Update) {
 }
 
 export function telegramNotification(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[], addressLabels?: ReadonlyMap<string, string>) {
-  const text = formatTelegramActivity(wallet, transaction, activities, addressLabels);
+  return telegramGroupNotification([{ wallet, activities }], transaction, addressLabels);
+}
+
+type TelegramWalletActivity = { wallet: WalletDocument; activities: NormalizedActivity[] };
+
+export function telegramGroupNotification(entries: TelegramWalletActivity[], transaction: ParsedSolanaTransaction, addressLabels?: ReadonlyMap<string, string>) {
+  const text = entries.length === 1
+    ? formatTelegramActivity(entries[0].wallet, transaction, entries[0].activities, addressLabels)
+    : formatTelegramActivityGroup(entries, transaction, addressLabels);
   const buttons: Array<Array<{ text: string; url: string }>> = [];
   const seen = new Set<string>();
-  for (const activity of activities) {
+  for (const activity of entries.flatMap(entry => entry.activities)) {
     const actions = activity.metadata.tokenActions;
     if (!Array.isArray(actions)) continue;
     for (const item of actions) {
@@ -268,47 +276,66 @@ export function telegramNotification(wallet: WalletDocument, transaction: Parsed
 }
 
 export async function enqueueTelegramTransaction(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
+  return enqueueTelegramTransactionGroup([{ wallet, activities }], transaction);
+}
+
+export async function enqueueTelegramTransactionGroup(entries: TelegramWalletActivity[], transaction: ParsedSolanaTransaction) {
   const db = await collections();
-  const accountId = await canonicalAccountId(wallet.userId, db);
-  const chatId = accountId.startsWith('telegram:') ? accountId.slice(9)
-    : (await db.telegramChats.findOne({ userId: accountId }))?._id;
-  if (!chatId) return;
-  // Replay/backfill must not deliver transactions from before this subscription.
-  if (transaction.blockTime && transaction.blockTime * 1000 < Math.max(wallet.createdAt.getTime(), wallet.telegramAlertsFrom?.getTime() ?? 0) - 1000) return;
-  const fallback: NormalizedActivity = {
-    chain: 'solana', txHash: transaction.signature, eventIndex: 0, kind: 'unknown',
-    title: 'On-chain transaction', detail: transaction.summary?.description ?? '',
-    occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
-    metadata: { tokenCandidates: [
-      ...(transaction.tokenTransfers ?? []).filter(t => t.fromUserAccount === wallet.address || t.toUserAccount === wallet.address),
-      ...(transaction.accountData ?? []).filter(a => a.account === wallet.address).flatMap(a => a.tokenBalanceChanges ?? []),
-    ] },
-  };
-  const enriched = transaction.status === 'error' || transaction.transactionStatus === 'ERROR'
-    ? activities : await Promise.all((activities.length ? activities : [fallback]).map(enrichActivityMetadata));
-  await withAccountMutation(accountId, async (database, session) => {
+  const byAccount = new Map<string, TelegramWalletActivity[]>();
+  for (const entry of entries) {
+    const accountId = await canonicalAccountId(entry.wallet.userId, db);
+    const group = byAccount.get(accountId) ?? [];
+    group.push(entry);
+    byAccount.set(accountId, group);
+  }
+  for (const [accountId, group] of byAccount) await withAccountMutation(accountId, async (database, session, currentAccountId) => {
+    const chatId = currentAccountId.startsWith('telegram:') ? currentAccountId.slice(9)
+      : (await database.telegramChats.findOne({ userId: currentAccountId }, { session }))?._id;
+    if (!chatId) return;
     if ((transaction.status === 'error' || transaction.transactionStatus === 'ERROR')
-      && (await database.users.findOne({ _id: accountId }, { session }))?.trackFailedTransactions !== true) return;
-    const original = await database.wallets.findOne({ _id: wallet._id }, { session });
-    const currentWallet = original?.mergedIntoWalletId
-      ? await database.wallets.findOne({ _id: original.mergedIntoWalletId }, { session }) : original;
-    if (!currentWallet || currentWallet.deletedAt) return;
-    if (transaction.blockTime && currentWallet.telegramAlertsFrom && transaction.blockTime * 1000 < currentWallet.telegramAlertsFrom.getTime() - 1000) return;
+      && (await database.users.findOne({ _id: currentAccountId }, { session }))?.trackFailedTransactions !== true) return;
+    const currentEntries: TelegramWalletActivity[] = [];
+    const seenWallets = new Set<string>();
+    for (const entry of group) {
+      const original = await database.wallets.findOne({ _id: entry.wallet._id }, { session });
+      const currentWallet = original?.mergedIntoWalletId
+        ? await database.wallets.findOne({ _id: original.mergedIntoWalletId }, { session }) : original;
+      if (!currentWallet || currentWallet.deletedAt || seenWallets.has(currentWallet._id)) continue;
+      // Replay/backfill must not deliver transactions from before this subscription.
+      if (transaction.blockTime && transaction.blockTime * 1000 < Math.max(currentWallet.createdAt.getTime(), currentWallet.telegramAlertsFrom?.getTime() ?? 0) - 1000) continue;
+      const fallback: NormalizedActivity = {
+        chain: 'solana', txHash: transaction.signature, eventIndex: 0, kind: 'unknown',
+        title: 'On-chain transaction', detail: transaction.summary?.description ?? '',
+        occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
+        metadata: { tokenCandidates: [
+          ...(transaction.tokenTransfers ?? []).filter(t => t.fromUserAccount === currentWallet.address || t.toUserAccount === currentWallet.address),
+          ...(transaction.accountData ?? []).filter(a => a.account === currentWallet.address).flatMap(a => a.tokenBalanceChanges ?? []),
+        ] },
+      };
+      const activities = transaction.status === 'error' || transaction.transactionStatus === 'ERROR'
+        ? entry.activities : await Promise.all((entry.activities.length ? entry.activities : [fallback]).map(enrichActivityMetadata));
+      currentEntries.push({ wallet: currentWallet, activities });
+      seenWallets.add(currentWallet._id);
+    }
+    if (!currentEntries.length) return;
+    const watched = new Set(currentEntries.map(entry => entry.wallet.address));
     const counterparties = [...new Set((transaction.nativeTransfers ?? []).flatMap(transfer =>
-      transfer.fromUserAccount === currentWallet.address ? [transfer.toUserAccount] :
-        transfer.toUserAccount === currentWallet.address ? [transfer.fromUserAccount] : [],
-    ).filter((address): address is string => Boolean(address && address !== currentWallet.address)))];
+      watched.has(transfer.fromUserAccount ?? '') ? [transfer.toUserAccount] :
+        watched.has(transfer.toUserAccount ?? '') ? [transfer.fromUserAccount] : [],
+    ).filter((address): address is string => Boolean(address && !watched.has(address))))];
     const addressLabels = new Map<string, string>();
     if (counterparties.length) {
-      const named = await database.wallets.find({ userId: accountId, chain: 'solana', deletedAt: null,
+      const named = await database.wallets.find({ userId: currentAccountId, chain: 'solana', deletedAt: null,
         address: { $in: counterparties.slice(0, 20) } }, { session }).toArray();
       named.forEach(item => addressLabels.set(item.address, item.name));
     }
+    currentEntries.forEach(entry => addressLabels.set(entry.wallet.address, entry.wallet.name));
     const now = new Date();
-    await database.telegramJobs.updateOne({ walletId: currentWallet._id, txHash: transaction.signature }, { $setOnInsert: {
-      _id: randomUUID(), chatId, walletId: currentWallet._id, userId: accountId,
-      ...((transaction.status === 'error' || transaction.transactionStatus === 'ERROR') ? { kind: 'failed' as const } : {}),
-      txHash: transaction.signature, slot: transaction.slot, ...telegramNotification(currentWallet, transaction, enriched, addressLabels),
+    const walletId = `account:${currentAccountId}`;
+    await database.telegramJobs.updateOne({ walletId, txHash: transaction.signature }, { $setOnInsert: {
+      _id: randomUUID(), chatId, walletId, walletIds: currentEntries.map(entry => entry.wallet._id), userId: currentAccountId,
+      kind: (transaction.status === 'error' || transaction.transactionStatus === 'ERROR') ? 'failed' as const : 'group' as const,
+      txHash: transaction.signature, slot: transaction.slot, ...telegramGroupNotification(currentEntries, transaction, addressLabels),
       status: 'pending', attempts: 0, availableAt: now, createdAt: now,
     } }, { upsert: true, session });
   });
@@ -345,8 +372,10 @@ export async function drainTelegramJobs() {
     try {
       const chat = await db.telegramChats.findOne({ _id: job.chatId });
       const userId = chat?.userId ?? `telegram:${job.chatId}`;
-      const subscriptionActive = job.kind === 'account' ? job.userId === userId
-        : Boolean(await db.wallets.findOne({ _id: job.walletId, userId, deletedAt: null }));
+      const subscriptionActive = job.walletIds?.length
+        ? Boolean(await db.wallets.findOne({ _id: { $in: job.walletIds }, userId, deletedAt: null }))
+        : job.kind === 'account' ? job.userId === userId
+          : Boolean(await db.wallets.findOne({ _id: job.walletId, userId, deletedAt: null }));
       const failedEnabled = job.kind !== 'failed' || (await db.users.findOne({ _id: userId }))?.trackFailedTransactions === true;
       if (!subscriptionActive || !chat || chat.disabledAt || !failedEnabled) {
         await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'failed', lastError: 'Subscription inactive' } });

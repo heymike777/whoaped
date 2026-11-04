@@ -51,7 +51,7 @@ describe('Telegram tracker', () => {
   it('retains generic and failed transactions', async () => {
     mocks.walletFind.mockResolvedValue(wallet);
     await enqueueTelegramTransaction(wallet, { ...transaction, status: 'error' }, []);
-    expect(mocks.jobUpdate).toHaveBeenCalledWith({ walletId: 'w1', txHash: 'sig' }, expect.objectContaining({ $setOnInsert: expect.objectContaining({ chatId: '123', text: expect.stringContaining('FAILED TRANSACTION'), slot: 123 }) }), { upsert: true });
+    expect(mocks.jobUpdate).toHaveBeenCalledWith({ walletId: 'account:telegram:123', txHash: 'sig' }, expect.objectContaining({ $setOnInsert: expect.objectContaining({ chatId: '123', walletIds: ['w1'], text: expect.stringContaining('FAILED TRANSACTION'), slot: 123 }) }), { upsert: true, session: undefined });
     expect(telegramNotification(wallet, { ...transaction, status: 'error' }, []).text.startsWith('🔴 <b>FAILED TRANSACTION</b>')).toBe(true);
     expect(telegramNotification(wallet, transaction, []).text).toContain('<b>ACTIVITY</b>');
     expect(telegramNotification(wallet, { ...transaction, status: 'error', feePayer: address, fee: 5000 }, []).text)

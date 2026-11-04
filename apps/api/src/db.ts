@@ -96,6 +96,7 @@ export type NotificationJobDocument = {
   userId: string;
   deviceTokenId: string;
   transactionId: string;
+  dedupeKey?: string;
   failedTransaction?: boolean;
   title: string;
   body: string;
@@ -114,7 +115,7 @@ export type TelegramUpdateDocument = {
 };
 export type TelegramJobDocument = {
   _id: string; chatId: string; walletId: string; txHash: string; slot: number;
-  kind?: 'account' | 'failed'; userId?: string; priority?: number;
+  kind?: 'account' | 'failed' | 'group'; userId?: string; priority?: number; walletIds?: string[];
   text: string; parseMode?: 'HTML'; buttons: Array<Array<{ text: string; url: string }>>;
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
@@ -209,6 +210,10 @@ async function ensureIndexes(database: Db) {
     db.notificationJobs.createIndex(
       { deviceTokenId: 1, transactionId: 1 },
       { unique: true },
+    ),
+    db.notificationJobs.createIndex(
+      { deviceTokenId: 1, dedupeKey: 1 },
+      { unique: true, partialFilterExpression: { dedupeKey: { $type: 'string' } } },
     ),
     db.notificationJobs.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
     db.telegramJobs.createIndex({ walletId: 1, txHash: 1 }, { unique: true }),
