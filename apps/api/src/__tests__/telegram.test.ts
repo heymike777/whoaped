@@ -170,6 +170,14 @@ describe('bulk wallet conversation', () => {
     expect(mocks.walletUpdate.mock.calls[1][0]).toEqual({ _id: 'tg:123:1:1' });
     expect(mocks.chatUpdate).toHaveBeenCalledWith({ _id: '123' }, { $unset: { pendingAction: '' } });
   });
+  it('accepts the 200th wallet and rejects the 201st', async () => {
+    mocks.walletCount.mockResolvedValueOnce(199).mockResolvedValueOnce(200);
+    await handleTelegramUpdate(update(`/add ${address} Wallet 200\n11111111111111111111111111111111 Wallet 201`));
+    expect(mocks.walletUpdate).toHaveBeenCalledTimes(1);
+    const text = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string).text;
+    expect(text).toContain('Added 1 of 2 wallets.');
+    expect(text).toContain('Line 2: 200-wallet limit reached.');
+  });
   it('supports an inline multiline add and reports invalid or unnamed rows', async () => {
     await handleTelegramUpdate(update(`/add ${address} Whale\ninvalid Bad\n11111111111111111111111111111111`));
     expect(mocks.walletUpdate).toHaveBeenCalledTimes(1);

@@ -31,23 +31,23 @@ describe('Telegram portfolio', () => {
     expect([...amounts]).toEqual([[SOL, 1.5], [USDC, 12.5], [BONK, 2]]);
   });
 
-  it('paginates 100 wallets and many tokens while keeping every Telegram message under 4000 characters', () => {
-    const data = snapshot(100);
-    expect(aggregatePortfolio(data).find(item => item.mint === SOL)?.amount).toBe(100);
+  it('paginates 200 wallets and many tokens while keeping every Telegram message under 4000 characters', () => {
+    const data = snapshot(200);
+    expect(aggregatePortfolio(data).find(item => item.mint === SOL)?.amount).toBe(200);
     const total = formatPortfolio(data, 'total');
-    expect(total.text).toContain('100 wallets');
-    expect(total.text).toContain('$94,500.00');
+    expect(total.text).toContain('200 wallets');
+    expect(total.text).toContain('$189,000.00');
     expect(total.buttons.flat()).toContainEqual({ text: 'Next →', callback_data: 'portfolio:tokens:1' });
-    for (let page = 0; page < 20; page++) {
+    for (let page = 0; page < 34; page++) {
       const list = formatPortfolio(data, 'wallets', page);
       expect(list.text.length).toBeLessThan(4000);
       expect(list.buttons.length).toBeLessThan(10);
     }
     for (let page = 0; page < 10; page++) {
       expect(formatPortfolio(data, 'total', page).text.length).toBeLessThan(4000);
-      expect(formatPortfolio(data, 'wallet', page, 99).text.length).toBeLessThan(4000);
+      expect(formatPortfolio(data, 'wallet', page, 199).text.length).toBeLessThan(4000);
     }
-    expect(formatPortfolio(data, 'wallets', 16).buttons.flat()).toContainEqual({ text: '100. Wallet 99', callback_data: 'portfolio:wallet:99:0' });
+    expect(formatPortfolio(data, 'wallets', 33).buttons.flat()).toContainEqual({ text: '200. Wallet 199', callback_data: 'portfolio:wallet:199:0' });
   });
 
   it('loads all tracked wallets, uses Jupiter membership and prices, and reuses a fresh snapshot', async () => {

@@ -35,6 +35,8 @@ export const telegramUpdateSchema = z.object({
 });
 type Update = z.infer<typeof telegramUpdateSchema>;
 type Button = { text: string; url?: string; callback_data?: string };
+const TELEGRAM_WALLET_LIMIT = 200;
+const TELEGRAM_WALLET_PAGE_SIZE = 10;
 const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '📊 Portfolio', callback_data: 'portfolio' }], [{ text: '⚙️ Settings', callback_data: 'settings' }, { text: '⭐ Premium', callback_data: 'premium' }]];
 const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/portfolio — balances and USD values\n/settings — transaction preferences\n/cancel — cancel wallet input\n/premium — Premium status and token lock\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
 const addPrompt = 'Send one or many wallets, one per line, in this format:\nADDRESS Name\nADDRESS Another name\n\nYou can also send /add followed by the list. Use /cancel to cancel.';
@@ -222,7 +224,7 @@ export async function handleTelegramUpdate(update: Update) {
           else results.push(`${label}: wallet is already tracked.`);
           continue;
         }
-        if (await database.wallets.countDocuments({ userId: accountId, deletedAt: null }, options) >= 100) { results.push(`${label}: 100-wallet limit reached.`); continue; }
+        if (await database.wallets.countDocuments({ userId: accountId, deletedAt: null }, options) >= TELEGRAM_WALLET_LIMIT) { results.push(`${label}: ${TELEGRAM_WALLET_LIMIT}-wallet limit reached.`); continue; }
         try {
           await database.wallets.updateOne({ _id: walletId }, { $setOnInsert: {
             userId: accountId, name, address, chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
@@ -251,11 +253,14 @@ export async function handleTelegramUpdate(update: Update) {
     ].join('\n'));
   }
   if (command === '/wallets' || command === 'wallets' || command.startsWith('wallets:')) {
-    const page = Math.max(0, Math.min(100, Number(command.split(':')[1]) || 0));
-    const wallets = await db.wallets.find({ userId, deletedAt: null }).sort({ createdAt: 1, _id: 1 }).skip(page * 10).limit(11).toArray();
-    const rows = wallets.slice(0, 10);
+    const page = Math.max(0, Math.min(Math.ceil(TELEGRAM_WALLET_LIMIT / TELEGRAM_WALLET_PAGE_SIZE) - 1, Number(command.split(':')[1]) || 0));
+    const wallets = await db.wallets.find({ userId, deletedAt: null }).sort({ createdAt: 1, _id: 1 }).skip(page * TELEGRAM_WALLET_PAGE_SIZE).limit(TELEGRAM_WALLET_PAGE_SIZE + 1).toArray();
+    const rows = wallets.slice(0, TELEGRAM_WALLET_PAGE_SIZE);
     const buttons: Button[][] = rows.map(w => [{ text: `✖ ${w.name}`, callback_data: `remove:${w._id}` }]);
-    if (wallets.length > 10) buttons.push([{ text: 'Next →', callback_data: `wallets:${page + 1}` }]);
+    const navigation: Button[] = [];
+    if (page > 0) navigation.push({ text: '← Previous', callback_data: `wallets:${page - 1}` });
+    if (wallets.length > TELEGRAM_WALLET_PAGE_SIZE) navigation.push({ text: 'Next →', callback_data: `wallets:${page + 1}` });
+    if (navigation.length) buttons.push(navigation);
     return send(chatId, rows.length ? rows.map(w => `${w.name}\n${w.address}`).join('\n\n') : 'No wallets yet. Use /add ADDRESS Name.', [...buttons, ...menu]);
   }
   return send(chatId, help);
