@@ -22,13 +22,15 @@ describe('Telegram portfolio', () => {
 
   it('converts DAS raw balances and native lamports without including NFTs or zero balances', () => {
     const amounts = new Map<string, number>();
-    addDasBalances(amounts, { nativeBalance: { lamports: 1_500_000_000 }, items: [
-      { id: USDC, interface: 'FungibleToken', token_info: { balance: '12500000', decimals: 6 } },
+    const prices = new Map<string, number>();
+    addDasBalances(amounts, { nativeBalance: { lamports: 1_500_000_000, price_per_sol: 100 }, items: [
+      { id: USDC, interface: 'FungibleToken', token_info: { balance: '12500000', decimals: 6, price_info: { price_per_token: 1, currency: 'USDC' } } },
       { id: BONK, interface: 'FungibleAsset', token_info: { balance: 200, decimals: 2 } },
       { id: 'nft', interface: 'V1_NFT', token_info: { balance: 1, decimals: 0 } },
       { id: 'empty', interface: 'FungibleToken', token_info: { balance: 0, decimals: 6 } },
-    ] }, true);
+    ] }, true, prices);
     expect([...amounts]).toEqual([[SOL, 1.5], [USDC, 12.5], [BONK, 2]]);
+    expect([...prices]).toEqual([[SOL, 100], [USDC, 1]]);
   });
 
   it('paginates 200 wallets and many tokens while keeping every Telegram message under 4000 characters', () => {
@@ -50,8 +52,8 @@ describe('Telegram portfolio', () => {
     expect(formatPortfolio(data, 'wallets', 33).buttons.flat()).toContainEqual({ text: '200. Wallet 199', callback_data: 'portfolio:wallet:199:0' });
   });
 
-  it('loads all tracked wallets, uses Jupiter membership and prices, and reuses a fresh snapshot', async () => {
-    vi.stubEnv('HELIUS_API_KEY', 'helius-test'); vi.stubEnv('JUPITER_API_KEY', 'jupiter-test');
+  it('loads all tracked wallets without a Jupiter key, uses membership and prices, and reuses a fresh snapshot', async () => {
+    vi.stubEnv('HELIUS_API_KEY', 'helius-test'); vi.stubEnv('JUPITER_API_KEY', '');
     const wallets = [wallet(0), wallet(1)];
     const findOne = vi.fn().mockResolvedValueOnce(null);
     const replaceOne = vi.fn().mockResolvedValue({});
@@ -60,18 +62,15 @@ describe('Telegram portfolio', () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.includes('helius-rpc')) {
         const owner = JSON.parse(String(init?.body)).params.ownerAddress;
-        return { ok: true, json: async () => ({ result: { nativeBalance: { lamports: owner === wallets[0].address ? 1_000_000_000 : 2_000_000_000 }, items: [
-          { id: USDC, interface: 'FungibleToken', token_info: { balance: '10000000', decimals: 6 } },
-          { id: BONK, interface: 'FungibleToken', token_info: { balance: '1000000', decimals: 5 } },
+        return { ok: true, json: async () => ({ result: { nativeBalance: { lamports: owner === wallets[0].address ? 1_000_000_000 : 2_000_000_000, price_per_sol: 100 }, items: [
+          { id: USDC, interface: 'FungibleToken', token_info: { balance: '10000000', decimals: 6, price_info: { price_per_token: 1, currency: 'USDC' } } },
+          { id: BONK, interface: 'FungibleToken', token_info: { balance: '1000000', decimals: 5, price_info: { price_per_token: 0.01, currency: 'USDC' } } },
           { id: UNKNOWN, interface: 'FungibleToken', token_info: { balance: '1000000', decimals: 5 } },
         ] } }) };
       }
       if (url.includes('/tokens/v2/search')) return { ok: true, json: async () => [
         { id: SOL, symbol: 'SOL' }, { id: USDC, symbol: 'USDC' }, { id: BONK, symbol: 'BONK' },
       ] };
-      if (url.includes('/price/v3')) return { ok: true, json: async () => ({
-        [SOL]: { usdPrice: 100 }, [USDC]: { usdPrice: 1 }, [BONK]: { usdPrice: 0.01 },
-      }) };
       throw new Error(`Unexpected URL ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -80,6 +79,8 @@ describe('Telegram portfolio', () => {
     expect(result.wallets[0].holdings.find(item => item.mint === BONK)?.usdValue).toBe(0.1);
     expect(result.wallets[0].holdings.some(item => item.mint === UNKNOWN)).toBe(false);
     expect(formatPortfolio(result, 'total').text).toContain('$320.20');
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('api.jup.ag')).every(([, init]) => !init?.headers || !('x-api-key' in init.headers))).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/price/v3'))).toBe(false);
     expect(replaceOne).toHaveBeenCalledOnce();
     findOne.mockResolvedValue(result);
     fetchMock.mockClear();

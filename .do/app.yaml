@@ -106,10 +106,6 @@ envs:
     value: SET_IN_DIGITALOCEAN
     scope: RUN_TIME
     type: SECRET
-  - key: JUPITER_API_KEY
-    value: SET_IN_DIGITALOCEAN
-    scope: RUN_TIME
-    type: SECRET
   - key: HELIUS_PARSED_STREAM_URL
     value: wss://fs-beta.helius-rpc.com
     scope: RUN_TIME

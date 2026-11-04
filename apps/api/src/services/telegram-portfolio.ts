@@ -11,21 +11,31 @@ const WALLET_PAGE_SIZE = 6;
 type Button = { text: string; callback_data: string };
 export type PortfolioMessage = { text: string; buttons: Button[][] };
 
-type DasAsset = { id?: string; interface?: string; token_info?: { balance?: number | string; decimals?: number } };
-type DasResponse = { result?: { items?: DasAsset[]; nativeBalance?: { lamports?: number | string } }; error?: { message?: string } };
-type JupiterToken = { id?: string; symbol?: string; verification?: string };
+type DasAsset = { id?: string; interface?: string; token_info?: { balance?: number | string; decimals?: number; price_info?: { price_per_token?: number; currency?: string } } };
+type DasResponse = { result?: { items?: DasAsset[]; nativeBalance?: { lamports?: number | string; price_per_sol?: number } }; error?: { message?: string } };
+type JupiterToken = { id?: string; symbol?: string; verification?: string; usdPrice?: number };
 type JupiterPrice = { usdPrice?: number; confidenceLevel?: string } | null;
-type RawWallet = { wallet: WalletDocument; amounts: Map<string, number>; incomplete: boolean; error: boolean };
+type RawWallet = { wallet: WalletDocument; amounts: Map<string, number>; heliusPrices: Map<string, number>; incomplete: boolean; error: boolean };
+let nextKeylessJupiterRequestAt = 0;
+
+async function waitForKeylessJupiterSlot() {
+  const scheduledAt = Math.max(Date.now(), nextKeylessJupiterRequestAt);
+  nextKeylessJupiterRequestAt = scheduledAt + 2_100;
+  const delay = scheduledAt - Date.now();
+  if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+}
 
 function finitePositive(value: unknown): number {
   const amount = typeof value === 'number' || typeof value === 'string' ? Number(value) : 0;
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
-export function addDasBalances(amounts: Map<string, number>, result: NonNullable<DasResponse['result']>, firstPage: boolean) {
+export function addDasBalances(amounts: Map<string, number>, result: NonNullable<DasResponse['result']>, firstPage: boolean, prices?: Map<string, number>) {
   if (firstPage) {
     const sol = finitePositive(result.nativeBalance?.lamports) / 1e9;
     if (sol) amounts.set(SOL, (amounts.get(SOL) ?? 0) + sol);
+    const solPrice = finitePositive(result.nativeBalance?.price_per_sol);
+    if (solPrice) prices?.set(SOL, solPrice);
   }
   for (const asset of result.items ?? []) {
     if (!asset.id || !['FungibleToken', 'FungibleAsset'].includes(asset.interface ?? '')) continue;
@@ -35,12 +45,16 @@ export function addDasBalances(amounts: Map<string, number>, result: NonNullable
     if (!raw) continue;
     const amount = raw / 10 ** decimals!;
     amounts.set(asset.id, (amounts.get(asset.id) ?? 0) + amount);
+    const priceInfo = asset.token_info?.price_info;
+    const price = finitePositive(priceInfo?.price_per_token);
+    if (price && ['USD', 'USDC'].includes(priceInfo?.currency?.toUpperCase() ?? '')) prices?.set(asset.id, price);
   }
 }
 
-async function jsonRequest<T>(url: string, init: RequestInit, label: string): Promise<T> {
+async function jsonRequest<T>(url: string, init: RequestInit, label: string, beforeAttempt?: () => Promise<void>): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      await beforeAttempt?.();
       const response = await fetch(url, { ...init, signal: AbortSignal.timeout(8_000) });
       if (response.ok) return await response.json() as T;
       if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 2) throw new Error(`${label} HTTP ${response.status}`);
@@ -52,8 +66,14 @@ async function jsonRequest<T>(url: string, init: RequestInit, label: string): Pr
   throw new Error(`${label} unavailable`);
 }
 
+function jupiterRequest<T>(url: string, key: string | undefined, label: string): Promise<T> {
+  return jsonRequest<T>(url, key ? { headers: { 'x-api-key': key } } : {}, label,
+    key ? undefined : waitForKeylessJupiterSlot);
+}
+
 async function fetchWallet(wallet: WalletDocument, heliusKey: string): Promise<RawWallet> {
   const amounts = new Map<string, number>();
+  const heliusPrices = new Map<string, number>();
   try {
     for (let page = 1; page <= MAX_DAS_PAGES; page++) {
       const body = await jsonRequest<DasResponse>(`https://mainnet.helius-rpc.com/?api-key=${encodeURIComponent(heliusKey)}`, {
@@ -64,13 +84,13 @@ async function fetchWallet(wallet: WalletDocument, heliusKey: string): Promise<R
         } }),
       }, 'Helius DAS');
       if (body.error || !body.result?.items) throw new Error(body.error?.message ?? 'Helius DAS returned no assets');
-      addDasBalances(amounts, body.result, page === 1);
-      if (body.result.items.length < DAS_PAGE_SIZE) return { wallet, amounts, incomplete: false, error: false };
+      addDasBalances(amounts, body.result, page === 1, heliusPrices);
+      if (body.result.items.length < DAS_PAGE_SIZE) return { wallet, amounts, heliusPrices, incomplete: false, error: false };
     }
-    return { wallet, amounts, incomplete: true, error: false };
+    return { wallet, amounts, heliusPrices, incomplete: true, error: false };
   } catch (error) {
     console.warn('Portfolio wallet fetch failed', { walletId: wallet._id, error: String(error) });
-    return { wallet, amounts: new Map(), incomplete: true, error: true };
+    return { wallet, amounts: new Map(), heliusPrices: new Map(), incomplete: true, error: true };
   }
 }
 
@@ -90,21 +110,19 @@ function chunks<T>(items: T[], size: number): T[][] {
   return Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, (index + 1) * size));
 }
 
-async function jupiterMetadata(mints: string[], key: string) {
+async function jupiterMetadata(mints: string[], key?: string) {
   const batches = await limitedMap(chunks(mints, 100), 2, async (batch) => {
-    const result = await jsonRequest<JupiterToken[]>(`https://api.jup.ag/tokens/v2/search?query=${encodeURIComponent(batch.join(','))}`, {
-      headers: { 'x-api-key': key },
-    }, 'Jupiter Tokens');
+    const result = await jupiterRequest<JupiterToken[]>(`https://api.jup.ag/tokens/v2/search?query=${encodeURIComponent(batch.join(','))}`, key, 'Jupiter Tokens');
     return Array.isArray(result) ? result : [];
   });
   const requested = new Set(mints);
   return new Map(batches.flat().flatMap(token => token.id && requested.has(token.id) && token.verification !== 'banned'
-    ? [[token.id, token.symbol?.slice(0, 24) || token.id.slice(0, 6)] as const] : []));
+    ? [[token.id, { symbol: token.symbol?.slice(0, 24) || token.id.slice(0, 6), usdPrice: finitePositive(token.usdPrice) || undefined }] as const] : []));
 }
 
-async function jupiterPrices(mints: string[], key: string) {
-  const batches = await limitedMap(chunks(mints, 50), 2, async batch => jsonRequest<Record<string, JupiterPrice>>(
-    `https://api.jup.ag/price/v3?ids=${encodeURIComponent(batch.join(','))}`, { headers: { 'x-api-key': key } }, 'Jupiter Price'));
+async function jupiterPrices(mints: string[], key?: string) {
+  const batches = await limitedMap(chunks(mints, 50), 2, async batch => jupiterRequest<Record<string, JupiterPrice>>(
+    `https://api.jup.ag/price/v3?ids=${encodeURIComponent(batch.join(','))}`, key, 'Jupiter Price'));
   return new Map(batches.flatMap(batch => Object.entries(batch).flatMap(([mint, price]) => {
     const usd = price?.usdPrice;
     return typeof usd === 'number' && Number.isFinite(usd) && usd > 0 ? [[mint, usd] as const] : [];
@@ -121,23 +139,25 @@ export async function getPortfolioSnapshot(db: Collections, userId: string, refr
   }
   if (!wallets.length) return { _id: userId, walletIds, wallets: [], createdAt: new Date(), expiresAt: new Date(Date.now() + SNAPSHOT_MS), incomplete: false };
   const heliusKey = process.env.HELIUS_API_KEY;
-  const jupiterKey = process.env.JUPITER_API_KEY;
-  if (!heliusKey || !jupiterKey) throw new Error('Portfolio requires HELIUS_API_KEY and JUPITER_API_KEY');
+  const jupiterKey = process.env.JUPITER_API_KEY && process.env.JUPITER_API_KEY !== 'SET_IN_DIGITALOCEAN'
+    ? process.env.JUPITER_API_KEY : undefined;
+  if (!heliusKey) throw new Error('Portfolio requires HELIUS_API_KEY');
 
   const raw = await limitedMap(wallets, 4, wallet => fetchWallet(wallet, heliusKey));
   if (raw.every(row => row.error)) throw new Error('Helius could not load any tracked wallet');
   const allMints = [...new Set(raw.flatMap(row => [...row.amounts.keys()]))];
   const selected = [SOL, USDC, ...allMints.filter(mint => mint !== SOL && mint !== USDC)].slice(0, MAX_JUPITER_MINTS);
-  const [metadata, prices] = await Promise.all([jupiterMetadata(selected, jupiterKey), jupiterPrices(selected, jupiterKey)]);
-  metadata.set(SOL, 'SOL'); metadata.set(USDC, 'USDC');
-  const mapped: PortfolioWallet[] = raw.map(({ wallet, amounts, incomplete, error }) => ({
+  const [metadata, prices] = await Promise.all([jupiterMetadata(selected, jupiterKey), jupiterKey ? jupiterPrices(selected, jupiterKey) : Promise.resolve(new Map<string, number>())]);
+  metadata.set(SOL, { symbol: 'SOL', usdPrice: metadata.get(SOL)?.usdPrice });
+  metadata.set(USDC, { symbol: 'USDC', usdPrice: metadata.get(USDC)?.usdPrice });
+  const mapped: PortfolioWallet[] = raw.map(({ wallet, amounts, heliusPrices, incomplete, error }) => ({
     id: wallet._id, name: wallet.name, address: wallet.address, error,
     incomplete: incomplete || allMints.length > MAX_JUPITER_MINTS,
     holdings: [...amounts].flatMap(([mint, amount]): PortfolioHolding[] => {
-      const symbol = metadata.get(mint);
-      if (!symbol) return [];
-      const price = prices.get(mint);
-      return [{ mint, symbol, amount, usdValue: price == null ? null : amount * price }];
+      const token = metadata.get(mint);
+      if (!token) return [];
+      const price = prices.get(mint) ?? token.usdPrice ?? heliusPrices.get(mint);
+      return [{ mint, symbol: token.symbol, amount, usdValue: price == null ? null : amount * price }];
     }),
   }));
   const now = new Date();
