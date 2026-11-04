@@ -1,6 +1,6 @@
 import { BellRing, Plus, RefreshCw, WalletCards } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getWallets } from '../api/client';
@@ -19,6 +19,7 @@ import { useThemedStyles } from '../themeContext';
 export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
   const { colors, styles } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const feed = useActivityFeed();
   const [walletCount, setWalletCount] = useState<number | null>(null);
   const [walletsLoaded, setWalletsLoaded] = useState(false);
@@ -38,7 +39,12 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
   return (
     <>
       <ScrollView
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]}
+      contentContainerStyle={[styles.content, width >= 700 && styles.wideContent, {
+        paddingTop: insets.top + 18,
+        paddingLeft: layout.gutter + insets.left,
+        paddingRight: layout.gutter + insets.right,
+        paddingBottom: 90 + insets.bottom,
+      }]}
       refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={feed.isRefreshing && !feed.isLoading} onRefresh={feed.refresh} tintColor={colors.primary} />}
       showsVerticalScrollIndicator={false}
     >
@@ -146,7 +152,8 @@ function EmptyState({ onAddWallet, walletCount }: { onAddWallet: () => void; wal
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  content: { paddingHorizontal: layout.gutter, paddingBottom: 124 },
+  content: { width: '100%', alignSelf: 'center' },
+  wideContent: { maxWidth: 720 },
   brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center' },
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.black },
@@ -173,7 +180,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   skeletonShort: { width: '34%' },
   skeletonLong: { width: '82%', height: 16 },
   skeletonMedium: { width: '56%' },
-  state: { minHeight: 330, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 38 },
+  state: { width: '100%', maxWidth: 420, alignSelf: 'center', minHeight: 330, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 38 },
   stateIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: colors.surfaceRaised },
   listeningIcon: { backgroundColor: colors.positiveSoft },
   listeningDot: { position: 'absolute', right: 9, top: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: colors.positive },

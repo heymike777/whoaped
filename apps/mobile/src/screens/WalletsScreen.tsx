@@ -15,6 +15,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +33,7 @@ const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export function WalletsScreen() {
   const { colors, styles, isDark } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -96,7 +98,12 @@ export function WalletsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]}
+        contentContainerStyle={[styles.content, width >= 700 && styles.wideContent, {
+          paddingTop: insets.top + 18,
+          paddingLeft: layout.gutter + insets.left,
+          paddingRight: layout.gutter + insets.right,
+          paddingBottom: 90 + insets.bottom,
+        }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -254,6 +261,7 @@ function AddWalletModal({
 }) {
   const { colors, styles, isDark } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -350,7 +358,7 @@ function AddWalletModal({
         <Animated.View pointerEvents="box-none" style={[styles.scrim, { opacity: backdropOpacity }]}>
           <Pressable accessibilityLabel="Close add wallet" onPress={() => close()} style={StyleSheet.absoluteFill} />
         </Animated.View>
-        <Animated.View style={[styles.sheet, {
+        <Animated.View style={[styles.sheet, width >= 700 && styles.wideSheet, {
           paddingBottom: Math.max(insets.bottom, 20),
           opacity: sheetProgress,
           transform: [
@@ -358,51 +366,53 @@ function AddWalletModal({
             { scale: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
           ],
         }]}>
-          <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeader}>
-            <View>
-              <Text style={styles.eyebrow}>SOLANA</Text>
-              <Text style={styles.sheetTitle}>Track a wallet</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.sheetScroll}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <View>
+                <Text style={styles.eyebrow}>SOLANA</Text>
+                <Text style={styles.sheetTitle}>Track a wallet</Text>
+              </View>
+              <Pressable accessibilityLabel="Close" onPress={() => close()} style={styles.closeButton}><X color={colors.textMuted} size={20} /></Pressable>
             </View>
-            <Pressable accessibilityLabel="Close" onPress={() => close()} style={styles.closeButton}><X color={colors.textMuted} size={20} /></Pressable>
-          </View>
-          <Text style={styles.sheetBody}>Paste a public address. Tracking starts immediately after it is added.</Text>
+            <Text style={styles.sheetBody}>Paste a public address. Tracking starts immediately after it is added.</Text>
 
-          <Text style={styles.label}>Wallet name</Text>
-          <TextInput
-            autoCapitalize="sentences"
-            autoComplete="off"
-            keyboardAppearance={isDark ? 'dark' : 'light'}
-            onChangeText={(value) => { setName(value); setError(null); }}
-            placeholder="e.g. degen vault"
-            placeholderTextColor={colors.textFaint}
-            style={styles.input}
-            value={name}
-          />
-          <Text style={styles.label}>Public address</Text>
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="off"
-            autoCorrect={false}
-            keyboardAppearance={isDark ? 'dark' : 'light'}
-            multiline
-            onChangeText={(value) => { setAddress(value); setError(null); }}
-            placeholder="Paste Solana address"
-            placeholderTextColor={colors.textFaint}
-            style={[styles.input, styles.addressInput]}
-            value={address}
-          />
-          {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving }}
-            disabled={saving}
-            onPress={submit}
-            style={({ pressed }) => [styles.submitButton, pressed && styles.pressed, saving && styles.disabled]}
-          >
-            {saving ? <Text style={styles.submitText}>Starting tracker…</Text> : <><Check color={colors.primaryInk} size={19} /><Text style={styles.submitText}>Start tracking</Text></>}
-          </Pressable>
-          <Text style={styles.safety}>Watch-only. Never share a seed phrase or private key.</Text>
+            <Text style={styles.label}>Wallet name</Text>
+            <TextInput
+              autoCapitalize="sentences"
+              autoComplete="off"
+              keyboardAppearance={isDark ? 'dark' : 'light'}
+              onChangeText={(value) => { setName(value); setError(null); }}
+              placeholder="e.g. degen vault"
+              placeholderTextColor={colors.textFaint}
+              style={styles.input}
+              value={name}
+            />
+            <Text style={styles.label}>Public address</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoComplete="off"
+              autoCorrect={false}
+              keyboardAppearance={isDark ? 'dark' : 'light'}
+              multiline
+              onChangeText={(value) => { setAddress(value); setError(null); }}
+              placeholder="Paste Solana address"
+              placeholderTextColor={colors.textFaint}
+              style={[styles.input, styles.addressInput]}
+              value={address}
+            />
+            {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: saving }}
+              disabled={saving}
+              onPress={submit}
+              style={({ pressed }) => [styles.submitButton, pressed && styles.pressed, saving && styles.disabled]}
+            >
+              {saving ? <Text style={styles.submitText}>Starting tracker…</Text> : <><Check color={colors.primaryInk} size={19} /><Text style={styles.submitText}>Start tracking</Text></>}
+            </Pressable>
+            <Text style={styles.safety}>Watch-only. Never share a seed phrase or private key.</Text>
+          </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -411,7 +421,8 @@ function AddWalletModal({
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: { flex: 1 },
-  content: { paddingHorizontal: layout.gutter, paddingBottom: 124, gap: 12 },
+  content: { width: '100%', alignSelf: 'center', gap: 12 },
+  wideContent: { maxWidth: 720 },
   headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   eyebrow: { color: colors.primary, fontFamily: typography.regular, fontWeight: '700', fontSize: 11 },
   heading: { color: colors.text, fontFamily: typography.bold, fontSize: 38, letterSpacing: -1.1 },
@@ -450,7 +461,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   onboardingNoteText: { flexShrink: 1, color: colors.textFaint, fontFamily: typography.regular, fontSize: 11, lineHeight: 16 },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: colors.scrim },
-  sheet: { paddingHorizontal: 20, paddingTop: 10, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong },
+  sheet: { width: '100%', alignSelf: 'center', maxHeight: '90%', paddingHorizontal: 20, paddingTop: 10, borderRadius: 30, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong },
+  wideSheet: { maxWidth: 560, marginBottom: 20 },
+  sheetScroll: { flexGrow: 0 },
   sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong, marginBottom: 20 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center' },
   sheetTitle: { marginTop: 4, color: colors.text, fontFamily: typography.semibold, fontSize: 27, letterSpacing: -0.7 },

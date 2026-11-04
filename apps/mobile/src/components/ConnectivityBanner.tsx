@@ -16,7 +16,7 @@ export function ConnectivityBanner() {
   if (!offline) return null;
 
   return (
-    <View style={[styles.banner, { paddingTop: insets.top + 6 }]}>
+    <View style={[styles.banner, { paddingTop: insets.top + 6, paddingLeft: insets.left + 12, paddingRight: insets.right + 12 }]}>
       <WifiOff color={colors.gold} size={15} />
       <Text style={styles.text}>Offline · reconnect to refresh</Text>
     </View>

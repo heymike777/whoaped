@@ -1,6 +1,6 @@
 import { Bell, CheckCircle2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PremiumCard } from '../components/PremiumCard';
@@ -13,6 +13,7 @@ import { useThemedStyles } from '../themeContext';
 export function SettingsScreen() {
   const { colors, styles, preference, setPreference } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [pushState, setPushState] = useState<'idle' | 'loading' | 'enabled' | 'error'>('idle');
   const [message, setMessage] = useState('Get an alert after a tracked transaction confirms.');
   const [trackFailed, setTrackFailed] = useState(false);
@@ -66,7 +67,12 @@ export function SettingsScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={[styles.content, width >= 700 && styles.wideContent, {
+      paddingTop: insets.top + 18,
+      paddingLeft: layout.gutter + insets.left,
+      paddingRight: layout.gutter + insets.right,
+      paddingBottom: 90 + insets.bottom,
+    }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.heading}>Settings</Text>
       <Text style={styles.subheading}>Account and preferences.</Text>
 
@@ -143,7 +149,8 @@ export function SettingsScreen() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  content: { paddingHorizontal: layout.gutter, paddingBottom: 124 },
+  content: { width: '100%', alignSelf: 'center' },
+  wideContent: { maxWidth: 720 },
   eyebrow: { color: colors.primary, fontFamily: typography.mono, fontSize: 10, letterSpacing: 1.35 },
   heading: { color: colors.text, fontFamily: typography.bold, fontSize: 38, letterSpacing: -1.1 },
   subheading: { marginTop: 7, color: colors.textMuted, fontFamily: typography.regular, fontSize: 15 },

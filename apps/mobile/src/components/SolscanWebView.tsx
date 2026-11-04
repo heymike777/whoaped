@@ -46,7 +46,7 @@ export function SolscanWebView({
       visible={url != null}
     >
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingLeft: insets.left + 12, paddingRight: insets.right + 12 }]}>
           <Pressable
             accessibilityLabel="Close Solscan"
             accessibilityRole="button"

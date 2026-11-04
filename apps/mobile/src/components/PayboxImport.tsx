@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Check, WalletCards, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addWallet, cancelPayboxImport, getPayboxAvailability, getPayboxImport, startPayboxImport, type PayboxWallet } from '../api/client';
@@ -11,6 +11,7 @@ import type { Wallet } from '../types';
 export function PayboxImport({ wallets, onCreated }: { wallets: Wallet[]; onCreated: (wallet: Wallet) => void }) {
   const { styles, colors } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<{ id: string; url: string; startedAt: number } | null>(null);
@@ -98,7 +99,9 @@ export function PayboxImport({ wallets, onCreated }: { wallets: Wallet[]; onCrea
     <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
       <View style={styles.root}>
         <Pressable accessibilityLabel="Close Paybox import" onPress={close} style={StyleSheet.absoluteFill} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+        <View style={[styles.sheet, width >= 700 && styles.wideSheet, {
+          paddingBottom: Math.max(insets.bottom, 24),
+        }]}>
           <View style={styles.header}><Text style={styles.title}>Import from Paybox</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={busy} onPress={close} style={styles.close}><X color={colors.text} size={22} /></Pressable></View>
           {candidates === null ? <>
@@ -134,7 +137,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   connectButton: { minHeight: 48, flexDirection: 'row', gap: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.borderStrong, padding: 12, marginTop: 8 },
   buttonText: { color: colors.text, fontFamily: typography.semibold, fontSize: 14 },
   root: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim },
-  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, backgroundColor: colors.surface, maxHeight: '85%' },
+  sheet: { width: '100%', alignSelf: 'center', borderRadius: 28, padding: 24, backgroundColor: colors.surface, maxHeight: '85%' },
+  wideSheet: { maxWidth: 560, marginBottom: 20 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { flex: 1, color: colors.text, fontFamily: typography.semibold, fontSize: 24 },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
