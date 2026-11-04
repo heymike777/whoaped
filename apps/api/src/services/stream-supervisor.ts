@@ -98,7 +98,7 @@ export class ParsedStreamSupervisor {
   private stopped = false;
   private refreshTimer?: NodeJS.Timeout;
   private pushTimer?: NodeJS.Timeout;
-  private drainingPush = false;
+  private readonly activeDrains = new Set<string>();
   private lastRefreshAt = 0;
   private refreshing?: Promise<void>;
 
@@ -129,13 +129,17 @@ export class ParsedStreamSupervisor {
   }
 
   private async drainPush() {
-    if (this.drainingPush) return;
-    this.drainingPush = true;
-    try {
-      const results = await Promise.allSettled([drainNotificationJobs(), drainTelegramJobs(), drainUsdcPayments(), drainTelegramGa4Events()]);
-      for (const result of results) if (result.status === 'rejected') console.error('Notification delivery failed', result.reason);
-    } finally {
-      this.drainingPush = false;
+    // Portfolio commands may inspect many wallets. Do not let a slow Telegram
+    // command stop mobile push delivery or the other background drains.
+    for (const [name, drain] of [
+      ['push', drainNotificationJobs], ['telegram', drainTelegramJobs],
+      ['payments', drainUsdcPayments], ['analytics', drainTelegramGa4Events],
+    ] as const) {
+      if (this.activeDrains.has(name)) continue;
+      this.activeDrains.add(name);
+      void Promise.resolve().then(async () => { await drain(); })
+        .catch(error => console.error(`${name} drain failed`, error))
+        .finally(() => this.activeDrains.delete(name));
     }
   }
 

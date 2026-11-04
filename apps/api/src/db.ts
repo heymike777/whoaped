@@ -74,6 +74,12 @@ export type TokenMetadataDocument = {
   refreshAfter: Date;
   updatedAt: Date;
 };
+export type PortfolioHolding = { mint: string; symbol: string; amount: number; usdValue: number | null };
+export type PortfolioWallet = { id: string; name: string; address: string; holdings: PortfolioHolding[]; incomplete?: boolean; error?: boolean };
+export type PortfolioSnapshotDocument = {
+  _id: string; walletIds: string[]; wallets: PortfolioWallet[];
+  createdAt: Date; expiresAt: Date; incomplete: boolean;
+};
 export type PipelineCheckpointDocument = { _id: string; lastSlot: number; updatedAt: Date };
 export type TrackingStateDocument = {
   _id: string; paused?: boolean; cooldownUntil?: Date; cooldownStartedAt?: Date;
@@ -138,6 +144,7 @@ export type Collections = {
   ingestionEvents: Collection<IngestionEventDocument>;
   transactions: Collection<TransactionDocument>;
   tokenMetadata: Collection<TokenMetadataDocument>;
+  portfolioSnapshots: Collection<PortfolioSnapshotDocument>;
   pipelineCheckpoints: Collection<PipelineCheckpointDocument>;
   deviceTokens: Collection<DeviceTokenDocument>;
   notificationJobs: Collection<NotificationJobDocument>;
@@ -170,6 +177,7 @@ function databaseCollections(database: Db): Collections {
     ingestionEvents: database.collection<IngestionEventDocument>('ingestion_events'),
     transactions: database.collection<TransactionDocument>('transactions'),
     tokenMetadata: database.collection<TokenMetadataDocument>('token_metadata'),
+    portfolioSnapshots: database.collection<PortfolioSnapshotDocument>('portfolio_snapshots'),
     pipelineCheckpoints: database.collection<PipelineCheckpointDocument>('pipeline_checkpoints'),
     deviceTokens: database.collection<DeviceTokenDocument>('device_tokens'),
     notificationJobs: database.collection<NotificationJobDocument>('notification_jobs'),
@@ -205,6 +213,7 @@ async function ensureIndexes(database: Db) {
     db.transactions.createIndex({ userId: 1, occurredAt: -1, createdAt: -1, _id: -1 }),
     db.transactions.createIndex({ walletId: 1, occurredAt: -1 }),
     db.transactions.createIndex({ chain: 1, slot: -1 }),
+    db.portfolioSnapshots.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.deviceTokens.createIndex({ token: 1 }, { unique: true }),
     db.deviceTokens.createIndex({ userId: 1, disabledAt: 1 }),
     db.notificationJobs.createIndex(

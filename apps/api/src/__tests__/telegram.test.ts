@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ walletUpdate: vi.fn(), walletCount: vi.fn(), jobUpdate: vi.fn(), chatUpdate: vi.fn(), walletFind: vi.fn(), chatFind: vi.fn(), updateFind: vi.fn(), updateSave: vi.fn(), userFind: vi.fn(), userUpdate: vi.fn(), analyticsUpdate: vi.fn() }));
+const portfolioMocks = vi.hoisted(() => ({ getSnapshot: vi.fn(), format: vi.fn() }));
+vi.mock('../services/telegram-portfolio.js', () => ({ getPortfolioSnapshot: portfolioMocks.getSnapshot, formatPortfolio: portfolioMocks.format }));
 vi.mock('../db.js', () => ({ collections: async () => ({
   wallets: { updateOne: mocks.walletUpdate, countDocuments: mocks.walletCount, findOne: mocks.walletFind },
   telegramChats: { updateOne: mocks.chatUpdate, findOne: mocks.chatFind }, telegramUpdates: { findOne: mocks.updateFind, updateOne: mocks.updateSave }, telegramJobs: { updateOne: mocks.jobUpdate },
@@ -113,6 +115,16 @@ describe('Telegram tracker', () => {
     expect(payload.reply_markup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
       expect.objectContaining({ callback_data: 'settings:failed:on' }),
     ]));
+  });
+  it('opens portfolio from a command and a paginated button', async () => {
+    portfolioMocks.getSnapshot.mockResolvedValue({ wallets: [] });
+    portfolioMocks.format.mockReturnValue({ text: 'Portfolio page', buttons: [[{ text: 'Next →', callback_data: 'portfolio:tokens:1' }]] });
+    await handleTelegramUpdate(update('/portfolio'));
+    expect(portfolioMocks.getSnapshot).toHaveBeenCalledWith(expect.anything(), 'telegram:123', false);
+    expect(portfolioMocks.format).toHaveBeenCalledWith(expect.anything(), 'total', 0, 0);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string).reply_markup.inline_keyboard[0][0].callback_data).toBe('portfolio:tokens:1');
+    await handleTelegramUpdate({ update_id: 2, callback_query: { id: 'cb', data: 'portfolio:wallet:7:2', from: { id: 123 }, message: { chat: { id: 123, type: 'private' } } } });
+    expect(portfolioMocks.format).toHaveBeenLastCalledWith(expect.anything(), 'wallet', 2, 7);
   });
   it('does not enqueue mobile wallets or transactions before tracking', async () => {
     await enqueueTelegramTransaction({ ...wallet, userId: 'mobile-user' }, transaction, []);

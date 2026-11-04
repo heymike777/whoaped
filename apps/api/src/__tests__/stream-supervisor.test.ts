@@ -6,6 +6,10 @@ vi.mock('../services/parsed-events.js', () => ({ backfillParsedEvents: mocks.bac
 vi.mock('../services/parsed-transactions.js', () => ({ ingestParsedTransaction: mocks.ingest }));
 vi.mock('../services/push.js', () => ({ drainNotificationJobs: vi.fn() }));
 vi.mock('../services/telegram.js', () => ({ drainTelegramJobs: vi.fn() }));
+vi.mock('../services/usdc-payments.js', () => ({ drainUsdcPayments: vi.fn() }));
+vi.mock('../services/telegram-ga4.js', () => ({ drainTelegramGa4Events: vi.fn() }));
+import { drainNotificationJobs } from '../services/push.js';
+import { drainTelegramJobs } from '../services/telegram.js';
 import { ParsedStreamSupervisor, addressCheckpointId, backfillTrackedAddresses } from '../services/stream-supervisor.js';
 class Socket {
   static OPEN = 1;
@@ -33,6 +37,18 @@ beforeEach(() => {
 });
 afterEach(() => { supervisor.stop(); vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe('upstream quota enforcement', () => {
+  it('keeps draining mobile pushes while a portfolio Telegram command is slow', async () => {
+    vi.mocked(drainTelegramJobs).mockReturnValue(new Promise(() => {}));
+    await supervisor.start();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await flush();
+    expect(drainTelegramJobs).toHaveBeenCalledTimes(1);
+    expect(drainNotificationJobs).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await flush();
+    expect(drainTelegramJobs).toHaveBeenCalledTimes(1);
+    expect(drainNotificationJobs).toHaveBeenCalledTimes(2);
+  });
   it('physically removes paused addresses from Helius subscriptions', async () => {
     await supervisor.start(); Socket.instances[0].emit('open');
     expect(Socket.instances[0].sent[0].params[0].accounts.include).toEqual(['A', 'B']);

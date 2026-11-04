@@ -16,6 +16,7 @@ await telegramCall('setMyCommands', { commands: [
   { command: 'add', description: 'Add one or many wallets' },
   { command: 'remove', description: 'Remove one or many wallets' },
   { command: 'wallets', description: 'List and manage tracked wallets' },
+  { command: 'portfolio', description: 'Balances and USD values for tracked wallets' },
   { command: 'settings', description: 'Transaction tracking preferences' },
   { command: 'cancel', description: 'Cancel wallet input' },
   { command: 'premium', description: 'Premium status and BONK lock' },

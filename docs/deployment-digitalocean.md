@@ -37,7 +37,7 @@ Set these as **Encrypted** and **Run Time**:
 
 - [ ] `MONGODB_URI` — the MongoDB bindable URL described above.
 - [ ] `HELIUS_API_KEY` — the paid Helius project API key.
-- [ ] `JUPITER_API_KEY` — optional but recommended for production token metadata limits; create it in Jupiter Portal. Keyless requests still work at a lower rate.
+- [ ] `JUPITER_API_KEY` — required for the Telegram `/portfolio` command (Jupiter token membership and USD prices); create it in Jupiter Portal and store it as a runtime secret in DigitalOcean. Other token metadata paths can still use slower keyless requests.
 - [ ] `FIREBASE_SERVICE_ACCOUNT_BASE64` — Base64 encoding of the complete Firebase Admin service-account JSON.
 - [ ] `INTERNAL_JOB_SECRET` — a new unrelated long random secret.
 - [ ] `DEX_LINK_CONFIG_BASE64` — optional Base64-encoded DEX link/referral configuration described below.
@@ -160,6 +160,8 @@ Deployment is complete only after the full transaction-to-push path succeeds. A 
 ## Telegram bot
 
 Set `TELEGRAM_BOT_TOKEN` as an encrypted app-level runtime variable, shared by the API and the existing worker. No extra worker or polling process is needed. After deployment, run `npm run setup:telegram` from `apps/api` with the same token; it verifies the deployed authenticated route before registering `https://api.whoaped.com/telegram/webhook`, bot commands, and description. Override `TELEGRAM_PUBLIC_URL` for another deployment. Do not put the bot token in a URL, logs, or Git.
+
+The `/portfolio` command and inline Portfolio button need `HELIUS_API_KEY` and `JUPITER_API_KEY` on the backend. Helius supplies current SOL/SPL/Token-2022 balances; Jupiter filters tokens to its catalogue and supplies USD prices. The bot keeps a two-minute portfolio snapshot so pagination does not reread every wallet. Missing prices are shown as unavailable and are excluded from the estimated USD total; partial wallet reads are explicitly marked.
 
 The webhook authenticates Telegram's secret header, validates updates, and durably queues commands in MongoDB before acknowledging them. The stream worker processes commands and notification jobs. Use `/add`, `/wallets`, and `/remove` in a private bot chat. Bare `/add` prompts for a multiline list of `ADDRESS Name` entries; bare `/remove` prompts for a multiline list of addresses (optional names are accepted). Lists can also follow the command directly. Conversation mode persists in MongoDB across worker restarts; `/cancel` exits it. Invalid rows are reported individually. Wallet lists include remove buttons. Each detected transaction is delivered automatically as a chat message; there is no history command. Telegram wallets use a separate `telegram:<chatId>` owner and do not expose mobile wallets. Maximum: 100 wallets per chat.
 

@@ -14,6 +14,7 @@ import { buildTokenActionLinks } from '../config/token-actions.js';
 import { stakingOffer } from '../config/staking.js';
 import { formatTelegramActivity, formatTelegramActivityGroup } from './telegram-activity-format.js';
 import { interactionLabel, recordTelegramEvent } from './telegram-analytics.js';
+import { formatPortfolio, getPortfolioSnapshot } from './telegram-portfolio.js';
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
@@ -34,8 +35,8 @@ export const telegramUpdateSchema = z.object({
 });
 type Update = z.infer<typeof telegramUpdateSchema>;
 type Button = { text: string; url?: string; callback_data?: string };
-const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '⚙️ Settings', callback_data: 'settings' }], [{ text: '⭐ Premium', callback_data: 'premium' }]];
-const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/settings — transaction preferences\n/cancel — cancel wallet input\n/premium — Premium status and token lock\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
+const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '📊 Portfolio', callback_data: 'portfolio' }], [{ text: '⚙️ Settings', callback_data: 'settings' }, { text: '⭐ Premium', callback_data: 'premium' }]];
+const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/portfolio — balances and USD values\n/settings — transaction preferences\n/cancel — cancel wallet input\n/premium — Premium status and token lock\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
 const addPrompt = 'Send one or many wallets, one per line, in this format:\nADDRESS Name\nADDRESS Another name\n\nYou can also send /add followed by the list. Use /cancel to cancel.';
 const removePrompt = 'Send the wallet addresses to remove, one per line:\nADDRESS\nADDRESS\n\nYou can also paste ADDRESS Name lines or send /remove followed by the list. Use /cancel to cancel.';
 
@@ -101,6 +102,21 @@ export async function handleTelegramUpdate(update: Update) {
     ? 'new' as const : 'returning' as const;
   await recordTelegramEvent(db, update.update_id, chatId, 'interaction', '', { ...interactionLabel(command, Boolean(callback)), userStatus })
     .catch(error => console.error('Telegram analytics interaction failed', error));
+  if (command === '/portfolio' || command === 'portfolio' || command.startsWith('portfolio:')) {
+    const accountId = await canonicalAccountId(userId, db);
+    try {
+      const snapshot = await getPortfolioSnapshot(db, accountId, command === 'portfolio:refresh');
+      const parts = command.split(':');
+      const view = parts[1] === 'wallets' ? 'wallets' : parts[1] === 'wallet' ? 'wallet' : 'total';
+      const page = view === 'wallet' ? Number(parts[3]) || 0 : Number(parts[2]) || 0;
+      const walletIndex = view === 'wallet' ? Number(parts[2]) || 0 : 0;
+      const portfolio = formatPortfolio(snapshot, view, page, walletIndex);
+      return send(chatId, portfolio.text, portfolio.buttons);
+    } catch (error) {
+      console.error('Telegram portfolio unavailable', error);
+      return send(chatId, 'Portfolio is temporarily unavailable. Please try again later.');
+    }
+  }
   if (command === '/settings' || command === 'settings' || command.startsWith('settings:failed:')) {
     if (command === 'settings:failed:on' || command === 'settings:failed:off') {
       await setTrackFailedTransactions(userId, command.endsWith(':on'));
