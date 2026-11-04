@@ -137,7 +137,7 @@ export function SettingsScreen() {
         </View>
       </View>
 
-      <Text style={styles.version}>WHOAPED · MVP 0.1.0</Text>
+      <Text style={styles.version}>WHOAPED · 1.0.0</Text>
     </ScrollView>
   );
 }

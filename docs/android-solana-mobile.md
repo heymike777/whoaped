@@ -4,7 +4,7 @@ WhoAped is an existing React Native Community CLI Android app. It is watch-only;
 
 ## Completed locally
 
-- Android package: `com.whoaped.app`; application version: `0.1.0`.
+- Android package: `com.whoaped.app`; application version: `1.0.0`.
 - Separate dApp Store release keystore: `/Users/heymike/Projects/keys/WhoAped-dapp-store.jks` (not in Git).
 - Keystore password: macOS Keychain item `com.whoaped.app.dappstore.signing`, account `whoaped-dapp-store`. Never paste the password into Gradle or Git.
 - Release builds reject missing Firebase configuration or signing credentials, so they cannot silently use the debug key.
