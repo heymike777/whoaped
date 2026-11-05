@@ -1,9 +1,11 @@
 # Discovery v1
 
-- Source: a one-time snapshot of Kolscan's Solana profiles. The project owner has confirmed permission to import these profiles. The imported source URL and timestamp are stored with the snapshot.
-- Refresh: run `node apps/api/scripts/import-kolscan.mjs` from the repository root and review the generated diff before deployment. This is an explicit maintenance step, not a background job.
-- Profiles are static catalog entries. They are **not** inserted into `wallets` or any Helius subscription. Tracking starts only when a user taps **Track**; the existing per-user wallet limit and duplicate checks apply.
-- Search and pagination are served from `GET /v1/discovery`. No additional database collection or scheduled indexer is required for the initial catalog.
+- Source: Kolscan's Solana profiles. The project owner has confirmed permission to import these profiles. The original bundled snapshot remains a fallback.
+- The existing `parsed-stream-worker` attempts a refresh at startup and checks the persistent schedule hourly. A MongoDB lease allows one worker to fetch the leaderboard once per successful 24-hour period; errors retry after one hour. A malformed or unexpectedly small response never replaces existing profiles.
+- `discovery_profiles` is append-only by address: new wallets are added, existing names/social links are refreshed, and profiles missing from a later scrape remain visible. `discovery_sync` stores the last success, next run, count, and last error.
+- Manual fallback: run `node apps/api/scripts/import-kolscan.mjs` from the repository root and review the generated snapshot diff before deployment. Normal daily refreshes do not modify git.
+- Discovery profiles are **not** inserted into `wallets` or any Helius subscription. Tracking starts only when a user taps **Track**; the existing per-user wallet limit and duplicate checks apply.
+- Search and pagination are served from `GET /v1/discovery`, merging the bundled snapshot with the latest MongoDB profiles.
 
 ## PnL follow-up
 
