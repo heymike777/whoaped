@@ -144,7 +144,7 @@ async function writePersistentCache(entries: Array<{
   }
 }
 
-async function resolveTokenMetadata(mints: string[]) {
+async function resolveTokenMetadata(mints: string[], nftOnly = false) {
   const now = Date.now();
   const unique = [...new Set(mints)];
   let missing = unique.filter((mint) => (cache.get(mint)?.expiresAt ?? 0) <= now);
@@ -164,10 +164,12 @@ async function resolveTokenMetadata(mints: string[]) {
   }
   if (missing.length) {
     let jupiter = new Map<string, TokenMetadata>();
-    try {
-      jupiter = await fetchJupiterMetadata(missing);
-    } catch (error) {
-      console.warn('Could not fetch Jupiter token metadata', error);
+    if (!nftOnly) {
+      try {
+        jupiter = await fetchJupiterMetadata(missing);
+      } catch (error) {
+        console.warn('Could not fetch Jupiter token metadata', error);
+      }
     }
     const needsOnchain = missing.filter((mint) => {
       const token = jupiter.get(mint);
@@ -333,6 +335,26 @@ async function enrichLaunchActivity(activity: NormalizedActivity) {
   } satisfies NormalizedActivity;
 }
 
+async function enrichNftActivity(activity: NormalizedActivity) {
+  if (activity.kind !== 'nft') return activity;
+  const nft = activity.metadata.nft;
+  if (!nft || typeof nft !== 'object') return activity;
+  const event = nft as { mint?: string; action?: string; priceSol?: number };
+  if (!event.mint) return activity;
+  const token = (await resolveTokenMetadata([event.mint], true)).get(event.mint) ?? {};
+  const name = token.name?.trim().slice(0, 80) || `${event.mint.slice(0, 6)}…${event.mint.slice(-6)}`;
+  const verb = event.action === 'list' ? 'Listed' : event.action === 'delist' ? 'Delisted'
+    : event.action === 'sale' ? activity.title.startsWith('Bought') ? 'Bought' : 'Sold'
+      : event.action === 'bid' ? 'Bid on' : 'NFT';
+  const price = (event.action === 'list' || event.action === 'bid') && event.priceSol != null
+    ? ` for ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 9 }).format(event.priceSol)} SOL` : '';
+  return { ...activity, title: `${verb} ${name}${price}`, metadata: {
+    ...activity.metadata, nft: { ...(nft as Record<string, unknown>), name,
+      ...(token.iconUrl ? { imageUrl: token.iconUrl } : {}),
+    },
+  } } satisfies NormalizedActivity;
+}
+
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const STABLE_MINTS = new Set([
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
@@ -384,6 +406,6 @@ async function enrichTokenActions(activity: NormalizedActivity) {
 }
 
 export async function enrichActivityMetadata(activity: NormalizedActivity) {
-  return enrichTokenActions(await enrichLaunchActivity(await enrichYieldActivity(await enrichSwapActivity(activity))));
+  return enrichTokenActions(await enrichNftActivity(await enrichLaunchActivity(await enrichYieldActivity(await enrichSwapActivity(activity)))));
 }
 

@@ -95,6 +95,17 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
     const symbol = limited(token?.symbol, 24);
     if (symbol) return [`Launched <b>${html(symbol)}</b>`];
   }
+  if (activity.kind === 'nft') {
+    const nft = record(metadata?.nft);
+    if (nft) {
+      const label = limited(nft.name, 80) || limited(nft.mint, 44) || 'NFT';
+      const price = typeof nft.priceSol === 'number' && Number.isFinite(nft.priceSol)
+        ? ` for <b>${html(amount(nft.priceSol))} SOL</b>` : '';
+      const verb = nft.action === 'list' ? 'Listed' : nft.action === 'delist' ? 'Delisted'
+        : nft.action === 'bid' ? 'Bid on' : nft.actor === 'buyer' ? 'Bought' : 'Sold';
+      return [`${verb} <b>${html(label)}</b>${nft.action === 'list' || nft.action === 'bid' ? price : ''}`];
+    }
+  }
   if (activity.kind === 'transfer' || activity.kind === 'balance') {
     const outgoing = (transaction.nativeTransfers ?? []).filter(transfer =>
       transfer.fromUserAccount === walletAddress && transfer.toUserAccount &&

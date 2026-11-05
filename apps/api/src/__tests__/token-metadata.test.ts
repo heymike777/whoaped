@@ -30,6 +30,25 @@ describe('swap token metadata enrichment', () => {
     vi.clearAllMocks();
   });
 
+  it('resolves a marketplace NFT name and image through DAS while retaining the listing price', async () => {
+    process.env.HELIUS_API_KEY = 'helius-test';
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => url.includes('api.jup.ag') ? [] : { result: [{ id: 'nft-listing-mint',
+        content: { metadata: { name: 'SMB Gen3 #11517' }, links: { image: 'https://example.com/nft.png' } },
+      }] },
+    })));
+    const activity: NormalizedActivity = { chain: 'solana', txHash: 'listing', eventIndex: 0, kind: 'nft',
+      title: 'Listed NFT for 2.617 SOL', detail: 'Magic Eden', source: 'Magic Eden', occurredAt: new Date(),
+      metadata: { nft: { marketplace: 'magic-eden', action: 'list', mint: 'nft-listing-mint', priceSol: 2.617 } },
+    };
+    const result = await enrichActivityMetadata(activity);
+    expect(result.title).toBe('Listed SMB Gen3 #11517 for 2.617 SOL');
+    expect(result.metadata.nft).toMatchObject({ name: 'SMB Gen3 #11517', imageUrl: 'https://example.com/nft.png' });
+    expect(result.metadata.tokenActions).toBeUndefined();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
   it('prefers verified Jupiter metadata, including SVG token icons', async () => {
     process.env.JUPITER_API_KEY = 'jupiter-key';
     const fetchMock = vi.fn().mockResolvedValue({

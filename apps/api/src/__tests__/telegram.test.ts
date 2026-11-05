@@ -105,6 +105,14 @@ describe('Telegram tracker', () => {
     expect(text).toContain('• <code>−1.000005 SOL</code>');
     expect(text).toContain('• <code>+98.5 USDC</code>');
   });
+  it('renders a Magic Eden NFT listing as a listing, not a transfer', () => {
+    const nft: NormalizedActivity = { ...activity, kind: 'nft', title: 'Listed SMB Gen3 #11517 for 2.617 SOL',
+      source: 'Magic Eden', metadata: { nft: { action: 'list', actor: 'seller', mint: address, name: 'SMB Gen3 #11517', priceSol: 2.617 } } };
+    const text = telegramNotification(wallet, { ...transaction, summary: { type: 'transfer' } }, [nft]).text;
+    expect(text).toContain('🖼 <b>NFT</b> · Magic Eden');
+    expect(text).toContain('Listed <b>SMB Gen3 #11517</b> for <b>2.617 SOL</b>');
+    expect(text).not.toContain('<b>TRANSFER</b>');
+  });
   it('shows each arbitrage swap and wallet net profit in order', () => {
     const route = [
       { dex: 'raydium', dexName: 'Raydium', input: { mint: 'SOL', symbol: 'SOL', amount: 1 }, output: { mint: 'BONK', symbol: 'BONK', amount: 1000 } },

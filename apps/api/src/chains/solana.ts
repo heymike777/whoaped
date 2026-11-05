@@ -75,6 +75,8 @@ const KNOWN_SYMBOLS: Record<string, string> = {
 };
 
 const METAPLEX_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
+const MAGIC_EDEN_M2_PROGRAM = 'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K';
+const TENSOR_MARKETPLACE_PROGRAM = 'TCMPhJdwDryooaGtiocG1u3xcYbRpiJzb283XfCZsDp';
 const SQUADS_V4_PROGRAM = 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf';
 const PUMP_FUN_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -798,6 +800,56 @@ function decodedIndex(instruction: ParsedInstruction) {
   return ` #${String(entry[1])}`;
 }
 
+function marketplaceNftActivity(
+  transaction: ParsedSolanaTransaction,
+  watchedAddress: string,
+  base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
+): NormalizedActivity | null {
+  const topLevel = (transaction.instructions ?? []).filter(instruction => instruction.innerInstructionIndex == null);
+  for (const instruction of topLevel) {
+    const venue = instruction.programId === MAGIC_EDEN_M2_PROGRAM ? { id: 'magic-eden', name: 'Magic Eden' }
+      : instruction.programId === TENSOR_MARKETPLACE_PROGRAM ? { id: 'tensor', name: 'Tensor' } : null;
+    if (!venue) continue;
+    const name = canonical(instruction.instructionName);
+    const action = venue.id === 'magic-eden'
+      ? /^(mip1|ocp)?sell$/.test(name) ? 'list'
+        : /^(mip1|ocp)?cancelsell$/.test(name) ? 'delist'
+          : /^(mip1|ocp)?executesalev2$/.test(name) ? 'sale'
+            : name === 'buyv2' ? 'bid' : null
+      : /^list(legacy|t22|wns|core)?$/.test(name) ? 'list'
+        : /^delist(legacy|t22|wns|core)?$/.test(name) ? 'delist'
+          : /^buy(legacy|t22|wns|core)?(spl)?$/.test(name) ? 'sale'
+            : name === 'bid' ? 'bid' : null;
+    if (!action) continue;
+    const seller = namedAccount(instruction, 'wallet', 'seller', 'owner');
+    const buyer = namedAccount(instruction, 'buyer', 'taker');
+    const actor = action === 'sale' && buyer === watchedAddress ? 'buyer' :
+      seller === watchedAddress ? 'seller' :
+        action === 'bid' && (buyer === watchedAddress || instruction.decoded?.accounts?.some(a => a.pubkey === watchedAddress && a.isSigner)) ? 'buyer' : null;
+    if (!actor) continue;
+    // A listing must be initiated by the watched wallet, not merely mention it as an account.
+    if (action === 'list' && transaction.feePayer !== watchedAddress &&
+      !instruction.decoded?.accounts?.some(a => a.pubkey === watchedAddress && a.isSigner)) continue;
+    const mint = namedAccount(instruction, 'token_mint', 'mint', 'asset')
+      ?? transaction.tokenTransfers?.find(transfer => transfer.decimals === 0 &&
+        (transfer.fromUserAccount === watchedAddress || transfer.toUserAccount === watchedAddress))?.mint;
+    const args = instruction.decoded?.args ?? {};
+    const nestedArgs = args.args && typeof args.args === 'object' ? args.args as Record<string, unknown> : args;
+    const rawPrice = nestedArgs.price ?? nestedArgs.amount;
+    const currency = stringValue(nestedArgs.currency);
+    const priceLamports = typeof rawPrice === 'string' || typeof rawPrice === 'number' ? Number(rawPrice) : NaN;
+    const priceSol = (!currency || currency === SOL_MINT) && Number.isSafeInteger(priceLamports) && priceLamports > 0
+      ? priceLamports / 1e9 : undefined;
+    const verbs = { list: 'Listed', delist: 'Delisted', sale: actor === 'buyer' ? 'Bought' : 'Sold', bid: 'Bid on' };
+    const price = priceSol != null ? ` for ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 9 }).format(priceSol)} SOL` : '';
+    return { ...base, kind: 'nft', title: `${verbs[action]} NFT${action === 'list' || action === 'bid' ? price : ''}`,
+      detail: venue.name, source: venue.name,
+      metadata: { ...base.metadata, nft: { marketplace: venue.id, marketplaceName: venue.name, action, actor,
+        ...(mint ? { mint } : {}), ...(priceSol != null ? { priceSol } : {}) } } };
+  }
+  return null;
+}
+
 function accountBalanceDeltas(transaction: ParsedSolanaTransaction, watchedAddress: string) {
   const deltas = new Map<string, number>();
   let foundWatchedAccount = false;
@@ -1038,6 +1090,9 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
       occurredAt: new Date((transaction.blockTime ?? Date.now() / 1000) * 1000),
       metadata: { slot: transaction.slot, watchedAddress, tokenCandidates: tokenCandidates(transaction, watchedAddress) },
     };
+
+    const marketplaceNft = marketplaceNftActivity(transaction, watchedAddress, base);
+    if (marketplaceNft) return [marketplaceNft];
 
     const launch = launchActivity(transaction, watchedAddress, base);
     if (launch) return [launch];

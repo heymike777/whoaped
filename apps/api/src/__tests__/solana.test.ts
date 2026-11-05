@@ -107,6 +107,48 @@ describe('inbound dust suppression', () => {
   });
 });
 
+describe('NFT marketplace instructions', () => {
+  const magicEden = 'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K';
+  const tensor = 'TCMPhJdwDryooaGtiocG1u3xcYbRpiJzb283XfCZsDp';
+  const mint = 'DgdFTE9MJd7TcoeUy9cHWJ9ye84k6tiQMU4bQdbC6VTC';
+  const instruction = (programId: string, instructionName: string, args: Record<string, unknown> = {}) => ({
+    programId, instructionName, innerInstructionIndex: null,
+    decoded: { args, accounts: [{ name: 'wallet', pubkey: wallet, isSigner: true },
+      { name: 'owner', pubkey: wallet, isSigner: true }, { name: 'token_mint', pubkey: mint }, { name: 'mint', pubkey: mint }] },
+  });
+
+  it('recognizes the supplied Magic Eden M2 pNFT listing despite Helius classifying it as a transfer', () => {
+    const transaction = parsedTransaction({ feePayer: wallet, summary: { type: 'transfer' },
+      instructions: [instruction(magicEden, 'mip1_sell', { args: { expiry: '-1', price: '2617000000' } })],
+      tokenTransfers: [{ fromUserAccount: wallet, toUserAccount: 'escrow', mint, rawTokenAmount: 1, decimals: 0 }],
+      nativeTransfers: [{ fromUserAccount: wallet, toUserAccount: 'rent', amount: 2_600_960 }],
+    });
+    expect(solanaAdapter.normalize(transaction, wallet)[0]).toMatchObject({
+      kind: 'nft', title: 'Listed NFT for 2.617 SOL', source: 'Magic Eden',
+      metadata: { nft: { marketplace: 'magic-eden', action: 'list', mint, priceSol: 2.617 } },
+    });
+    expect(solanaAdapter.normalize(transaction, 'escrow')[0]?.kind).not.toBe('nft');
+  });
+
+  it('recognizes Tensor Marketplace listing and delisting without mislabelling rent as sale price', () => {
+    const listed = parsedTransaction({ feePayer: wallet, instructions: [instruction(tensor, 'listLegacy', { amount: '1500000000', currency: null })] });
+    expect(solanaAdapter.normalize(listed, wallet)[0]).toMatchObject({ kind: 'nft', title: 'Listed NFT for 1.5 SOL', source: 'Tensor' });
+    const spl = parsedTransaction({ feePayer: wallet, instructions: [instruction(tensor, 'listLegacy', { amount: '1500000000', currency: usdc })] });
+    expect(solanaAdapter.normalize(spl, wallet)[0]).toMatchObject({ kind: 'nft', title: 'Listed NFT' });
+    const delisted = parsedTransaction({ feePayer: wallet, instructions: [instruction(tensor, 'delistLegacy')] });
+    expect(solanaAdapter.normalize(delisted, wallet)[0]).toMatchObject({ kind: 'nft', title: 'Delisted NFT' });
+  });
+
+  it('does not classify unrelated programs or unsigned mentioned wallets as marketplace listings', () => {
+    expect(solanaAdapter.normalize(parsedTransaction({ feePayer: wallet,
+      instructions: [instruction('other-program', 'mip1_sell', { args: { price: '2617000000' } })],
+    }), wallet)[0]?.kind).not.toBe('nft');
+    expect(solanaAdapter.normalize(parsedTransaction({ feePayer: 'another-wallet', instructions: [{
+      ...instruction(magicEden, 'mip1_sell'), decoded: { args: {}, accounts: [{ name: 'wallet', pubkey: wallet, isSigner: false }] },
+    }] }), wallet)).toEqual([]);
+  });
+});
+
 describe('solanaAdapter balance changes', () => {
   it.each([
     ['pump_fun', 'create_v2', 'pumpfun', 'Pump.fun'],

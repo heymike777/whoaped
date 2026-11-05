@@ -1,5 +1,5 @@
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpDown, CircleX, Image, Rocket, ShieldCheck, Sprout, Zap } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image as NativeImage, StyleSheet, Text, View } from 'react-native';
 
 import { type ThemeColors, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
@@ -47,13 +47,17 @@ export function ActivityCard({ activity, onOpenSolscan }: { activity: Activity; 
   const { colors, styles } = useThemedStyles(createStyles);
   const Icon = iconByKind[activity.kind];
   const accent = colorByKind(colors)[activity.kind];
+  const nftImage = activity.kind === 'nft' && typeof activity.metadata?.nft === 'object' && activity.metadata.nft !== null
+    ? (activity.metadata.nft as { imageUrl?: string }).imageUrl : undefined;
 
   return (
     <View style={[styles.card, activity.kind === 'failed' && styles.failedCard]}>
       <View style={styles.solscanAction}><SolscanButton onPress={onOpenSolscan} /></View>
       <View style={styles.mainRow}>
         <View style={[styles.iconWrap, { backgroundColor: `${accent}12` }]}>
-          <Icon color={accent} size={20} strokeWidth={2.2} />
+          {nftImage?.startsWith('https://')
+            ? <NativeImage source={{ uri: nftImage }} style={styles.nftImage} />
+            : <Icon color={accent} size={20} strokeWidth={2.2} />}
         </View>
         <View style={styles.copy}>
           <View style={styles.metaRow}>
@@ -94,6 +98,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  nftImage: { width: 38, height: 38, borderRadius: 11 },
   copy: { flex: 1, minWidth: 0 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   wallet: { maxWidth: 210, flexShrink: 1, color: colors.text, fontFamily: typography.medium, fontWeight: '700', fontSize: 12 },
