@@ -38,9 +38,10 @@ function reportUsername() {
 }
 
 async function findReportChat(db: Awaited<ReturnType<typeof collections>>, state: DiscoverySyncDocument) {
+  const configuredId = process.env.DISCOVERY_REPORT_TELEGRAM_USER_ID?.trim();
+  if (configuredId) return db.telegramChats.findOne({ _id: configuredId, disabledAt: { $exists: false } });
   if (state.reportChatId) {
-    const chat = await db.telegramChats.findOne({ _id: state.reportChatId, disabledAt: { $exists: false } });
-    if (chat) return chat;
+    return db.telegramChats.findOne({ _id: state.reportChatId, disabledAt: { $exists: false } });
   }
   const name = reportUsername();
   const namePattern = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
@@ -67,6 +68,14 @@ export async function claimDiscoveryReportChat(chatId: string): Promise<Report |
     $setOnInsert: { nextRunAt: new Date(0), leaseUntil: new Date(0) },
   }, { upsert: true });
   return (await db.discoverySync.findOne({ _id: SYNC_ID }))?.lastReport;
+}
+
+export async function isDiscoveryReportAdmin(chatId: string, username?: string): Promise<boolean> {
+  const configuredId = process.env.DISCOVERY_REPORT_TELEGRAM_USER_ID?.trim();
+  if (configuredId) return chatId === configuredId;
+  const state = await (await collections()).discoverySync.findOne({ _id: SYNC_ID });
+  if (state?.reportChatId) return chatId === state.reportChatId;
+  return username?.toLowerCase() === reportUsername();
 }
 
 async function finishSync(leaseToken: string, report: Report, nextRunAt: Date, chat: TelegramChatDocument | null) {

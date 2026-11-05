@@ -149,7 +149,7 @@ export type TelegramJobDocument = {
 };
 export type TelegramChatDocument = {
   _id: string; createdAt: Date; disabledAt?: Date; pendingAction?: 'add' | 'remove';
-  userId?: string; linkedAt?: Date; username?: string;
+  userId?: string; linkedAt?: Date; username?: string; discoveryQuery?: string;
 };
 export type TelegramAnalyticsEventDocument = {
   _id: string; chatId: string; type: 'interaction' | 'wallet_added' | 'wallet_removed';

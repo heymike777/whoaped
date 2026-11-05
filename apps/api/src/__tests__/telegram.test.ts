@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ walletUpdate: vi.fn(), walletCount: vi.fn(), jobUpdate: vi.fn(), chatUpdate: vi.fn(), walletFind: vi.fn(), chatFind: vi.fn(), updateFind: vi.fn(), updateSave: vi.fn(), userFind: vi.fn(), userUpdate: vi.fn(), analyticsUpdate: vi.fn() }));
 const portfolioMocks = vi.hoisted(() => ({ getSnapshot: vi.fn(), format: vi.fn() }));
+const discoveryMocks = vi.hoisted(() => ({ catalog: vi.fn(), admin: vi.fn(), claim: vi.fn() }));
 vi.mock('../services/telegram-portfolio.js', () => ({ getPortfolioSnapshot: portfolioMocks.getSnapshot, formatPortfolio: portfolioMocks.format }));
+vi.mock('../services/kolscan-discovery.js', () => ({ getDiscoveryCatalog: discoveryMocks.catalog, isDiscoveryReportAdmin: discoveryMocks.admin, claimDiscoveryReportChat: discoveryMocks.claim, formatDiscoveryReport: () => 'Report' }));
 vi.mock('../db.js', () => ({ collections: async () => ({
   wallets: { updateOne: mocks.walletUpdate, countDocuments: mocks.walletCount, findOne: mocks.walletFind },
   telegramChats: { updateOne: mocks.chatUpdate, findOne: mocks.chatFind }, telegramUpdates: { findOne: mocks.updateFind, updateOne: mocks.updateSave }, telegramJobs: { updateOne: mocks.jobUpdate },
@@ -29,6 +31,36 @@ describe('Telegram tracker', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, result: {} }) }));
     mocks.walletCount.mockResolvedValue(0); mocks.walletUpdate.mockResolvedValue({ matchedCount: 1 });
     mocks.userFind.mockResolvedValue({ trackFailedTransactions: true });
+    discoveryMocks.catalog.mockResolvedValue({ profiles: [{ address, name: 'Example KOL', twitter: 'https://x.com/example', telegram: 'https://t.me/example' }], importedAt: new Date().toISOString() });
+  });
+  it('shows Discovery profiles, social links and explicit unavailable PnL', async () => {
+    await handleTelegramUpdate(update('/discovery Example'));
+    const list = JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string);
+    expect(list.text).toContain('Example KOL');
+    expect(list.reply_markup.inline_keyboard.flat()).toContainEqual(expect.objectContaining({ callback_data: `discovery:view:${address}` }));
+    await handleTelegramUpdate({ update_id: 2, callback_query: { id: 'view', data: `discovery:view:${address}`, from: { id: 123 }, message: { chat: { id: 123, type: 'private' } } } });
+    const detail = JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string);
+    expect(detail.text).toContain('PnL: not available yet');
+    expect(detail.reply_markup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ url: 'https://x.com/example' }),
+      expect.objectContaining({ url: 'https://t.me/example' }),
+      expect.objectContaining({ callback_data: `discovery:track:${address}` }),
+    ]));
+  });
+  it('tracks a selected Discovery wallet only once', async () => {
+    const callback = { id: 'track', data: `discovery:track:${address}`, from: { id: 123 }, message: { chat: { id: 123, type: 'private' } } };
+    await handleTelegramUpdate({ update_id: 3, callback_query: callback });
+    expect(mocks.walletUpdate).toHaveBeenCalledWith({ _id: `tg:discovery:123:${address}` }, { $setOnInsert: expect.objectContaining({ userId: 'telegram:123', address, name: 'Example KOL' }) }, expect.objectContaining({ upsert: true }));
+    mocks.walletFind.mockResolvedValue(wallet);
+    await handleTelegramUpdate({ update_id: 4, callback_query: callback });
+    expect(mocks.walletUpdate).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string).text).toContain('already tracked');
+  });
+  it('does not expose Discovery reports to other Telegram users', async () => {
+    discoveryMocks.admin.mockResolvedValue(false);
+    await handleTelegramUpdate(update('/discoveryreports'));
+    expect(discoveryMocks.claim).not.toHaveBeenCalled();
+    expect(JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string).text).toContain('not available');
   });
   it('authenticates webhooks with a token-derived secret', () => {
     expect(authorizedTelegramWebhook('')).toBe(false); expect(authorizedTelegramWebhook('wrong')).toBe(false);

@@ -15,7 +15,7 @@ import { stakingOffer } from '../config/staking.js';
 import { formatTelegramActivity, formatTelegramActivityGroup } from './telegram-activity-format.js';
 import { interactionLabel, recordTelegramEvent } from './telegram-analytics.js';
 import { formatPortfolio, getPortfolioSnapshot } from './telegram-portfolio.js';
-import { claimDiscoveryReportChat, formatDiscoveryReport } from './kolscan-discovery.js';
+import { claimDiscoveryReportChat, formatDiscoveryReport, getDiscoveryCatalog, isDiscoveryReportAdmin } from './kolscan-discovery.js';
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
@@ -38,8 +38,23 @@ type Update = z.infer<typeof telegramUpdateSchema>;
 type Button = { text: string; url?: string; callback_data?: string };
 const TELEGRAM_WALLET_LIMIT = 200;
 const TELEGRAM_WALLET_PAGE_SIZE = 10;
-const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '📊 Portfolio', callback_data: 'portfolio' }], [{ text: '⚙️ Settings', callback_data: 'settings' }, { text: '⭐ Premium', callback_data: 'premium' }]];
-const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/portfolio — balances and USD values\n/settings — transaction preferences\n/cancel — cancel wallet input\n/premium — Premium status and token lock\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
+const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '📊 Portfolio', callback_data: 'portfolio' }], [{ text: '🔎 Discovery', callback_data: 'discovery' }], [{ text: '⚙️ Settings', callback_data: 'settings' }, { text: '⭐ Premium', callback_data: 'premium' }]];
+const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/portfolio — balances and USD values\n/discovery — find KOL wallets to track\n/settings — transaction preferences\n/cancel — cancel wallet input\n/premium — Premium status and token lock\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
+const DISCOVERY_PAGE_SIZE = 8;
+function discoveryPage(profiles: Awaited<ReturnType<typeof getDiscoveryCatalog>>['profiles'], query: string, requestedPage: number) {
+  const filtered = query ? profiles.filter(profile => `${profile.name} ${profile.address}`.toLowerCase().includes(query.toLowerCase())) : profiles;
+  const lastPage = Math.max(0, Math.ceil(filtered.length / DISCOVERY_PAGE_SIZE) - 1);
+  const page = Math.max(0, Math.min(lastPage, requestedPage));
+  const rows = filtered.slice(page * DISCOVERY_PAGE_SIZE, (page + 1) * DISCOVERY_PAGE_SIZE);
+  const buttons: Button[][] = rows.map(profile => [{ text: profile.name.slice(0, 36), callback_data: `discovery:view:${profile.address}` }]);
+  const navigation: Button[] = [];
+  if (page > 0) navigation.push({ text: '← Previous', callback_data: `discovery:page:${page - 1}` });
+  if (page < lastPage) navigation.push({ text: 'Next →', callback_data: `discovery:page:${page + 1}` });
+  if (navigation.length) buttons.push(navigation);
+  const heading = query ? `Discovery · “${query}”` : 'Discovery · Solana KOLs';
+  const text = `${heading}\n${filtered.length} profiles · page ${page + 1}/${lastPage + 1}\n\n${rows.length ? rows.map((profile, index) => `${page * DISCOVERY_PAGE_SIZE + index + 1}. ${profile.name}\n${profile.address.slice(0, 6)}…${profile.address.slice(-6)}`).join('\n\n') : 'No matching profiles.'}\n\nSelect a profile to see social links and track its wallet. Search: /discovery name or address.`;
+  return { text, buttons: [...buttons, ...menu] };
+}
 const addPrompt = 'Send one or many wallets, one per line, in this format:\nADDRESS Name\nADDRESS Another name\n\nYou can also send /add followed by the list. Use /cancel to cancel.';
 const removePrompt = 'Send the wallet addresses to remove, one per line:\nADDRESS\nADDRESS\n\nYou can also paste ADDRESS Name lines or send /remove followed by the list. Use /cancel to cancel.';
 
@@ -110,11 +125,58 @@ export async function handleTelegramUpdate(update: Update) {
   await recordTelegramEvent(db, update.update_id, chatId, 'interaction', '', { ...interactionLabel(command, Boolean(callback)), userStatus })
     .catch(error => console.error('Telegram analytics interaction failed', error));
   if (command === '/discoveryreports') {
-    if (!sender?.username || sender.username.toLowerCase() !== (process.env.DISCOVERY_REPORT_TELEGRAM_USERNAME ?? 'heymike777').replace(/^@/, '').toLowerCase()) {
+    if (!await isDiscoveryReportAdmin(chatId, sender?.username)) {
       return send(chatId, 'Discovery reports are not available for this account.');
     }
     const report = await claimDiscoveryReportChat(chatId);
     return send(chatId, `Discovery reports will arrive here after each Kolscan import.\n\n${report ? formatDiscoveryReport(report) : 'No import report yet.'}`);
+  }
+  if (command === '/discovery' || command === 'discovery' || command.startsWith('discovery:page:')) {
+    const query = command === '/discovery' ? text.slice(rawCommand.length).trim().slice(0, 80) :
+      command === 'discovery' ? '' : telegramChat?.discoveryQuery ?? '';
+    if (command === '/discovery' || command === 'discovery') {
+      await db.telegramChats.updateOne({ _id: chatId }, { $set: { discoveryQuery: query } });
+    }
+    const catalog = await getDiscoveryCatalog();
+    const page = command.startsWith('discovery:page:') ? Number(command.slice('discovery:page:'.length)) || 0 : 0;
+    const result = discoveryPage(catalog.profiles, query, page);
+    return send(chatId, result.text, result.buttons);
+  }
+  if (command.startsWith('discovery:view:') || command.startsWith('discovery:track:')) {
+    const tracking = command.startsWith('discovery:track:');
+    const address = command.slice(tracking ? 'discovery:track:'.length : 'discovery:view:'.length);
+    if (!validSolanaAddress(address)) return send(chatId, 'Invalid Discovery wallet. Open /discovery again.');
+    const profile = (await getDiscoveryCatalog()).profiles.find(item => item.address === address);
+    if (!profile) return send(chatId, 'This profile is no longer in Discovery. Open /discovery again.');
+    if (tracking) {
+      const result = await withAccountMutation(userId, async (database, session, accountId) => {
+        const options = { session };
+        if (await database.wallets.findOne({ userId: accountId, address, deletedAt: null }, options)) return 'already';
+        if (await database.wallets.countDocuments({ userId: accountId, deletedAt: null }, options) >= TELEGRAM_WALLET_LIMIT) return 'limit';
+        try {
+          await database.wallets.updateOne({ _id: `tg:discovery:${chatId}:${address}` }, { $setOnInsert: {
+            userId: accountId, name: profile.name.slice(0, 40), address, chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+          } }, { ...options, upsert: true });
+        } catch (error) {
+          if (error instanceof MongoServerError && error.code === 11000) return 'already';
+          throw error;
+        }
+        return 'added';
+      });
+      if (result === 'added') await recordTelegramEvent(db, update.update_id, chatId, 'wallet_added', 'discovery')
+        .catch(error => console.error('Telegram Discovery wallet analytics failed', error));
+      const status = result === 'added' ? 'Tracking enabled. New transactions will arrive in this chat.' :
+        result === 'already' ? 'This wallet is already tracked.' : `${TELEGRAM_WALLET_LIMIT}-wallet limit reached.`;
+      return send(chatId, `${profile.name}\n${status}`, [[{ text: '← Discovery', callback_data: 'discovery' }], ...menu]);
+    }
+    const accountId = await canonicalAccountId(userId, db);
+    const alreadyTracked = Boolean(await db.wallets.findOne({ userId: accountId, address, deletedAt: null }));
+    const buttons: Button[][] = [];
+    if (profile.twitter) buttons.push([{ text: '𝕏 Twitter', url: profile.twitter }]);
+    if (profile.telegram) buttons.push([{ text: 'Telegram', url: profile.telegram }]);
+    buttons.push([{ text: alreadyTracked ? '✓ Already tracking' : '➕ Track wallet', callback_data: alreadyTracked ? `discovery:view:${address}` : `discovery:track:${address}` }]);
+    buttons.push([{ text: '← Discovery', callback_data: 'discovery' }]);
+    return send(chatId, `${profile.name}\n${address}\n\nTwitter: ${profile.twitter ?? 'not provided'}\nTelegram: ${profile.telegram ?? 'not provided'}\nPnL: not available yet`, [...buttons, ...menu]);
   }
   if (command === '/portfolio' || command === 'portfolio' || command.startsWith('portfolio:')) {
     const accountId = await canonicalAccountId(userId, db);

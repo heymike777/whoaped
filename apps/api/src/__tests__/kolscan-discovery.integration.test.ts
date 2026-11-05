@@ -102,4 +102,15 @@ describe('daily Kolscan Discovery sync', () => {
       expect(JSON.parse(telegramFetch.mock.calls[0][1]!.body as string).text).toContain('Discovery reports will arrive here');
     } finally { vi.unstubAllGlobals(); }
   });
+  it('locks reports to the pinned numeric Telegram ID even if a username changes hands', async () => {
+    const db = await database.collections();
+    await discovery.claimDiscoveryReportChat('123');
+    expect(await discovery.isDiscoveryReportAdmin('123', 'different_name')).toBe(true);
+    expect(await discovery.isDiscoveryReportAdmin('456', 'heymike777')).toBe(false);
+    vi.stubEnv('DISCOVERY_REPORT_TELEGRAM_USER_ID', '123');
+    expect(await discovery.isDiscoveryReportAdmin('456', 'heymike777')).toBe(false);
+    expect(await discovery.isDiscoveryReportAdmin('123')).toBe(true);
+    expect((await db.discoverySync.findOne({ _id: 'kolscan:solana' }))?.reportChatId).toBe('123');
+    vi.stubEnv('DISCOVERY_REPORT_TELEGRAM_USER_ID', '');
+  });
 });
