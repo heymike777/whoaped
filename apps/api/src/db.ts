@@ -95,9 +95,11 @@ export type DiscoverySyncDocument = {
   nextRunAt: Date;
   leaseUntil: Date;
   leaseToken?: string;
+  reportChatId?: string;
   lastSuccessAt?: Date;
   lastCount?: number;
   lastError?: string;
+  lastReport?: { status: 'ok' | 'error'; parsed: number | null; added: number | null; missing: number | null; finishedAt: Date; error?: string };
 };
 export type PipelineCheckpointDocument = { _id: string; lastSlot: number; updatedAt: Date };
 export type TrackingStateDocument = {
@@ -140,7 +142,7 @@ export type TelegramUpdateDocument = {
 };
 export type TelegramJobDocument = {
   _id: string; chatId: string; walletId: string; txHash: string; slot: number;
-  kind?: 'account' | 'failed' | 'group'; userId?: string; priority?: number; walletIds?: string[];
+  kind?: 'account' | 'failed' | 'group' | 'discovery'; userId?: string; priority?: number; walletIds?: string[];
   text: string; parseMode?: 'HTML'; buttons: Array<Array<{ text: string; url: string }>>;
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
@@ -254,6 +256,7 @@ async function ensureIndexes(database: Db) {
     db.telegramJobs.createIndex({ chatId: 1, createdAt: -1, _id: -1 }),
     db.telegramUpdates.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
     db.telegramChats.createIndex({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'string' } } }),
+    db.telegramChats.createIndex({ username: 1 }),
     db.telegramAnalyticsEvents.createIndex({ occurredAt: 1, type: 1 }),
     db.telegramAnalyticsEvents.createIndex({ chatId: 1, occurredAt: 1 }),
     db.telegramAnalyticsEvents.createIndex({ gaStatus: 1, gaAvailableAt: 1, occurredAt: 1 }),

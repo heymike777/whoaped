@@ -6,6 +6,8 @@
 - Manual fallback: run `node apps/api/scripts/import-kolscan.mjs` from the repository root and review the generated snapshot diff before deployment. Normal daily refreshes do not modify git.
 - Discovery profiles are **not** inserted into `wallets` or any Helius subscription. Tracking starts only when a user taps **Track**; the existing per-user wallet limit and duplicate checks apply.
 - Search and pagination are served from `GET /v1/discovery`, merging the bundled snapshot with the latest MongoDB profiles.
+- After each attempted refresh, a report is queued to the private WhoAped Telegram chat owned by `@heymike777` (override with `DISCOVERY_REPORT_TELEGRAM_USERNAME`). It contains the number parsed, new addresses, and addresses absent from the latest source snapshot. These absent addresses are not deleted from Discovery. Parser/HTTP errors also produce a report; an invalid parse shows its actual count (for example, zero) and retries in one hour.
+- The recipient is resolved from an authenticated bot chat/update and then pinned by numeric chat ID in `discovery_sync`. If there is no known private chat yet, send `/discoveryreports` to the bot from the configured username; the command pins the chat and returns the latest report. No report is sent to an arbitrary Telegram user.
 
 ## PnL follow-up
 

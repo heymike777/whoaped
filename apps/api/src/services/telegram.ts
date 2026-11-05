@@ -15,6 +15,7 @@ import { stakingOffer } from '../config/staking.js';
 import { formatTelegramActivity, formatTelegramActivityGroup } from './telegram-activity-format.js';
 import { interactionLabel, recordTelegramEvent } from './telegram-analytics.js';
 import { formatPortfolio, getPortfolioSnapshot } from './telegram-portfolio.js';
+import { claimDiscoveryReportChat, formatDiscoveryReport } from './kolscan-discovery.js';
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
@@ -85,7 +86,11 @@ export async function handleTelegramUpdate(update: Update) {
   const db = await collections();
   const telegramChat = await db.telegramChats.findOne({ _id: chatId });
   const userId = telegramChat?.userId ?? `telegram:${chatId}`;
-  await db.telegramChats.updateOne({ _id: chatId }, { $setOnInsert: { createdAt: new Date() }, $unset: { disabledAt: '' } }, { upsert: true });
+  await db.telegramChats.updateOne({ _id: chatId }, {
+    $setOnInsert: { createdAt: new Date() },
+    ...(sender?.username ? { $set: { username: sender.username } } : {}),
+    $unset: { disabledAt: '' },
+  }, { upsert: true });
   if (callback) await telegramCall('answerCallbackQuery', { callback_query_id: callback.id }).catch(() => {});
   if (message.successful_payment) {
     try {
@@ -104,6 +109,13 @@ export async function handleTelegramUpdate(update: Update) {
     ? 'new' as const : 'returning' as const;
   await recordTelegramEvent(db, update.update_id, chatId, 'interaction', '', { ...interactionLabel(command, Boolean(callback)), userStatus })
     .catch(error => console.error('Telegram analytics interaction failed', error));
+  if (command === '/discoveryreports') {
+    if (!sender?.username || sender.username.toLowerCase() !== (process.env.DISCOVERY_REPORT_TELEGRAM_USERNAME ?? 'heymike777').replace(/^@/, '').toLowerCase()) {
+      return send(chatId, 'Discovery reports are not available for this account.');
+    }
+    const report = await claimDiscoveryReportChat(chatId);
+    return send(chatId, `Discovery reports will arrive here after each Kolscan import.\n\n${report ? formatDiscoveryReport(report) : 'No import report yet.'}`);
+  }
   if (command === '/portfolio' || command === 'portfolio' || command.startsWith('portfolio:')) {
     const accountId = await canonicalAccountId(userId, db);
     try {
@@ -393,7 +405,8 @@ export async function drainTelegramJobs() {
     try {
       const chat = await db.telegramChats.findOne({ _id: job.chatId });
       const userId = chat?.userId ?? `telegram:${job.chatId}`;
-      const subscriptionActive = job.walletIds?.length
+      const subscriptionActive = job.kind === 'discovery' ? job.userId === userId
+        : job.walletIds?.length
         ? Boolean(await db.wallets.findOne({ _id: { $in: job.walletIds }, userId, deletedAt: null }))
         : job.kind === 'account' ? job.userId === userId
           : Boolean(await db.wallets.findOne({ _id: job.walletId, userId, deletedAt: null }));
