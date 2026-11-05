@@ -7,6 +7,31 @@ const walletAddress = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
 const signature = '5gd69toC169WBCN9Nq2ygKDYP1Wxfb8g2T8Xer6kLVPLj4Yk7P6Ard967rSt3P9eK6MNikUG71nyvV4ebh9GxFC3';
 
 describe('activity reclassification', () => {
+  it('upgrades a stored balance event for the supplied Magic Eden listing', async () => {
+    const txHash = '3sQLPtzdegRYra6RGF5zUPZ7nZ6kKzy3VFcJYUUpEoPXgZLh9E4BNiMr5qEEha3r6cYyNe9o8zY1EogdNT1HDXXh';
+    const mint = 'DgdFTE9MJd7TcoeUy9cHWJ9ye84k6tiQMU4bQdbC6VTC';
+    const transaction = { _id: 'listing-old', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
+      txHash, eventIndex: 0, slot: 465706234, kind: 'balance', title: '−0.006 SOL', detail: 'Balance change',
+      occurredAt: new Date(), metadata: {}, createdAt: new Date(),
+    } as TransactionDocument;
+    const wallet = { _id: 'wallet-1', userId: 'user-1', name: 'Watched', address: walletAddress,
+      chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+    } as WalletDocument;
+    const payload = { signature: txHash, slot: transaction.slot, feePayer: walletAddress, summary: { type: 'transfer' },
+      instructions: [{ programId: 'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K', instructionName: 'mip1_sell',
+        decoded: { args: { args: { price: '2617000000' } }, accounts: [
+          { name: 'wallet', pubkey: walletAddress, isSigner: true }, { name: 'token_mint', pubkey: mint },
+        ] },
+      }],
+    };
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    const db = { ingestionEvents: { find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([{ externalId: txHash, payload, receivedAt: new Date() }]),
+    }) }) }, transactions: { updateOne } };
+    const [result] = await reclassifyStoredActivities([transaction], new Map([[wallet._id, wallet]]), db as never);
+    expect(result).toMatchObject({ kind: 'nft', source: 'Magic Eden', metadata: { nft: { action: 'list', mint, priceSol: 2.617 } } });
+    expect(updateOne).toHaveBeenCalledWith({ _id: transaction._id }, expect.objectContaining({ $set: expect.objectContaining({ kind: 'nft' }) }));
+  });
   it('hides a previously stored unsigned dust receipt', async () => {
     const transaction = {
       _id: 'dust-1', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',

@@ -60,7 +60,8 @@ export async function reclassifyStoredActivities(
       && normalized.title === transaction.title) return transaction;
     if (transaction.kind === 'swap' && (normalized.kind !== 'swap' || (normalized.source === transaction.source && (!hasRoute(normalized.metadata) || hasRoute(transaction.metadata))))) return transaction;
 
-    const enriched = normalized.kind === 'swap' ? await enrichActivityMetadata(normalized) : normalized;
+    const enriched = normalized.kind === 'swap' || normalized.kind === 'nft'
+      ? await enrichActivityMetadata(normalized) : normalized;
 
     const mutableFields = {
       kind: enriched.kind,
