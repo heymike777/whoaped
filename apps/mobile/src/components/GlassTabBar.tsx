@@ -1,4 +1,4 @@
-import { Activity, Settings, WalletCards } from 'lucide-react-native';
+import { Activity, Compass, Settings, WalletCards } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type ThemeColors, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
 
-export type TabKey = 'activity' | 'wallets' | 'settings';
+export type TabKey = 'activity' | 'wallets' | 'discovery' | 'settings';
 
 type Props = {
   activeTab: TabKey;
@@ -16,6 +16,7 @@ type Props = {
 const tabs = [
   { key: 'activity' as const, label: 'Activity', Icon: Activity },
   { key: 'wallets' as const, label: 'Wallets', Icon: WalletCards },
+  { key: 'discovery' as const, label: 'Discover', Icon: Compass },
   { key: 'settings' as const, label: 'Settings', Icon: Settings },
 ];
 

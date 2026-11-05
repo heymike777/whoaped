@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlassTabBar, TabKey } from './src/components/GlassTabBar';
 import { ConnectivityBanner } from './src/components/ConnectivityBanner';
 import { ActivityScreen } from './src/screens/ActivityScreen';
+import { DiscoveryScreen } from './src/screens/DiscoveryScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { WalletsScreen } from './src/screens/WalletsScreen';
 import { enablePushNotifications, observePushTokenRefresh, observeTrackingNotifications } from './src/lib/notifications';
@@ -39,6 +40,7 @@ function AppContent() {
             />
           )}
           {activeTab === 'wallets' && <WalletsScreen />}
+          {activeTab === 'discovery' && <DiscoveryScreen />}
           {activeTab === 'settings' && <SettingsScreen />}
         </View>
 

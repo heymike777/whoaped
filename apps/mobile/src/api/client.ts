@@ -52,6 +52,25 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type ActivityPage = { data: Activity[]; nextCursor: string | null };
 
+export type DiscoveryProfile = {
+  address: string;
+  name: string;
+  twitter: string | null;
+  telegram: string | null;
+};
+export type DiscoveryPage = {
+  data: DiscoveryProfile[];
+  total: number;
+  nextOffset: number | null;
+  source: string;
+  importedAt: string;
+};
+
+export async function getDiscoveryProfiles(query = '', offset = 0): Promise<DiscoveryPage> {
+  if (!API_URL) return { data: [], total: 0, nextOffset: null, source: 'Kolscan', importedAt: '' };
+  return apiFetch<DiscoveryPage>(`/v1/discovery?q=${encodeURIComponent(query)}&offset=${offset}&limit=30`);
+}
+
 export async function getActivities(cursor?: string): Promise<ActivityPage> {
   if (!API_URL) return { data: [], nextCursor: null };
   const path = `/v1/activities?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;

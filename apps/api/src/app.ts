@@ -21,6 +21,7 @@ import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-lim
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
 import { completePayboxImport, createPayboxImport, deletePayboxImport, getPayboxImport, payboxAvailable } from './services/paybox.js';
 import { stakingOffer } from './config/staking.js';
+import { kolscanSnapshot } from './data/kolscan-profiles.js';
 
 const walletSchema = z.object({
   name: z.string().trim().min(2).max(40),
@@ -90,6 +91,26 @@ app.post('/v1/sessions', async (context) => {
 });
 
 app.use('/v1/*', requireSession);
+
+app.get('/v1/discovery', context => {
+  const query = (context.req.query('q') ?? '').trim().toLocaleLowerCase().slice(0, 80);
+  const offset = Math.max(0, Math.min(10_000, Number(context.req.query('offset')) || 0));
+  const limit = Math.max(1, Math.min(50, Number(context.req.query('limit')) || 30));
+  const matched = query
+    ? kolscanSnapshot.profiles.filter(profile =>
+        profile.name.toLocaleLowerCase().includes(query)
+        || profile.address.toLocaleLowerCase().includes(query)
+        || profile.twitter?.toLocaleLowerCase().includes(query)
+        || profile.telegram?.toLocaleLowerCase().includes(query))
+    : kolscanSnapshot.profiles;
+  return context.json({
+    data: matched.slice(offset, offset + limit),
+    total: matched.length,
+    nextOffset: offset + limit < matched.length ? offset + limit : null,
+    source: 'Kolscan',
+    importedAt: kolscanSnapshot.importedAt,
+  });
+});
 
 app.get('/v1/integrations/paybox', context => context.json({ available: payboxAvailable() }));
 app.post('/v1/integrations/paybox/imports', async context => {

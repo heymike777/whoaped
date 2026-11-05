@@ -101,6 +101,7 @@ final class WhoApedTabBarView: UIView, UITabBarDelegate {
   private lazy var tabItems: [UITabBarItem] = [
     makeItem(title: "Activity", symbol: "waveform.path.ecg", selectedSymbol: "waveform.path.ecg"),
     makeItem(title: "Wallets", symbol: "wallet.pass", selectedSymbol: "wallet.pass.fill"),
+    makeItem(title: "Discover", symbol: "safari", selectedSymbol: "safari.fill"),
     makeItem(title: "Settings", symbol: "gearshape", selectedSymbol: "gearshape.fill"),
   ]
 

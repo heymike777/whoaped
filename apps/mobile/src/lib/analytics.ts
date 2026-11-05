@@ -6,6 +6,6 @@ export function logMobileEvent(name: 'wallet_added' | 'wallet_removed' | 'wallet
   getAnalytics().logEvent(name, params).catch(() => undefined);
 }
 
-export function logMobileScreen(screen: 'activity' | 'wallets' | 'settings') {
+export function logMobileScreen(screen: 'activity' | 'wallets' | 'discovery' | 'settings') {
   getAnalytics().logScreenView({ screen_name: screen, screen_class: 'WhoApedTab' }).catch(() => undefined);
 }

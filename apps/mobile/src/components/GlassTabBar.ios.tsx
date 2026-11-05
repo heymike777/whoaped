@@ -3,7 +3,7 @@ import type { NativeSyntheticEvent, ViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../themeContext';
 
-export type TabKey = 'activity' | 'wallets' | 'settings';
+export type TabKey = 'activity' | 'wallets' | 'discovery' | 'settings';
 
 type Props = {
   activeTab: TabKey;
@@ -16,7 +16,7 @@ type NativeProps = ViewProps & {
   onTabSelected: (event: NativeSyntheticEvent<{ index: number }>) => void;
 };
 
-const tabOrder: TabKey[] = ['activity', 'wallets', 'settings'];
+const tabOrder: TabKey[] = ['activity', 'wallets', 'discovery', 'settings'];
 const NativeLiquidGlassTabBar = requireNativeComponent<NativeProps>('WhoApedTabBar');
 
 export function GlassTabBar({ activeTab, onChange }: Props) {
