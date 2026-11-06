@@ -36,6 +36,46 @@ describe('Telegram wallet balance changes', () => {
       { userAccount: 'mine', mint: 'So11111111111111111111111111111111111111112', rawTokenAmount: '1', decimals: 9 },
     ] }] })).toEqual(['−0.000005 SOL', '+9007199254.740993 USDC', '+0.000000001 WSOL']);
   });
+  it('does not count the Jupiter SOL-to-WSOL wrap as a second payment', () => {
+    const wallet = '8PMZDad1XaeHgxyUzjPVHxvw3fGGKKZGiyyJ2t7J3aU1';
+    const wrapped = 'Cd7WQ7STA4YsYUAj3C8DWjhaKW1WUXaBF5LpBs8Gxc96';
+    expect(lines({ feePayer: wallet, fee: 7423,
+      nativeTransfers: [
+        { fromUserAccount: wallet, toUserAccount: wrapped, amount: 1488440 },
+        { fromUserAccount: wallet, toUserAccount: wrapped, amount: 77847364 },
+        { fromUserAccount: wrapped, toUserAccount: wallet, amount: 1488440 },
+      ],
+      tokenTransfers: [
+        { fromUserAccount: wallet, fromTokenAccount: wrapped, mint: 'So11111111111111111111111111111111111111112', rawTokenAmount: 77769517, decimals: 9 },
+        { fromUserAccount: wallet, fromTokenAccount: wrapped, mint: 'So11111111111111111111111111111111111111112', rawTokenAmount: 77847, decimals: 9 },
+        { toUserAccount: wallet, mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', rawTokenAmount: 550290424, decimals: 6 },
+      ],
+      instructions: [
+        { instructionName: 'sync_native', decoded: { accounts: [{ name: 'account', pubkey: wrapped }] } },
+        { instructionName: 'close_account', decoded: { accounts: [{ name: 'account', pubkey: wrapped }, { name: 'destination', pubkey: wallet }] } },
+      ],
+    }, wallet)).toEqual(['−0.077854787 SOL', '+550.290424 SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3']);
+  });
+  it('still counts WSOL already held before a transaction', () => {
+    const mint = 'So11111111111111111111111111111111111111112';
+    expect(lines({ feePayer: 'mine', fee: 5000,
+      tokenTransfers: [{ fromUserAccount: 'mine', fromTokenAccount: 'existing', mint, rawTokenAmount: 70000000, decimals: 9 }],
+    })).toEqual(['−0.000005 SOL', '−0.07 WSOL']);
+    expect(lines({ feePayer: 'mine', fee: 5000,
+      nativeTransfers: [{ fromUserAccount: 'mine', toUserAccount: 'existing', amount: 30000000 }],
+      tokenTransfers: [{ fromUserAccount: 'mine', fromTokenAccount: 'existing', mint, rawTokenAmount: 70000000, decimals: 9 }],
+      instructions: [{ instructionName: 'sync_native', decoded: { accounts: [{ name: 'account', pubkey: 'existing' }] } }],
+    })).toEqual(['−0.030005 SOL', '−0.04 WSOL']);
+  });
+  it('does not count WSOL received into an account that is unwrapped to the wallet', () => {
+    const mint = 'So11111111111111111111111111111111111111112';
+    expect(lines({ nativeTransfers: [{ fromUserAccount: 'wrapped', toUserAccount: 'mine', amount: 70000000 }],
+      tokenTransfers: [{ toUserAccount: 'mine', toTokenAccount: 'wrapped', mint, rawTokenAmount: 70000000, decimals: 9 }],
+      instructions: [{ instructionName: 'close_account', decoded: { accounts: [
+        { name: 'account', pubkey: 'wrapped' }, { name: 'destination', pubkey: 'mine' },
+      ] } }],
+    })).toEqual(['+0.07 SOL']);
+  });
   it('does not invent a zero balance when balances are absent', () => {
     expect(lines({})).toEqual(['Balance changes unavailable']);
   });

@@ -7,7 +7,13 @@ export async function withActivityBalances(
   transactions: TransactionDocument[], wallets: Map<string, WalletDocument>,
   db: Pick<Collections, 'ingestionEvents' | 'transactions'>,
 ) {
-  const missing = transactions.filter(tx => tx.chain === 'solana' && !Array.isArray(tx.metadata.balanceChanges));
+  const needsRefresh = (tx: TransactionDocument) => {
+    const lines = tx.metadata.balanceChanges;
+    return tx.chain === 'solana' && (!Array.isArray(lines) || (tx.metadata.balanceChangesVersion !== 2
+      && lines.some(line => typeof line === 'string' && line.endsWith(' SOL'))
+      && lines.some(line => typeof line === 'string' && line.endsWith(' WSOL'))));
+  };
+  const missing = transactions.filter(needsRefresh);
   if (!missing.length) return transactions;
   const events = await db.ingestionEvents.find({ externalId: { $in: [...new Set(missing.map(tx => tx.txHash))] } })
     .sort({ receivedAt: -1 }).toArray();
@@ -19,12 +25,15 @@ export async function withActivityBalances(
     }
   }
   return Promise.all(transactions.map(async tx => {
-    if (tx.chain !== 'solana' || Array.isArray(tx.metadata.balanceChanges)) return tx;
+    if (!needsRefresh(tx)) return tx;
     const wallet = wallets.get(tx.walletId);
     const payload = payloads.get(tx.txHash);
     if (!wallet || !payload) return tx;
     const balanceChanges = transactionBalanceLines(payload, wallet.address, [tx]);
-    await db.transactions.updateOne({ _id: tx._id }, { $set: { 'metadata.balanceChanges': balanceChanges } });
-    return { ...tx, metadata: { ...tx.metadata, balanceChanges } };
+    const refreshed = Array.isArray(tx.metadata.balanceChanges);
+    const fields = refreshed ? { 'metadata.balanceChanges': balanceChanges, 'metadata.balanceChangesVersion': 2 }
+      : { 'metadata.balanceChanges': balanceChanges };
+    await db.transactions.updateOne({ _id: tx._id }, { $set: fields });
+    return { ...tx, metadata: { ...tx.metadata, balanceChanges, ...(refreshed ? { balanceChangesVersion: 2 } : {}) } };
   }));
 }

@@ -24,6 +24,26 @@ describe('balance changes in retained mobile history', () => {
     const tx = { chain: 'solana', metadata: { balanceChanges: ['+1 SOL'] } } as unknown as TransactionDocument;
     expect(await withActivityBalances([tx], new Map(), {} as Collections)).toEqual([tx]);
   });
+  it('repairs a previously stored duplicate SOL and WSOL debit on read', async () => {
+    const tx = { _id: 'old-swap', txHash: 'sig', walletId: 'wallet', chain: 'solana', kind: 'swap',
+      metadata: { balanceChanges: ['−0.077854787 SOL', '−0.077847364 WSOL', '+550.290424 SKR'] },
+    } as unknown as TransactionDocument;
+    const wallet = { address: 'mine' } as WalletDocument;
+    const payload = { signature: 'sig', slot: 1, feePayer: 'mine', fee: 7423,
+      nativeTransfers: [{ fromUserAccount: 'mine', toUserAccount: 'wrapped', amount: 77847364 }],
+      tokenTransfers: [{ fromUserAccount: 'mine', fromTokenAccount: 'wrapped', mint: 'So11111111111111111111111111111111111111112', rawTokenAmount: 77847364, decimals: 9 }],
+      instructions: [{ instructionName: 'sync_native', decoded: { accounts: [{ name: 'account', pubkey: 'wrapped' }] } }],
+    };
+    const updateOne = vi.fn();
+    const db = { ingestionEvents: { find: () => ({ sort: () => ({ toArray: async () => [{ externalId: 'sig', payload }] }) }) },
+      transactions: { updateOne } };
+    const [repaired] = await withActivityBalances([tx], new Map([['wallet', wallet]]), db as unknown as Collections);
+    expect(repaired.metadata.balanceChanges).toEqual(['−0.077854787 SOL']);
+    expect(repaired.metadata.balanceChangesVersion).toBe(2);
+    expect(updateOne).toHaveBeenCalledWith({ _id: 'old-swap' }, { $set: {
+      'metadata.balanceChanges': ['−0.077854787 SOL'], 'metadata.balanceChangesVersion': 2,
+    } });
+  });
   it('leaves missing history unknown rather than inventing balance changes', async () => {
     const tx = { chain: 'solana', txHash: 'old', metadata: {} } as TransactionDocument;
     const db = { ingestionEvents: { find: () => ({ sort: () => ({ toArray: async () => [] }) }) } };
