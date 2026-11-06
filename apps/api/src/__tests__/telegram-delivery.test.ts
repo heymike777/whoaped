@@ -24,6 +24,47 @@ describe('Telegram delivery queue', () => {
     expect(db.telegramJobs.updateOne).toHaveBeenCalledWith({ _id: 'j1' }, { $set: expect.objectContaining({ status: 'sent' }) });
     expect(db.telegramJobs.findOneAndUpdate.mock.calls[1][0].chatId).toEqual({ $nin: ['123'] });
   });
+  it('sends an NFT image with the original caption and transaction button', async () => {
+    db.telegramJobs.findOneAndUpdate.mockReset().mockResolvedValue(null).mockResolvedValueOnce({
+      ...job, photoUrl: 'https://gateway.irys.xyz/nft-image.jpg',
+      buttons: [[{ text: 'View transaction ↗', url: 'https://solscan.io/tx/sig' }]],
+    });
+    await drainTelegramJobs();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('/sendPhoto');
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)).toMatchObject({
+      photo: 'https://gateway.irys.xyz/nft-image.jpg', caption: job.text, parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [[{ text: 'View transaction ↗', url: 'https://solscan.io/tx/sig' }]] },
+    });
+    expect(db.telegramJobs.updateOne).toHaveBeenCalledWith({ _id: 'j1' }, { $set: expect.objectContaining({ status: 'sent' }) });
+  });
+  it('falls back to the text notification when Telegram cannot fetch the NFT image', async () => {
+    db.telegramJobs.findOneAndUpdate.mockReset().mockResolvedValue(null).mockResolvedValueOnce({
+      ...job, photoUrl: 'https://gateway.irys.xyz/missing.jpg',
+    });
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 400,
+      json: async () => ({ ok: false, error_code: 400 }) } as Response);
+    await drainTelegramJobs();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('/sendPhoto');
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toContain('/sendMessage');
+    expect(db.telegramJobs.updateOne).toHaveBeenCalledWith({ _id: 'j1' }, { $set: expect.objectContaining({ status: 'sent' }) });
+  });
+  it('sends long NFT details separately and does not resend the photo after a text retry', async () => {
+    const longJob = { ...job, photoUrl: 'https://gateway.irys.xyz/nft-image.jpg', text: 'NFT '.repeat(250) };
+    db.telegramJobs.findOneAndUpdate.mockReset().mockResolvedValue(null).mockResolvedValueOnce(longJob);
+    await drainTelegramJobs();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('/sendPhoto');
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)).not.toHaveProperty('caption');
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toContain('/sendMessage');
+    expect(db.telegramJobs.updateOne).toHaveBeenCalledWith({ _id: 'j1' }, { $set: { photoSentAt: expect.any(Date) } });
+    vi.mocked(fetch).mockClear();
+    db.telegramJobs.findOneAndUpdate.mockReset().mockResolvedValue(null).mockResolvedValueOnce({ ...longJob, photoSentAt: new Date() });
+    await drainTelegramJobs();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('/sendMessage');
+  });
   it('drops pending alerts after removal without calling Telegram', async () => {
     db.wallets.findOne.mockResolvedValue(null); await drainTelegramJobs();
     expect(fetch).not.toHaveBeenCalled();

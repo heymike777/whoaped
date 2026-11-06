@@ -102,7 +102,10 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
       const price = typeof nft.priceSol === 'number' && Number.isFinite(nft.priceSol)
         ? ` for <b>${html(amount(nft.priceSol))} SOL</b>` : '';
       const verb = nft.action === 'list' ? 'Listed' : nft.action === 'delist' ? 'Delisted'
-        : nft.action === 'bid' ? 'Bid on' : nft.actor === 'buyer' ? 'Bought' : 'Sold';
+        : nft.action === 'bid' ? 'Bid on' : nft.action === 'mint' ? 'Minted'
+          : nft.action === 'receive' ? 'Received' : nft.action === 'send' ? 'Sent'
+            : nft.action === 'transfer' ? 'Transferred' : nft.action === 'burn' ? 'Burned'
+              : nft.actor === 'buyer' ? 'Bought' : 'Sold';
       return [`${verb} <b>${html(label)}</b>${nft.action === 'list' || nft.action === 'bid' ? price : ''}`];
     }
   }

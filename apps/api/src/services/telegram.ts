@@ -76,6 +76,20 @@ async function send(chatId: string, text: string, buttons: Button[][] = menu, pa
   });
 }
 
+function nftPhotoUrl(entries: TelegramWalletActivity[]) {
+  for (const activity of entries.flatMap(entry => entry.activities)) {
+    if (activity.kind !== 'nft') continue;
+    const nft = activity.metadata.nft;
+    const candidate = nft && typeof nft === 'object' ? (nft as { imageUrl?: unknown }).imageUrl : undefined;
+    if (typeof candidate !== 'string' || candidate.length > 2048) continue;
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === 'https:' && !url.username && !url.password) return url.href;
+    } catch { /* Invalid NFT metadata is not a delivery failure. */ }
+  }
+  return undefined;
+}
+
 export function validSolanaAddress(address: string) {
   if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) return false;
   const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -367,7 +381,8 @@ export function telegramGroupNotification(entries: TelegramWalletActivity[], tra
     if (seen.size >= 2) break;
   }
   buttons.push([{ text: 'View transaction ↗', url: `https://solscan.io/tx/${encodeURIComponent(transaction.signature)}` }]);
-  return { text, parseMode: 'HTML' as const, buttons };
+  const photoUrl = nftPhotoUrl(entries);
+  return { text, parseMode: 'HTML' as const, buttons, ...(photoUrl ? { photoUrl } : {}) };
 }
 
 export async function enqueueTelegramTransaction(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[]) {
@@ -477,7 +492,27 @@ export async function drainTelegramJobs() {
         await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'failed', lastError: 'Subscription inactive' } });
         continue;
       }
-      await send(job.chatId, job.text, job.buttons, job.parseMode);
+      if (job.photoUrl && !job.photoSentAt) {
+        const captionFits = job.text.length <= 900;
+        let photoSent = false;
+        try {
+          await telegramCall('sendPhoto', {
+            chat_id: job.chatId, photo: job.photoUrl,
+            ...(captionFits ? { caption: job.text, ...(job.parseMode ? { parse_mode: job.parseMode } : {}),
+              reply_markup: { inline_keyboard: job.buttons } } : {}),
+          });
+          photoSent = true;
+        } catch (error) {
+          if (!(error instanceof TelegramError) || error.code !== 400) throw error;
+        }
+        if (!photoSent) await send(job.chatId, job.text, job.buttons, job.parseMode);
+        else if (!captionFits) {
+          await db.telegramJobs.updateOne({ _id: job._id }, { $set: { photoSentAt: new Date() } });
+          await send(job.chatId, job.text, job.buttons, job.parseMode);
+        }
+      } else {
+        await send(job.chatId, job.text, job.buttons, job.parseMode);
+      }
       await db.telegramJobs.updateOne({ _id: job._id }, { $set: { status: 'sent', sentAt: new Date() } });
     } catch (error) {
       const apiError = error instanceof TelegramError ? error : undefined;

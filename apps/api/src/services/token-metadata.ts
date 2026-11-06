@@ -345,7 +345,9 @@ async function enrichNftActivity(activity: NormalizedActivity) {
   const name = token.name?.trim().slice(0, 80) || `${event.mint.slice(0, 6)}…${event.mint.slice(-6)}`;
   const verb = event.action === 'list' ? 'Listed' : event.action === 'delist' ? 'Delisted'
     : event.action === 'sale' ? activity.title.startsWith('Bought') ? 'Bought' : 'Sold'
-      : event.action === 'bid' ? 'Bid on' : 'NFT';
+      : event.action === 'bid' ? 'Bid on' : event.action === 'mint' ? 'Minted'
+        : event.action === 'receive' ? 'Received' : event.action === 'send' ? 'Sent'
+          : event.action === 'transfer' ? 'Transferred' : event.action === 'burn' ? 'Burned' : 'NFT';
   const price = (event.action === 'list' || event.action === 'bid') && event.priceSol != null
     ? ` for ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 9 }).format(event.priceSol)} SOL` : '';
   return { ...activity, title: `${verb} ${name}${price}`, metadata: {

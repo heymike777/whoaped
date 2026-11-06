@@ -49,6 +49,21 @@ describe('swap token metadata enrichment', () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it('resolves a Metaplex Core asset image for an NFT mint', async () => {
+    process.env.HELIUS_API_KEY = 'helius-test';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ result: [{
+      id: 'core-asset-test', content: { metadata: { name: 'Core Cat #1' }, links: { image: 'https://example.com/cat.png' } },
+    }] }) }));
+    const activity: NormalizedActivity = { chain: 'solana', txHash: 'core-mint', eventIndex: 0, kind: 'nft',
+      title: 'Minted Core NFT', detail: 'Metaplex Core', source: 'Metaplex Core', occurredAt: new Date(),
+      metadata: { nft: { mint: 'core-asset-test', action: 'mint' } },
+    };
+    const result = await enrichActivityMetadata(activity);
+    expect(result.title).toBe('Minted Core Cat #1');
+    expect(result.metadata.nft).toMatchObject({ name: 'Core Cat #1', imageUrl: 'https://example.com/cat.png' });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
   it('prefers verified Jupiter metadata, including SVG token icons', async () => {
     process.env.JUPITER_API_KEY = 'jupiter-key';
     const fetchMock = vi.fn().mockResolvedValue({

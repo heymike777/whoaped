@@ -107,11 +107,30 @@ describe('Telegram tracker', () => {
   });
   it('renders a Magic Eden NFT listing as a listing, not a transfer', () => {
     const nft: NormalizedActivity = { ...activity, kind: 'nft', title: 'Listed SMB Gen3 #11517 for 2.617 SOL',
-      source: 'Magic Eden', metadata: { nft: { action: 'list', actor: 'seller', mint: address, name: 'SMB Gen3 #11517', priceSol: 2.617 } } };
-    const text = telegramNotification(wallet, { ...transaction, summary: { type: 'transfer' } }, [nft]).text;
+      source: 'Magic Eden', metadata: { nft: { action: 'list', actor: 'seller', mint: address, name: 'SMB Gen3 #11517',
+        priceSol: 2.617, imageUrl: 'https://gateway.irys.xyz/nft-image.jpg' } } };
+    const notification = telegramNotification(wallet, { ...transaction, summary: { type: 'transfer' } }, [nft]);
+    const text = notification.text;
     expect(text).toContain('🖼 <b>NFT</b> · Magic Eden');
     expect(text).toContain('Listed <b>SMB Gen3 #11517</b> for <b>2.617 SOL</b>');
     expect(text).not.toContain('<b>TRANSFER</b>');
+    expect(notification.photoUrl).toBe('https://gateway.irys.xyz/nft-image.jpg');
+    expect(telegramNotification(wallet, transaction, [{ ...nft, metadata: { nft: { imageUrl: 'http://localhost/private' } } }]).photoUrl).toBeUndefined();
+    expect(telegramNotification(wallet, transaction, [activity]).photoUrl).toBeUndefined();
+  });
+  it('persists the NFT image URL with the Telegram delivery job', async () => {
+    mocks.walletFind.mockResolvedValue(wallet);
+    await enqueueTelegramTransaction(wallet, transaction, [{ ...activity, kind: 'nft', title: 'Sold SMB Gen3 #11517',
+      source: 'Magic Eden', metadata: { nft: { action: 'sale', actor: 'seller', mint: address,
+        name: 'SMB Gen3 #11517', imageUrl: 'https://gateway.irys.xyz/nft-image.jpg' } },
+    }]);
+    expect(mocks.jobUpdate).toHaveBeenCalledWith(
+      { walletId: 'account:telegram:123', txHash: 'sig' },
+      expect.objectContaining({ $setOnInsert: expect.objectContaining({
+        photoUrl: 'https://gateway.irys.xyz/nft-image.jpg', text: expect.stringContaining('Sold <b>SMB Gen3 #11517</b>'),
+      }) }),
+      expect.objectContaining({ upsert: true }),
+    );
   });
   it('shows each arbitrage swap and wallet net profit in order', () => {
     const route = [

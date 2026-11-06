@@ -1016,7 +1016,8 @@ function semanticActivity(
   if (core) {
     const name = canonical(core.instructionName);
     let title: string | null = null;
-    if (['createv1', 'createv2'].includes(name)) title = 'Minted Core NFT';
+    let action: string | undefined;
+    if (['createv1', 'createv2'].includes(name)) { title = 'Minted Core NFT'; action = 'mint'; }
     if (name === 'transferv1') {
       const newOwner = namedAccount(core, 'new_owner', 'newOwner');
       const previousOwner = namedAccount(core, 'owner', 'authority');
@@ -1025,9 +1026,14 @@ function semanticActivity(
         : previousOwner === watchedAddress
           ? 'Sent Core NFT'
           : 'Transferred Core NFT';
+      action = newOwner === watchedAddress ? 'receive' : previousOwner === watchedAddress ? 'send' : 'transfer';
     }
-    if (name === 'burnv1') title = 'Burned Core NFT';
-    if (title) return { ...base, kind: 'nft', title, detail: 'Metaplex Core', source: 'Metaplex Core' };
+    if (name === 'burnv1') { title = 'Burned Core NFT'; action = 'burn'; }
+    if (title) {
+      const asset = namedAccount(core, 'asset', 'asset_id');
+      return { ...base, kind: 'nft', title, detail: 'Metaplex Core', source: 'Metaplex Core',
+        ...(asset ? { metadata: { ...base.metadata, nft: { mint: asset, action } } } : {}) };
+    }
   }
 
   const squads = relevant.find((instruction) => {

@@ -779,7 +779,7 @@ describe('solanaAdapter balance changes', () => {
         programId: 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d',
         programName: 'mpl_core',
         instructionName: 'create_v1',
-        decoded: { accounts: [{ name: 'owner', pubkey: wallet }] },
+        decoded: { accounts: [{ name: 'owner', pubkey: wallet }, { name: 'asset', pubkey: 'CoreAsset111111111111111111111111111111111' }] },
       }],
     });
 
@@ -787,6 +787,7 @@ describe('solanaAdapter balance changes', () => {
       kind: 'nft',
       title: 'Minted Core NFT  ·  −0.0069596 SOL',
       detail: 'Metaplex Core',
+      metadata: { nft: { mint: 'CoreAsset111111111111111111111111111111111', action: 'mint' } },
     });
   });
 

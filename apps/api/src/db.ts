@@ -144,6 +144,7 @@ export type TelegramJobDocument = {
   _id: string; chatId: string; walletId: string; txHash: string; slot: number;
   kind?: 'account' | 'failed' | 'group' | 'discovery'; userId?: string; priority?: number; walletIds?: string[];
   text: string; parseMode?: 'HTML'; buttons: Array<Array<{ text: string; url: string }>>;
+  photoUrl?: string; photoSentAt?: Date;
   status: 'pending' | 'processing' | 'sent' | 'failed'; attempts: number;
   availableAt: Date; createdAt: Date; sentAt?: Date; lastError?: string;
 };
