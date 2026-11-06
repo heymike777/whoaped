@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
+import { isDustInboundTransfer, solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
 import { collections, type WalletDocument } from '../db.js';
 import { enrichActivityMetadata } from './token-metadata.js';
 import { admitAccountTransaction, walletTrackingEligible } from './rate-limits.js';
@@ -36,6 +36,7 @@ export async function ingestParsedTransaction(
   let cooldownStarted = false;
   for (const wallet of wallets) {
     if (failed && !enabledFailedAccounts?.has(wallet.userId)) continue;
+    if (!failed && isDustInboundTransfer(transaction, wallet.address)) continue;
     if (!await walletTrackingEligible(wallet, transaction.slot, transaction.blockTime)) continue;
     // Admission itself resolves aliases and serializes concurrent stream connections.
     if (!admissions.has(wallet.userId)) {

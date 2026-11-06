@@ -90,7 +90,8 @@ const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget111111111111111111111111111111';
 
 // Intentionally narrow: unknown tokens can be valuable despite a tiny unit amount.
 const MAX_DUST_SOL_LAMPORTS = 10_000;
-const MAX_DUST_STABLECOIN_UNITS = 0.001;
+const MAX_DUST_USDC_UNITS = 0.01;
+const MAX_DUST_USDT_UNITS = 0.001;
 
 type SwapDex = string;
 
@@ -936,6 +937,8 @@ export function isDustInboundTransfer(transaction: ParsedSolanaTransaction, watc
   const transferMints = new Set((transaction.tokenTransfers ?? []).map((transfer) => transfer.mint).filter(
     (mint): mint is string => Boolean(mint),
   ));
+  // A sub-cent USDC receipt is spam only when USDC is the entire transfer.
+  if (transferMints.has(USDC_MINT) && (transferMints.size !== 1 || transaction.nativeTransfers?.length)) return false;
   if (!transaction.instructions?.length || !transaction.instructions.every((instruction) =>
     isPlainTransferInstruction(instruction, watchedAddress, transferMints))) return false;
 
@@ -961,9 +964,10 @@ export function isDustInboundTransfer(transaction: ParsedSolanaTransaction, watc
     const raw = Number(rawTokenAmount);
     if (!Number.isFinite(raw) || raw <= 0) return false;
     const amount = raw / 10 ** decimals;
-    const maxAmount = mint === SOL_MINT ? MAX_DUST_SOL_LAMPORTS / 1e9
-      : mint === USDC_MINT || mint === USDT_MINT ? MAX_DUST_STABLECOIN_UNITS : null;
-    if (maxAmount == null || amount > maxAmount) return false;
+    const maxAmount = mint === SOL_MINT && decimals === 9 ? MAX_DUST_SOL_LAMPORTS / 1e9
+      : mint === USDC_MINT && decimals === 6 ? MAX_DUST_USDC_UNITS
+        : mint === USDT_MINT && decimals === 6 ? MAX_DUST_USDT_UNITS : null;
+    if (maxAmount == null || (mint === USDC_MINT ? amount >= maxAmount : amount > maxAmount)) return false;
     if (transfer.fromUserAccount === watchedAddress) return false;
     if (transfer.toUserAccount === watchedAddress) {
       hasIncoming = true;
@@ -971,7 +975,8 @@ export function isDustInboundTransfer(transaction: ParsedSolanaTransaction, watc
     }
   }
   if ([...receivedTokens.entries()].some(([mint, amount]) =>
-    amount > (mint === SOL_MINT ? MAX_DUST_SOL_LAMPORTS / 1e9 : MAX_DUST_STABLECOIN_UNITS))) return false;
+    mint === USDC_MINT ? amount >= MAX_DUST_USDC_UNITS
+      : amount > (mint === SOL_MINT ? MAX_DUST_SOL_LAMPORTS / 1e9 : MAX_DUST_USDT_UNITS))) return false;
   return hasIncoming;
 }
 

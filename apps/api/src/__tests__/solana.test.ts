@@ -67,6 +67,34 @@ describe('inbound dust suppression', () => {
         ],
       },
     }, ...(payload.instructions?.slice(1) ?? [])] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...payload, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 1_111, decimals: 6,
+    }] }, wallet)).toBe(true);
+    expect(solanaAdapter.normalize({ ...payload, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 1_111, decimals: 6,
+    }] }, wallet)).toEqual([]);
+    expect(isDustInboundTransfer({ ...payload, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 9_999, decimals: 6,
+    }] }, wallet)).toBe(true);
+    expect(isDustInboundTransfer({ ...payload, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 10_000, decimals: 6,
+    }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...payload, nativeTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, amount: 1_000,
+    }], tokenTransfers: [{ fromUserAccount: sender, toUserAccount: wallet,
+      mint: usdc, rawTokenAmount: 1_111, decimals: 6 }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...payload, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 6_000, decimals: 6,
+    }, { fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 5_000, decimals: 6 }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...payload, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 1_111, decimals: 9,
+    }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...payload, feePayer: wallet, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 1_111, decimals: 6,
+    }] }, wallet)).toBe(false);
+    expect(isDustInboundTransfer({ ...payload, summary: { type: 'mint_nft' }, tokenTransfers: [{
+      fromUserAccount: sender, toUserAccount: wallet, mint: usdc, rawTokenAmount: 1_111, decimals: 6,
+    }] }, wallet)).toBe(false);
   });
 
   it('keeps a tiny transfer signed by the tracked wallet', () => {

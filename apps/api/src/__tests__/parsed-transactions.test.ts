@@ -142,4 +142,16 @@ describe('parsed transaction ingestion', () => {
     expect(mocks.transactionUpdateOne).not.toHaveBeenCalled();
     expect(mocks.notificationUpdateOne).not.toHaveBeenCalled();
   });
+  it('does not ingest or alert on an unsigned USDC receipt below one cent', async () => {
+    const result = await ingestParsedTransaction(transaction({
+      feePayer: 'sender', summary: { type: 'token_transfer' }, nativeTransfers: [],
+      tokenTransfers: [{ fromUserAccount: 'sender', toUserAccount: walletAddress,
+        mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', rawTokenAmount: 1_111, decimals: 6 }],
+      instructions: [{ programName: 'token', instructionName: 'transfer_checked' }],
+    }), { provider: 'helius-parsed-stream' });
+    expect(result).toEqual({ activities: 0 });
+    expect(mocks.ingestionUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.transactionUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.notificationUpdateOne).not.toHaveBeenCalled();
+  });
 });

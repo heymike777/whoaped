@@ -63,6 +63,27 @@ describe('activity reclassification', () => {
     expect(updateOne).toHaveBeenCalledWith({ _id: transaction._id }, { $set: { suppressed: true } });
   });
 
+  it('hides a previously stored unsigned sub-cent USDC receipt', async () => {
+    const transaction = { _id: 'usdc-dust', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
+      txHash: 'usdc-dust-signature', eventIndex: 0, slot: 463_000_001, kind: 'balance',
+      title: '+0.001111 USDC', detail: 'Balance change', occurredAt: new Date(), metadata: {}, createdAt: new Date(),
+    } as TransactionDocument;
+    const wallet = { _id: 'wallet-1', userId: 'user-1', name: 'Watched', address: walletAddress,
+      chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+    } as WalletDocument;
+    const payload = { signature: transaction.txHash, slot: transaction.slot, feePayer: 'sender',
+      summary: { type: 'token_transfer' }, instructions: [{ programName: 'token', instructionName: 'transfer_checked' }],
+      tokenTransfers: [{ fromUserAccount: 'sender', toUserAccount: walletAddress,
+        mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', rawTokenAmount: 1_111, decimals: 6 }],
+    };
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    const db = { ingestionEvents: { find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([{ externalId: transaction.txHash, payload, receivedAt: new Date() }]),
+    }) }) }, transactions: { updateOne } };
+    expect(await reclassifyStoredActivities([transaction], new Map([[wallet._id, wallet]]), db as never)).toEqual([]);
+    expect(updateOne).toHaveBeenCalledWith({ _id: transaction._id }, { $set: { suppressed: true } });
+  });
+
   it('upgrades a stored balance event when the current parser recognizes Meteora liquidity', async () => {
     const transaction: TransactionDocument = {
       _id: 'transaction-1', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
