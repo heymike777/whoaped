@@ -105,6 +105,17 @@ describe('Telegram tracker', () => {
     expect(text).toContain('• <code>−1.000005 SOL</code>');
     expect(text).toContain('• <code>+98.5 USDC</code>');
   });
+  it('labels creator-fee claims separately from transfers', () => {
+    const claim: NormalizedActivity = { ...activity, kind: 'claim',
+      title: 'Claimed 0.019586683 SOL in creator fees', detail: 'Pump.fun + PumpSwap',
+      source: 'Pump.fun + PumpSwap', metadata: { claim: { amountSol: 0.019586683 } } };
+    const text = telegramNotification(wallet, { ...transaction, summary: { type: 'transfer' },
+      nativeTransfers: [{ fromUserAccount: 'CreatorVault', toUserAccount: address, amount: 240640 }],
+    }, [claim]).text;
+    expect(text).toContain('🪙 <b>CLAIM FEES</b> · Pump.fun + PumpSwap');
+    expect(text).toContain('Claimed <b>0.019586683 SOL</b> in creator fees');
+    expect(text).not.toContain('<b>TRANSFER</b>');
+  });
   it('renders a Magic Eden NFT listing as a listing, not a transfer', () => {
     const nft: NormalizedActivity = { ...activity, kind: 'nft', title: 'Listed SMB Gen3 #11517 for 2.617 SOL',
       source: 'Magic Eden', metadata: { nft: { action: 'list', actor: 'seller', mint: address, name: 'SMB Gen3 #11517',

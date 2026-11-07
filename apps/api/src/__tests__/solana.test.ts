@@ -20,6 +20,57 @@ function parsedTransaction(overrides: Partial<ParsedSolanaTransaction>): ParsedS
   };
 }
 
+describe('Pump.fun creator-fee claims', () => {
+  const creator = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
+  const otherWallet = 'Other111111111111111111111111111111111111';
+  const pumpFun = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+  const pumpSwap = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+  const claim = parsedTransaction({
+    signature: 't4Gxo9SsxLDpQmkw7Xb212G91rNzz9GiU5aYubGsbuVebNkjKn4WW3LaZve2SPHTXuD87QmwejqLsxDuHjooA2z',
+    slot: 466_547_268,
+    feePayer: creator,
+    summary: { type: 'transfer', description: 'Creator vault transferred SOL to wallet' },
+    nativeTransfers: [{ fromUserAccount: 'PumpVault', toUserAccount: creator, amount: 240_640 }],
+    tokenTransfers: [{ fromUserAccount: 'PumpSwapVault', toUserAccount: creator, mint: sol, rawTokenAmount: 19_346_043, decimals: 9 }],
+    instructions: [
+      { programId: pumpFun, instructionName: 'collect_creator_fee_v2', decoded: { accounts: [
+        { name: 'creator', pubkey: creator }, { name: 'quote_mint', pubkey: sol },
+      ] } },
+      { programId: pumpFun, instructionName: 'CollectCreatorFeeEvent', decoded: {
+        args: { creator, creator_fee: '240640', quote_mint: '11111111111111111111111111111111' },
+      } },
+      { programId: pumpSwap, instructionName: 'collect_coin_creator_fee', decoded: { accounts: [
+        { name: 'coin_creator', pubkey: creator }, { name: 'quote_mint', pubkey: sol },
+      ] } },
+      { programId: pumpSwap, instructionName: 'CollectCoinCreatorFeeEvent', decoded: {
+        args: { coin_creator: creator, coin_creator_fee: '19346043' },
+      } },
+    ],
+  });
+
+  it('classifies the reported transaction as one creator-fee claim, not a transfer', () => {
+    expect(solanaAdapter.normalize(claim, creator)).toMatchObject([{
+      kind: 'claim', title: 'Claimed 0.019586683 SOL in creator fees',
+      source: 'Pump.fun + PumpSwap', metadata: { claim: { amountSol: 0.019586683, venues: ['Pump.fun', 'PumpSwap'] } },
+    }]);
+  });
+
+  it('requires the watched wallet to be the named creator on a real claim instruction', () => {
+    expect(solanaAdapter.normalize(claim, otherWallet)).toEqual([]);
+    expect(solanaAdapter.normalize({ ...claim, instructions: claim.instructions?.map((instruction) =>
+      instruction.instructionName === 'collect_creator_fee_v2' || instruction.instructionName === 'collect_coin_creator_fee'
+        ? { ...instruction, programId: 'UnrelatedProgram' } : instruction) }, creator)[0]?.kind).toBe('balance');
+    expect(solanaAdapter.normalize({ ...claim, status: 'error' }, creator)[0]?.kind).not.toBe('claim');
+  });
+
+  it('still identifies the claim when Helius omits decoded event amounts', () => {
+    expect(solanaAdapter.normalize({ ...claim, instructions: claim.instructions?.filter((instruction) =>
+      !instruction.instructionName?.endsWith('Event')) }, creator)).toMatchObject([{
+      kind: 'claim', title: 'Claimed creator fees', metadata: { claim: { venues: ['Pump.fun', 'PumpSwap'] } },
+    }]);
+  });
+});
+
 describe('inbound dust suppression', () => {
   const sender = 'Sender111111111111111111111111111111111111';
   const tinySol = parsedTransaction({

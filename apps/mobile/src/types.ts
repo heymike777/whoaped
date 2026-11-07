@@ -19,6 +19,7 @@ export type ActivityKind =
   | 'buy'
   | 'stake'
   | 'transfer'
+  | 'claim'
   | 'nft'
   | 'unknown'
   | 'failed';

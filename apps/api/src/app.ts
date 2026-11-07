@@ -237,7 +237,7 @@ app.get('/v1/activities', async (context) => {
   const db = await collections();
   const storedTransactions = await db.transactions.find({
     userId: context.get('userId'),
-    kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch', 'failed'] },
+    kind: { $in: ['balance', 'nft', 'multisig', 'swap', 'yield', 'launch', 'claim', 'failed'] },
     suppressed: { $ne: true },
     ...(cursor ? activityBeforeCursor(cursor) : {}),
   })

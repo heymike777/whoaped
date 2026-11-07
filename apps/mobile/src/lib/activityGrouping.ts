@@ -2,7 +2,7 @@ import type { Activity, ActivityKind } from '../types';
 
 const priority: Record<ActivityKind, number> = {
   failed: 0, swap: 1, yield: 2, launch: 3, multisig: 4, nft: 5,
-  stake: 6, buy: 7, transfer: 8, balance: 9, unknown: 10,
+  stake: 6, buy: 7, claim: 8, transfer: 9, balance: 10, unknown: 11,
 };
 
 /** Keep one feed card per onchain signature while retaining every watched wallet's net change. */

@@ -6,7 +6,7 @@ import { transactionBalanceLines } from './transaction-balances.js';
 type RecordValue = Record<string, unknown>;
 const kindPriority: Record<NormalizedActivity['kind'], number> = {
   failed: 0, swap: 1, yield: 2, launch: 3, multisig: 4, nft: 5,
-  stake: 6, buy: 7, transfer: 8, balance: 9, unknown: 10,
+  stake: 6, buy: 7, claim: 8, transfer: 9, balance: 10, unknown: 11,
 };
 const kindLabels: Record<NormalizedActivity['kind'], { icon: string; label: string }> = {
   failed: { icon: '🔴', label: 'FAILED TRANSACTION' },
@@ -18,6 +18,7 @@ const kindLabels: Record<NormalizedActivity['kind'], { icon: string; label: stri
   stake: { icon: '🔒', label: 'STAKE' },
   buy: { icon: '↗️', label: 'BUY' },
   transfer: { icon: '💸', label: 'TRANSFER' },
+  claim: { icon: '🪙', label: 'CLAIM FEES' },
   balance: { icon: '◈', label: 'BALANCE CHANGE' },
   unknown: { icon: '◈', label: 'ACTIVITY' },
 };
@@ -108,6 +109,12 @@ function actionLines(activity: NormalizedActivity | undefined, transaction: Pars
               : nft.actor === 'buyer' ? 'Bought' : 'Sold';
       return [`${verb} <b>${html(label)}</b>${nft.action === 'list' || nft.action === 'bid' ? price : ''}`];
     }
+  }
+  if (activity.kind === 'claim') {
+    const claim = record(metadata?.claim);
+    const quantity = typeof claim?.amountSol === 'number' && Number.isFinite(claim.amountSol) && claim.amountSol > 0
+      ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 9 }).format(claim.amountSol) : '';
+    return [quantity ? `Claimed <b>${html(quantity)} SOL</b> in creator fees` : 'Claimed creator fees'];
   }
   if (activity.kind === 'transfer' || activity.kind === 'balance') {
     const outgoing = (transaction.nativeTransfers ?? []).filter(transfer =>

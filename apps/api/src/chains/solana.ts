@@ -79,6 +79,7 @@ const MAGIC_EDEN_M2_PROGRAM = 'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K';
 const TENSOR_MARKETPLACE_PROGRAM = 'TCMPhJdwDryooaGtiocG1u3xcYbRpiJzb283XfCZsDp';
 const SQUADS_V4_PROGRAM = 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf';
 const PUMP_FUN_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+const PUMP_AMM_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYDshorBZG77ZK1k3m1dAWF';
@@ -790,6 +791,57 @@ function namedAccount(instruction: ParsedInstruction, ...names: string[]) {
   return instruction.decoded?.accounts?.find((account) => wanted.has(canonical(account.name)))?.pubkey;
 }
 
+/** Creator-fee claims are frequently summarized as a plain transfer by Helius. */
+function creatorFeeClaimActivity(
+  transaction: ParsedSolanaTransaction,
+  watchedAddress: string,
+  base: Omit<NormalizedActivity, 'kind' | 'title' | 'detail'>,
+): NormalizedActivity | null {
+  if (transaction.status === 'error' || transaction.transactionStatus === 'ERROR') return null;
+  const instructions = transaction.instructions ?? [];
+  const claims = instructions.flatMap((instruction) => {
+    const name = canonical(instruction.instructionName);
+    const pumpFun = instruction.programId === PUMP_FUN_PROGRAM &&
+      (name === 'collectcreatorfee' || name === 'collectcreatorfeev2') &&
+      namedAccount(instruction, 'creator') === watchedAddress;
+    const pumpSwap = instruction.programId === PUMP_AMM_PROGRAM &&
+      name === 'collectcoincreatorfee' &&
+      namedAccount(instruction, 'coin_creator') === watchedAddress;
+    if (!pumpFun && !pumpSwap) return [];
+    return [{ programId: instruction.programId!, venue: pumpFun ? 'Pump.fun' : 'PumpSwap',
+      eventName: pumpFun ? 'collectcreatorfeeevent' : 'collectcoincreatorfeeevent',
+      feeArg: pumpFun ? 'creator_fee' : 'coin_creator_fee',
+      creatorArg: pumpFun ? 'creator' : 'coin_creator',
+      quoteMint: namedAccount(instruction, 'quote_mint') }];
+  });
+  if (!claims.length) return null;
+
+  const venues = [...new Set(claims.map((claim) => claim.venue))];
+  // Event amounts are gross claims. The wallet's net SOL delta can differ due to tips and network fees.
+  const matchingEvents = instructions.filter((instruction) => claims.some((claim) =>
+    instruction.programId === claim.programId &&
+    canonical(instruction.instructionName) === claim.eventName &&
+    decodedValue(instruction, claim.creatorArg) === watchedAddress,
+  ));
+  const lamports = matchingEvents.reduce((total, event) => {
+    const claim = claims.find((candidate) => candidate.programId === event.programId)!;
+    const quoteMint = decodedValue(event, 'quote_mint') ?? claim.quoteMint;
+    if (quoteMint !== SOL_MINT && quoteMint !== SYSTEM_PROGRAM) return total;
+    const raw = Number(decodedValue(event, claim.feeArg));
+    return Number.isSafeInteger(raw) && raw > 0 ? total + raw : total;
+  }, 0);
+  const amountSol = Number.isSafeInteger(lamports) && lamports > 0 ? lamports / 1e9 : undefined;
+  const formattedAmount = amountSol == null ? '' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 9 }).format(amountSol);
+  return {
+    ...base,
+    kind: 'claim',
+    title: formattedAmount ? `Claimed ${formattedAmount} SOL in creator fees` : 'Claimed creator fees',
+    detail: venues.join(' + '),
+    source: venues.join(' + '),
+    metadata: { ...base.metadata, claim: { ...(amountSol == null ? {} : { amountSol }), venues } },
+  };
+}
+
 function instructionTouches(instruction: ParsedInstruction, watchedAddress: string) {
   return instruction.decoded?.accounts?.some((account) => account.pubkey === watchedAddress) ?? false;
 }
@@ -1110,6 +1162,9 @@ export const solanaAdapter: ChainAdapter<ParsedSolanaTransaction> = {
 
     const swap = swapActivity(transaction, watchedAddress, base);
     if (swap) return [swap];
+
+    const creatorFeeClaim = creatorFeeClaimActivity(transaction, watchedAddress, base);
+    if (creatorFeeClaim) return [creatorFeeClaim];
 
     const yieldEvent = yieldActivity(transaction, watchedAddress, base);
     if (yieldEvent) return [yieldEvent];

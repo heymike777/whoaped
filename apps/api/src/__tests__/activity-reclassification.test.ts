@@ -7,6 +7,35 @@ const walletAddress = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
 const signature = '5gd69toC169WBCN9Nq2ygKDYP1Wxfb8g2T8Xer6kLVPLj4Yk7P6Ard967rSt3P9eK6MNikUG71nyvV4ebh9GxFC3';
 
 describe('activity reclassification', () => {
+  it('upgrades an already stored balance transfer to a Pump.fun creator-fee claim', async () => {
+    const txHash = 't4Gxo9SsxLDpQmkw7Xb212G91rNzz9GiU5aYubGsbuVebNkjKn4WW3LaZve2SPHTXuD87QmwejqLsxDuHjooA2z';
+    const transaction = { _id: 'claim-old', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
+      txHash, eventIndex: 0, slot: 466_547_268, kind: 'balance', title: '+0.019 SOL', detail: 'Balance change',
+      occurredAt: new Date(), metadata: {}, createdAt: new Date(),
+    } as TransactionDocument;
+    const wallet = { _id: 'wallet-1', userId: 'user-1', name: 'Watched', address: walletAddress,
+      chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+    } as WalletDocument;
+    const payload = { signature: txHash, slot: transaction.slot, feePayer: walletAddress,
+      summary: { type: 'transfer' },
+      instructions: [
+        { programId: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P', instructionName: 'collect_creator_fee_v2',
+          decoded: { accounts: [{ name: 'creator', pubkey: walletAddress },
+            { name: 'quote_mint', pubkey: 'So11111111111111111111111111111111111111112' }] } },
+        { programId: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P', instructionName: 'CollectCreatorFeeEvent',
+          decoded: { args: { creator: walletAddress, creator_fee: '240640', quote_mint: '11111111111111111111111111111111' } } },
+      ],
+    };
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    const db = { ingestionEvents: { find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([{ externalId: txHash, payload, receivedAt: new Date() }]),
+    }) }) }, transactions: { updateOne } };
+    const [result] = await reclassifyStoredActivities([transaction], new Map([[wallet._id, wallet]]), db as never);
+    expect(result).toMatchObject({ kind: 'claim', source: 'Pump.fun', metadata: { claim: { amountSol: 0.00024064 } } });
+    expect(updateOne).toHaveBeenCalledWith({ _id: transaction._id }, expect.objectContaining({
+      $set: expect.objectContaining({ kind: 'claim' }),
+    }));
+  });
   it('upgrades a stored balance event for the supplied Magic Eden listing', async () => {
     const txHash = '3sQLPtzdegRYra6RGF5zUPZ7nZ6kKzy3VFcJYUUpEoPXgZLh9E4BNiMr5qEEha3r6cYyNe9o8zY1EogdNT1HDXXh';
     const mint = 'DgdFTE9MJd7TcoeUy9cHWJ9ye84k6tiQMU4bQdbC6VTC';
