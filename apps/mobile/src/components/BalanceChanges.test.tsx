@@ -23,8 +23,16 @@ describe('mobile balance changes', () => {
     expect(fee.props.numberOfLines).toBeUndefined();
     expect(texts.map(node => node.props.children)).toEqual(expect.arrayContaining(['SOL', 'USDC']));
   });
-  it('does not present missing history as a zero balance change', () => {
+  it('omits the whole section when there are no balance changes', () => {
     act(() => { root = TestRenderer.create(<BalanceChanges />); });
-    expect(root.root.findAllByType(Text).map(node => node.props.children)).toContain('Balance changes unavailable');
+    expect(root.toJSON()).toBeNull();
+    act(() => { root.update(<BalanceChanges lines={[' ', '']} />); });
+    expect(root.toJSON()).toBeNull();
+  });
+  it('uses a red divider and label for failed transactions with real balance changes', () => {
+    act(() => { root = TestRenderer.create(<BalanceChanges lines={['−0.000005 SOL']} failed />); });
+    const label = root.root.findAllByType(Text).find(node => node.props.children === 'NET CHANGE')!;
+    expect(StyleSheet.flatten(label.props.style).color).toBe(lightColors.destructive);
+    expect(StyleSheet.flatten(root.root.findByProps({ testID: 'balance-changes' }).props.style).borderTopColor).toBe(`${lightColors.destructive}30`);
   });
 });

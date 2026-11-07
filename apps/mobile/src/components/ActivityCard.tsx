@@ -88,7 +88,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: colors.surface,
   },
-  failedCard: { backgroundColor: `${colors.destructive}0D` },
+  failedCard: { backgroundColor: 'transparent' },
   solscanAction: { position: 'absolute', zIndex: 2, right: 12, top: 12 },
   mainRow: { paddingRight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconWrap: {
