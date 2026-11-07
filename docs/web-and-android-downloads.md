@@ -1,13 +1,13 @@
 # WhoAped website and Android builds
 
-The static website lives in `apps/web`. Its `/download/` page reads public APK assets from GitHub Releases in `Danger-Valley/whoaped-downloads`, newest first. Every release with an `.apk` asset appears in the archive; draft and prerelease assets do not. It never links to an unsigned or debug APK.
+The static website lives in `apps/web`. Its `/download/` page reads public APK assets from GitHub Releases in `Danger-Valley/whoaped-downloads`, newest first. Every release with an `.apk` asset appears in the archive; draft and prerelease assets do not. It never links to an unsigned or debug APK. `/privacy/` and `/terms/` are public legal pages; all four pages link to the policies in the footer.
 
 ## Website deployment on Vercel
 
 1. Import the GitHub repository `heymike777/whoaped` as a **new Vercel project**. Grant Vercel access to the private repository if prompted.
 2. Set **Root Directory** to `apps/web` and **Framework Preset** to `Other`. Keep the project on the `main` branch. The root directory must be set in Vercel; it cannot be inferred from the `vercel.json` inside `apps/web`.
 3. The checked-in `apps/web/vercel.json` sets the build command to `npm run build`, the output directory to `dist`, and canonical trailing slashes. No environment variables or framework installation are required.
-4. Deploy, then check both `/` and `/download/` on the Vercel URL. The download page shows an honest empty state until the separate public APK releases repository has a published build.
+4. Deploy, then check `/`, `/download/`, `/privacy/`, and `/terms/` on the Vercel URL. The download page shows an honest empty state until the separate public APK releases repository has a published build.
 5. Add `whoaped.com` (and optionally `www.whoaped.com`) in the Vercel project's Domains settings. Add the exact DNS records Vercel requests at your DNS provider. Leave `api.whoaped.com` on the existing DigitalOcean API app; do not change its routes or secrets.
 
 The site has no runtime secrets and does not need a web server, database, or API integration. `npm run check && npm run build` validates and stages its static files locally.
@@ -22,7 +22,7 @@ The shared preview image is `apps/web/assets/og-card.png` (1200 × 630), rendere
 
 Use the GA4 **whoaped.com web data stream** in the Firebase-linked property. Set its public measurement ID `G-N6ZMCJLS6S` as the Vercel **build-time** environment variable `GA_MEASUREMENT_ID` for the production environment, then redeploy the website. Do not use the separate Telegram bot stream ID, a Firebase app ID (`1:...:web:...`), or a secret API key here. The site builds without this variable, but analytics and the consent prompt remain disabled.
 
-The lightweight Google tag loads only after a visitor chooses **Allow analytics**. Declining leaves the tag unloaded. The choice is stored locally, can be revisited through **Privacy choices** in the footer, and applies to `/` and `/download/`. GA4 records page views and a `download_apk` event when a visitor clicks a GitHub APK link. No mobile-app analytics are enabled by this setting. Validate in GA4 Realtime/DebugView after consenting; no events should appear from a browser that declined.
+The lightweight Google tag loads only after a visitor chooses **Allow analytics**. Declining leaves the tag unloaded. The choice is stored locally, can be revisited through **Privacy choices** in the footer, and applies to every website page. GA4 records page views and a `download_apk` event when a visitor clicks a GitHub APK link. No mobile-app analytics are enabled by this setting. Validate in GA4 Realtime/DebugView after consenting; no events should appear from a browser that declined.
 
 ## Publish Android builds
 

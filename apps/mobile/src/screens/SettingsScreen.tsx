@@ -1,6 +1,6 @@
-import { Bell, CheckCircle2 } from 'lucide-react-native';
+import { Bell, CheckCircle2, ExternalLink } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PremiumCard } from '../components/PremiumCard';
@@ -143,6 +143,23 @@ export function SettingsScreen() {
         </View>
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>ABOUT</Text>
+        <View style={styles.linksCard}>
+          {([['Privacy Policy', 'https://whoaped.com/privacy/'], ['Terms of Service', 'https://whoaped.com/terms/']] as const).map(([label, url]) => (
+            <Pressable
+              key={label}
+              accessibilityRole="link"
+              onPress={() => { void Linking.openURL(url); }}
+              style={({ pressed }) => [styles.legalLink, pressed && styles.pressed]}
+            >
+              <Text style={styles.cardTitle}>{label}</Text>
+              <ExternalLink size={16} color={colors.textMuted} />
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
       <Text style={styles.version}>WHOAPED · 1.0.0</Text>
     </ScrollView>
   );
@@ -166,6 +183,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   smallButton: { minWidth: 58, minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 11, borderRadius: 14, backgroundColor: colors.primarySoft },
   smallButtonText: { color: colors.primary, fontFamily: typography.semibold, fontSize: 12 },
   appearanceCard: { padding: 16, borderRadius: 22, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
+  linksCard: { paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
+  legalLink: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   themeOptions: { flexDirection: 'row', gap: 6, marginTop: 18, padding: 4, borderRadius: 15, backgroundColor: colors.background },
   themeOption: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   themeOptionSelected: { backgroundColor: colors.surfaceRaised },

@@ -12,7 +12,7 @@ await mkdir(output, { recursive: true });
 for (const name of ['styles.css', 'download.js', 'theme.js', 'analytics.js']) {
   await cp(new URL(name, root), new URL(name, output));
 }
-for (const name of ['index.html', 'download/index.html']) {
+for (const name of ['index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html']) {
   const html = await readFile(new URL(name, root), 'utf8');
   await mkdir(new URL(name.substring(0, name.lastIndexOf('/') + 1), output), { recursive: true });
   await writeFile(new URL(name, output), html.replaceAll('__GA_MEASUREMENT_ID__', measurementId));
