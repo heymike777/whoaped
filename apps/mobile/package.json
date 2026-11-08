@@ -17,6 +17,7 @@
     "@react-native-community/netinfo": "^11.4.1",
     "@react-native-firebase/analytics": "26.3.2",
     "@react-native-firebase/app": "^26.0.1",
+    "@react-native-firebase/crashlytics": "^26.3.2",
     "@react-native-firebase/messaging": "^26.0.1",
     "@solana-mobile/mobile-wallet-adapter-protocol": "^3.0.1",
     "@solana/codecs-strings": "^8.6.0",

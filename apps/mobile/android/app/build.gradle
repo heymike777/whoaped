@@ -5,6 +5,7 @@ apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.grad
 
 if (file("google-services.json").exists()) {
     apply plugin: "com.google.gms.google-services"
+    apply plugin: "com.google.firebase.crashlytics"
 }
 
 /**
@@ -87,7 +88,7 @@ android {
         applicationId "com.whoaped.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20
+        versionCode 24
         versionName "1.0.0"
     }
     signingConfigs {
@@ -115,6 +116,9 @@ android {
             signingConfig signingConfigs.dappStore
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            firebaseCrashlytics {
+                nativeSymbolUploadEnabled true
+            }
         }
     }
 }

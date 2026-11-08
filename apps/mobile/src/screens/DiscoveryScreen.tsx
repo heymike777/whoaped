@@ -4,6 +4,7 @@ import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, TextInput, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { addWallet, getDiscoveryProfiles, getWallets, type DiscoveryProfile } from '../api/client';
+import { ShimmerBlock, ShimmerGroup } from '../components/Shimmer';
 import { type ThemeColors, layout, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
 
@@ -66,8 +67,9 @@ export function DiscoveryScreen() {
 
   return (
     <View style={styles.screen}>
+      <ShimmerGroup enabled={loading || loadingMore}>
       <FlatList
-        data={profiles}
+        data={loading ? [] : profiles}
         keyExtractor={profile => profile.address}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.list, { paddingTop: insets.top + 18, paddingBottom: 100 + insets.bottom }]}
@@ -91,11 +93,11 @@ export function DiscoveryScreen() {
             />
             {query ? <Pressable accessibilityLabel="Clear search" onPress={() => setQuery('')}><X size={18} color={colors.textMuted} /></Pressable> : null}
           </View>
-          <Text style={styles.count}>{loading ? 'Loading…' : `${total} profiles · Solana · Source: Kolscan`}</Text>
+          {loading ? <ShimmerBlock style={styles.loadingCount} /> : <Text style={styles.count}>{total} profiles · Solana · Source: Kolscan</Text>}
           {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
         </>}
-        ListEmptyComponent={!loading && !error ? <Text style={styles.empty}>No profiles found.</Text> : null}
-        ListFooterComponent={loadingMore ? <Text style={styles.footer}>Loading more…</Text> : null}
+        ListEmptyComponent={loading ? <DiscoveryLoadingState /> : !error ? <Text style={styles.empty}>No profiles found.</Text> : null}
+        ListFooterComponent={loadingMore ? <DiscoveryLoadingState count={1} /> : null}
         renderItem={({ item }) => <View style={styles.card}>
           <View style={styles.cardTop}>
             <View style={styles.identity}>
@@ -118,8 +120,25 @@ export function DiscoveryScreen() {
           </View>}
         </View>}
       />
+      </ShimmerGroup>
     </View>
   );
+}
+
+function DiscoveryLoadingState({ count = 3 }: { count?: number }) {
+  const { styles } = useThemedStyles(createStyles);
+  return <View accessibilityLabel="Loading Discovery profiles">
+    {Array.from({ length: count }, (_, index) => <View key={index} style={styles.card}>
+      <View style={styles.cardTop}>
+        <View style={styles.loadingIdentity}>
+          <ShimmerBlock style={styles.loadingName} />
+          <ShimmerBlock style={styles.loadingAddress} />
+        </View>
+        <ShimmerBlock style={styles.loadingTrack} />
+      </View>
+      <View style={styles.loadingSocials}><ShimmerBlock style={styles.loadingSocial} /><ShimmerBlock style={styles.loadingSocialShort} /></View>
+    </View>)}
+  </View>;
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
@@ -130,11 +149,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   search: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   input: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 0 },
   count: { color: colors.textMuted, fontSize: 12, marginTop: 18, marginBottom: 12 },
+  loadingCount: { width: 160, height: 11, marginTop: 20, marginBottom: 17 },
   error: { color: colors.destructive, marginBottom: 14 },
   empty: { color: colors.textMuted, paddingVertical: 32, textAlign: 'center' },
   footer: { color: colors.textMuted, textAlign: 'center', paddingVertical: 18 },
   card: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  loadingIdentity: { flex: 1, gap: 9 },
+  loadingName: { width: '57%', height: 15 },
+  loadingAddress: { width: '82%', height: 10 },
+  loadingTrack: { width: 70, height: 36, borderRadius: 11 },
+  loadingSocials: { marginTop: 16, flexDirection: 'row', gap: 8 },
+  loadingSocial: { width: 54, height: 27, borderRadius: 8 },
+  loadingSocialShort: { width: 88, height: 27, borderRadius: 8 },
   identity: { flex: 1, minWidth: 0 },
   name: { color: colors.text, fontFamily: typography.semibold, fontSize: 17 },
   address: { color: colors.textFaint, fontFamily: typography.mono, fontSize: 11, lineHeight: 16, marginTop: 5 },

@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
 import { PayboxImport } from '../components/PayboxImport';
+import { ShimmerBlock, ShimmerGroup } from '../components/Shimmer';
 import { addWallet, deleteWallet, getWallets } from '../api/client';
 import { isWalletAlreadyTracked, transactionCount24hLabel } from '../lib/wallets';
 import { type ThemeColors, layout, typography } from '../theme';
@@ -140,15 +141,15 @@ export function WalletsScreen() {
               />
             </View>
 
-            <View style={styles.summary}>
+            {!loading && <View style={styles.summary}>
               <Text style={styles.summaryNumber}>{wallets.length}</Text>
               <Text style={styles.summaryLabel}>{wallets.length === 1 ? 'wallet tracked' : 'wallets tracked'}</Text>
-            </View>
+            </View>}
           </>
         )}
 
         {walletError && <Text accessibilityRole="alert" style={styles.error}>{walletError}</Text>}
-        {loading && [0, 1, 2].map((item) => <View key={item} style={styles.walletSkeleton} />)}
+        {loading && <WalletsLoadingState />}
         {!loading && wallets.length === 0 && (
           <WalletEmptyState onAdd={() => setShowAdd(true)} />
         )}
@@ -211,6 +212,23 @@ function WalletEmptyState({ onAdd }: { onAdd: () => void }) {
       </View>
     </View>
   );
+}
+
+function WalletsLoadingState() {
+  const { styles } = useThemedStyles(createStyles);
+  return <ShimmerGroup>
+    <View accessibilityLabel="Loading tracked wallets">
+      <View style={styles.loadingSummary}><ShimmerBlock style={styles.loadingSummaryNumber} /><ShimmerBlock style={styles.loadingSummaryLabel} /></View>
+      {[0, 1, 2].map(item => <View key={item} style={styles.walletSkeleton}>
+        <View style={styles.loadingWalletCopy}>
+          <ShimmerBlock style={styles.loadingWalletName} />
+          <ShimmerBlock style={styles.loadingWalletAddress} />
+          <ShimmerBlock style={styles.loadingWalletActivity} />
+        </View>
+        <ShimmerBlock style={styles.loadingRemoveButton} />
+      </View>)}
+    </View>
+  </ShimmerGroup>;
 }
 
 function WalletRow({
@@ -439,7 +457,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   walletAddress: { marginTop: 4, color: colors.textMuted, fontFamily: typography.mono, fontSize: 10 },
   walletActivity: { marginTop: 6, color: colors.positive, fontFamily: typography.medium, fontWeight: '700', fontSize: 11 },
   removeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: colors.surfaceRaised },
-  walletSkeleton: { height: 88, borderRadius: 21, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
+  loadingSummary: { minHeight: 46, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, paddingTop: 4 },
+  loadingSummaryNumber: { width: 20, height: 16 },
+  loadingSummaryLabel: { width: 110, height: 12, marginTop: 2 },
+  walletSkeleton: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong, backgroundColor: colors.surface },
+  loadingWalletCopy: { flex: 1, gap: 8 },
+  loadingWalletName: { width: '43%', height: 15 },
+  loadingWalletAddress: { width: '64%', height: 10 },
+  loadingWalletActivity: { width: '30%', height: 9 },
+  loadingRemoveButton: { width: 42, height: 42, borderRadius: 15 },
   empty: { minHeight: 170, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.border },
   emptyTitle: { marginTop: 12, color: colors.text, fontFamily: typography.semibold, fontSize: 16 },
   emptyBody: { marginTop: 7, maxWidth: 260, textAlign: 'center', color: colors.textMuted, fontFamily: typography.regular, fontSize: 13, lineHeight: 19 },

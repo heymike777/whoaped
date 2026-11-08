@@ -4,12 +4,12 @@
     android:height="108dp"
     android:viewportWidth="1024"
     android:viewportHeight="1024">
-    <!-- Keep the mark inside Android's 66dp adaptive-icon safe zone. -->
+    <!-- Leave breathing room around the mark inside Android launchers' icon masks. -->
     <group
         android:pivotX="512"
         android:pivotY="512"
-        android:scaleX="0.9"
-        android:scaleY="0.9">
+        android:scaleX="0.78"
+        android:scaleY="0.78">
         <path
             android:fillColor="#00000000"
             android:pathData="M362,204 H250 C224,204 204,224 204,250 V362 M662,204 H774 C800,204 820,224 820,250 V362 M362,820 H250 C224,820 204,800 204,774 V662 M662,820 H774 C800,820 820,800 820,774 V662"

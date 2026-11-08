@@ -73,7 +73,7 @@ export async function getDiscoveryProfiles(query = '', offset = 0): Promise<Disc
 
 export async function getActivities(cursor?: string): Promise<ActivityPage> {
   if (!API_URL) return { data: [], nextCursor: null };
-  const path = `/v1/activities?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+  const path = `/v1/activities?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
   return apiFetch<ActivityPage>(path);
 }
 

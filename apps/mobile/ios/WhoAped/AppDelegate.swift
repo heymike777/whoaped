@@ -3,6 +3,7 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import Firebase
+import UserNotifications
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -32,6 +33,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
+
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    if #available(iOS 16.0, *) {
+      UNUserNotificationCenter.current().setBadgeCount(0, withCompletionHandler: nil)
+    } else {
+      UIApplication.shared.applicationIconBadgeNumber = 0
+    }
+  }
 
   func scene(
     _ scene: UIScene,

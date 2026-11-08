@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200"><title>WhoAped — Solana editorial feature graphic</title><rect x="0" y="0" width="1200" height="1200" fill="#111313"/><text font-family="Space Grotesk" font-weight="700" font-size="54" letter-spacing="-1.6199999999999999" fill="#F4F4EF"><tspan x="80" y="120.0">WhoAped</tspan></text><text font-family="Space Grotesk" font-weight="700" font-size="102" letter-spacing="-3.06" fill="#F4F4EF"><tspan x="80" y="322.0">Keep up with</tspan><tspan x="80" y="432.16">wallets.</tspan></text><g id="WhoAped-Detected-mark" transform="translate(360 550) scale(0.46875)"><rect width="1024" height="1024" fill="#111313" />
+  <path
+    d="M362 204H250C224 204 204 224 204 250V362M662 204H774C800 204 820 224 820 250V362M362 820H250C224 820 204 800 204 774V662M662 820H774C800 820 820 800 820 774V662"
+    stroke="#F4F4EF"
+    stroke-width="76"
+    stroke-linecap="round"
+  />
+  <path
+    d="M322 512C370 426 432 382 512 382C592 382 654 426 702 512C654 598 592 642 512 642C432 642 370 598 322 512Z"
+    stroke="#F4F4EF"
+    stroke-width="66"
+    stroke-linejoin="round"
+  />
+  <circle cx="512" cy="512" r="58" fill="#F04B2F" />
+</g><rect x="80" y="1068" width="1040" height="2" fill="#343B36"/><text font-family="Space Grotesk" font-weight="400" font-size="35" letter-spacing="-1.05" fill="#F4F4EF"><tspan x="80" y="1135.0">Solana wallet activity, decoded.</tspan></text></svg>

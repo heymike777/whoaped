@@ -11,6 +11,7 @@ import { WalletsScreen } from './src/screens/WalletsScreen';
 import { enablePushNotifications, observePushTokenRefresh, observeTrackingNotifications } from './src/lib/notifications';
 import { ThemeProvider, useTheme } from './src/themeContext';
 import { logMobileScreen } from './src/lib/analytics';
+import { logCrashScreen } from './src/lib/crashReporting';
 
 export default function App() {
   return <ThemeProvider><AppContent /></ThemeProvider>;
@@ -19,7 +20,7 @@ export default function App() {
 function AppContent() {
   const { colors, isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<TabKey>('activity');
-  useEffect(() => { logMobileScreen(activeTab); }, [activeTab]);
+  useEffect(() => { logMobileScreen(activeTab); logCrashScreen(activeTab); }, [activeTab]);
   useEffect(() => {
     enablePushNotifications().catch(() => undefined);
     const unsubscribeToken = observePushTokenRefresh();

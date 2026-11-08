@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="1646" viewBox="0 0 3840 1646"><title>WhoAped — Product page header</title><rect x="0" y="0" width="3840" height="1646" fill="#111313"/><rect x="0" y="245" width="3840" height="2" fill="#343B36"/><rect x="0" y="410" width="3840" height="2" fill="#343B36"/><rect x="0" y="1236" width="3840" height="2" fill="#343B36"/><rect x="0" y="1401" width="3840" height="2" fill="#343B36"/><rect x="780" y="0" width="2" height="1646" fill="#343B36"/><rect x="3060" y="0" width="2" height="1646" fill="#343B36"/><g id="WhoAped-Detected-mark" transform="translate(1104 600) scale(0.4296875)"><rect width="1024" height="1024" fill="#111313" />
+  <path
+    d="M362 204H250C224 204 204 224 204 250V362M662 204H774C800 204 820 224 820 250V362M362 820H250C224 820 204 800 204 774V662M662 820H774C800 820 820 800 820 774V662"
+    stroke="#F4F4EF"
+    stroke-width="76"
+    stroke-linecap="round"
+  />
+  <path
+    d="M322 512C370 426 432 382 512 382C592 382 654 426 702 512C654 598 592 642 512 642C432 642 370 598 322 512Z"
+    stroke="#F4F4EF"
+    stroke-width="66"
+    stroke-linejoin="round"
+  />
+  <circle cx="512" cy="512" r="58" fill="#F04B2F" />
+</g><text font-family="Space Grotesk" font-weight="700" font-size="174" letter-spacing="-5.22" fill="#F4F4EF"><tspan x="1604" y="754.0">WhoAped</tspan></text><text font-family="Space Grotesk" font-weight="500" font-size="92" letter-spacing="-2.76" fill="#F4F4EF"><tspan x="1604" y="891.0">Every wallet move.</tspan><tspan x="1604" y="990.36">Clearly.</tspan></text></svg>

@@ -24,7 +24,7 @@ export WHOAPED_ANDROID_KEYSTORE_PASSWORD="$(security find-generic-password -a wh
 export WHOAPED_ANDROID_KEY_PASSWORD="$WHOAPED_ANDROID_KEYSTORE_PASSWORD"
 
 cd "$mobile_dir/android"
-./gradlew assembleRelease --console=plain
+./gradlew assembleRelease :app:uploadCrashlyticsSymbolFileRelease --console=plain
 
 apk="$mobile_dir/android/app/build/outputs/apk/release/app-release.apk"
 "${ANDROID_HOME:-$HOME/Library/Android/sdk}/build-tools/36.0.0/apksigner" verify --print-certs "$apk"

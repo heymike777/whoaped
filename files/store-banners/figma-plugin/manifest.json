@@ -1,0 +1,9 @@
+{
+  "name": "WhoAped — Store banner artwork",
+  "id": "whoaped-store-banner-artwork",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}

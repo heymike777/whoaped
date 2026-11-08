@@ -1,13 +1,15 @@
 import { BellRing, Plus, RefreshCw, WalletCards } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getWallets } from '../api/client';
 import { ActivityCard } from '../components/ActivityCard';
+import { ActivityRenderBoundary } from '../components/ActivityRenderBoundary';
 import { BalanceChanges } from '../components/BalanceChanges';
 import { BrandMark } from '../components/BrandMark';
 import { LaunchActivityCard } from '../components/LaunchActivityCard';
+import { ShimmerBlock, ShimmerGroup } from '../components/Shimmer';
 import { SolscanWebView } from '../components/SolscanWebView';
 import { SwapActivityCard } from '../components/SwapActivityCard';
 import { YieldActivityCard } from '../components/YieldActivityCard';
@@ -15,6 +17,7 @@ import { useActivityFeed } from '../hooks/useActivityFeed';
 import { getActivityEmptyMode } from '../lib/emptyState';
 import { type ThemeColors, layout, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
+import type { Activity } from '../types';
 
 export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
   const { colors, styles } = useThemedStyles(createStyles);
@@ -36,9 +39,19 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
 
   const waitingForState = !feed.error && feed.activities.length === 0 && !walletsLoaded;
 
-  return (
-    <>
-      <ScrollView
+  return <>
+      <FlatList
+      data={feed.error || feed.isLoading || waitingForState ? [] : feed.activities}
+      keyExtractor={activity => activity.id}
+      renderItem={({ item }) => <View style={styles.feedItem}>
+        <ActivityRenderBoundary activityId={item.id} onOpenSolscan={() => setSolscanSignature(item.signature)}>
+          <ActivityFeedItem activity={item} onOpenSolscan={() => setSolscanSignature(item.signature)} />
+        </ActivityRenderBoundary>
+      </View>}
+      initialNumToRender={6}
+      maxToRenderPerBatch={5}
+      windowSize={5}
+      removeClippedSubviews={false}
       contentContainerStyle={[styles.content, width >= 700 && styles.wideContent, {
         paddingTop: insets.top + 18,
         paddingLeft: layout.gutter + (width >= 700 ? 0 : insets.left),
@@ -47,72 +60,90 @@ export function ActivityScreen({ onAddWallet }: { onAddWallet: () => void }) {
       }]}
       refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={feed.isRefreshing && !feed.isLoading} onRefresh={feed.refresh} tintColor={colors.primary} />}
       showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.brandRow}>
+      ListHeaderComponent={<View style={styles.brandRow}>
         <View style={styles.wordmark}>
           <View style={styles.mark}><BrandMark size={22} /></View>
           <Text style={styles.brand}>WhoAped</Text>
         </View>
-      </View>
-
-      <View style={styles.feedList}>
+      </View>}
+      ListEmptyComponent={<View style={styles.feedList}>
         {(feed.isLoading || waitingForState) && <LoadingState />}
         {feed.error && <ErrorState message={feed.error} onRetry={feed.refresh} />}
         {!feed.isLoading && !waitingForState && !feed.error && feed.activities.length === 0 && <EmptyState onAddWallet={onAddWallet} walletCount={walletCount} />}
-        {!feed.error && feed.activities.map((activity) => {
-          const failed = activity.kind === 'failed';
-          const visibleImpacts = activity.walletImpacts?.filter(impact =>
-            impact.balanceChanges?.some(line => typeof line === 'string' && line.trim().length > 0));
-          return <View accessibilityLabel={`${activity.walletImpacts?.map(impact => impact.walletName).join(', ') ?? activity.walletName}: ${activity.title}`} key={activity.id} style={[styles.activityItem, failed && styles.failedActivityItem]}>
-            {activity.kind === 'swap' && activity.metadata?.swap
-              ? <SwapActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} swap={activity.metadata.swap} />
-              : activity.kind === 'yield' && activity.metadata?.yield
-                ? <YieldActivityCard activity={activity} metadata={activity.metadata.yield} onOpenSolscan={() => setSolscanSignature(activity.signature)} />
-                : activity.kind === 'launch' && activity.metadata?.launch
-                  ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} onOpenSolscan={() => setSolscanSignature(activity.signature)} />
-                  : <ActivityCard activity={activity} onOpenSolscan={() => setSolscanSignature(activity.signature)} />}
-            {activity.walletImpacts && activity.walletImpacts.length > 1
-              ? visibleImpacts?.length ? <View>
-                  <Text style={[styles.walletGroupLabel, failed && styles.failedWalletGroupLabel]}>TRACKED WALLETS</Text>
-                  {visibleImpacts.map(impact => <BalanceChanges key={impact.walletId} lines={impact.balanceChanges} failed={failed}
-                    walletName={`${impact.walletName} · ${impact.walletAddress.slice(0, 6)}…${impact.walletAddress.slice(-5)}`} />)}
-                </View> : null
-              : <BalanceChanges lines={activity.metadata?.balanceChanges} failed={failed} />}
-          </View>;
-        })}
-        {!feed.error && feed.hasMore && (
+      </View>}
+      ListFooterComponent={
+        !feed.error && feed.hasMore ? (
           <View style={styles.loadMoreWrap}>
             <Pressable accessibilityRole="button" disabled={feed.isLoadingMore} onPress={feed.loadMore} style={styles.loadMoreButton}>
               <Text style={styles.loadMoreText}>{feed.isLoadingMore ? 'Loading…' : 'Load older activity'}</Text>
             </Pressable>
             {feed.loadMoreError && <Text style={styles.loadMoreError}>{feed.loadMoreError}</Text>}
           </View>
-        )}
-      </View>
-
-      </ScrollView>
+        ) : null
+      }
+      />
       <SolscanWebView onClose={() => setSolscanSignature(null)} signature={solscanSignature} />
-    </>
-  );
+    </>;
+}
+
+function ActivityFeedItem({ activity, onOpenSolscan }: { activity: Activity; onOpenSolscan: () => void }) {
+  const { styles } = useThemedStyles(createStyles);
+  const failed = activity.kind === 'failed';
+  const visibleImpacts = activity.walletImpacts?.filter(impact =>
+    impact.balanceChanges?.some(line => typeof line === 'string' && line.trim().length > 0));
+  return <View accessibilityLabel={`${activity.walletImpacts?.map(impact => impact.walletName).join(', ') ?? activity.walletName}: ${activity.title}`} style={[styles.activityItem, failed && styles.failedActivityItem]}>
+    {activity.kind === 'swap' && activity.metadata?.swap
+      ? <SwapActivityCard activity={activity} onOpenSolscan={onOpenSolscan} swap={activity.metadata.swap} />
+      : activity.kind === 'yield' && activity.metadata?.yield
+        ? <YieldActivityCard activity={activity} metadata={activity.metadata.yield} onOpenSolscan={onOpenSolscan} />
+        : activity.kind === 'launch' && activity.metadata?.launch
+          ? <LaunchActivityCard activity={activity} metadata={activity.metadata.launch} onOpenSolscan={onOpenSolscan} />
+          : <ActivityCard activity={activity} onOpenSolscan={onOpenSolscan} />}
+    {activity.walletImpacts && activity.walletImpacts.length > 1
+      ? visibleImpacts?.length ? <View>
+          <Text style={[styles.walletGroupLabel, failed && styles.failedWalletGroupLabel]}>TRACKED WALLETS</Text>
+          {visibleImpacts.map(impact => <BalanceChanges key={impact.walletId} lines={impact.balanceChanges} failed={failed}
+            walletName={`${impact.walletName} · ${impact.walletAddress.slice(0, 6)}…${impact.walletAddress.slice(-5)}`} />)}
+        </View> : null
+      : <BalanceChanges lines={activity.metadata?.balanceChanges} failed={failed} />}
+  </View>;
 }
 
 function LoadingState() {
   const { styles } = useThemedStyles(createStyles);
   return (
-    <View accessibilityLabel="Loading wallet activity">
-      {[0, 1, 2].map((item) => (
-        <View key={item} style={styles.activityItem}>
-          <View style={styles.skeletonRow}>
-            <View style={styles.signalColumn}><View style={styles.skeletonSignal} /></View>
-            <View style={styles.skeletonCopy}>
-              <View style={[styles.skeletonLine, styles.skeletonShort]} />
-              <View style={[styles.skeletonLine, styles.skeletonLong]} />
-              <View style={[styles.skeletonLine, styles.skeletonMedium]} />
+    <ShimmerGroup>
+      <View accessibilityLabel="Loading wallet activity">
+        <View style={[styles.activityItem, styles.loadingCard]}>
+          <View style={styles.loadingHeader}>
+            <ShimmerBlock style={styles.loadingIcon} />
+            <View style={styles.loadingCopy}>
+              <ShimmerBlock style={styles.loadingName} />
+              <ShimmerBlock style={styles.loadingTitle} />
             </View>
+            <ShimmerBlock style={styles.loadingBadge} />
+          </View>
+          <View style={styles.loadingSwapPanel}>
+            <View style={styles.loadingSwapRow}><View style={styles.loadingCopy}><ShimmerBlock style={styles.loadingTiny} /><ShimmerBlock style={styles.loadingAmount} /></View><ShimmerBlock style={styles.loadingToken} /></View>
+            <View style={styles.loadingPanelRule} />
+            <View style={styles.loadingSwapRow}><View style={styles.loadingCopy}><ShimmerBlock style={styles.loadingTiny} /><ShimmerBlock style={styles.loadingAmountShort} /></View><ShimmerBlock style={styles.loadingToken} /></View>
           </View>
         </View>
-      ))}
-    </View>
+        {[0, 1].map(item => <View key={item} style={[styles.activityItem, styles.loadingCard]}>
+          <View style={styles.loadingHeader}>
+            <ShimmerBlock style={styles.loadingIcon} />
+            <View style={styles.loadingCopy}>
+              <ShimmerBlock style={styles.loadingName} />
+              <ShimmerBlock style={styles.loadingTitle} />
+            </View>
+            <ShimmerBlock style={styles.loadingAction} />
+          </View>
+          <View style={styles.loadingRule} />
+          <ShimmerBlock style={styles.loadingBalanceLabel} />
+          <View style={styles.loadingBalanceRow}><ShimmerBlock style={styles.loadingCurrency} /><ShimmerBlock style={styles.loadingValue} /></View>
+        </View>)}
+      </View>
+    </ShimmerGroup>
   );
 }
 
@@ -157,11 +188,12 @@ function EmptyState({ onAddWallet, walletCount }: { onAddWallet: () => void; wal
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: { width: '100%', alignSelf: 'center' },
   wideContent: { maxWidth: 720 },
-  brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center' },
+  brandRow: { minHeight: 40, marginBottom: 24, flexDirection: 'row', alignItems: 'center' },
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.black },
   brand: { color: colors.text, fontFamily: typography.bold, fontSize: 16, letterSpacing: -0.3 },
-  feedList: { gap: 8, paddingTop: 24 },
+  feedList: { gap: 8 },
+  feedItem: { marginBottom: 8 },
   activityItem: {
     overflow: 'hidden',
     borderRadius: 16,
@@ -176,14 +208,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   loadMoreButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: colors.borderStrong },
   loadMoreText: { color: colors.text, fontFamily: typography.medium, fontSize: 13 },
   loadMoreError: { marginTop: 8, color: colors.destructive, fontFamily: typography.regular, fontSize: 12 },
-  skeletonRow: { minHeight: 116, flexDirection: 'row', paddingVertical: 18, paddingHorizontal: 14 },
-  signalColumn: { width: 34, alignItems: 'flex-start', paddingTop: 2 },
-  skeletonSignal: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.surfaceRaised },
-  skeletonCopy: { flex: 1, gap: 11 },
-  skeletonLine: { height: 10, borderRadius: 3, backgroundColor: colors.surfaceRaised },
-  skeletonShort: { width: '34%' },
-  skeletonLong: { width: '82%', height: 16 },
-  skeletonMedium: { width: '56%' },
+  loadingCard: { padding: 16, marginBottom: 8 },
+  loadingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  loadingIcon: { width: 40, height: 40, borderRadius: 12 },
+  loadingCopy: { flex: 1, gap: 8 },
+  loadingName: { width: '46%', height: 10 },
+  loadingTitle: { width: '70%', height: 16 },
+  loadingBadge: { width: 74, height: 28, borderRadius: 10 },
+  loadingAction: { width: 30, height: 30, borderRadius: 10 },
+  loadingSwapPanel: { marginTop: 16, padding: 14, borderRadius: 14, backgroundColor: colors.background, gap: 12 },
+  loadingSwapRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: 12 },
+  loadingTiny: { width: 42, height: 9 },
+  loadingAmount: { width: 116, height: 19 },
+  loadingAmountShort: { width: 94, height: 19 },
+  loadingToken: { width: 34, height: 34, borderRadius: 17 },
+  loadingPanelRule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong },
+  loadingRule: { marginTop: 16, marginBottom: 12, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  loadingBalanceLabel: { width: 88, height: 8 },
+  loadingBalanceRow: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  loadingCurrency: { width: 52, height: 13 },
+  loadingValue: { width: 104, height: 14 },
   state: { width: '100%', maxWidth: 420, alignSelf: 'center', minHeight: 330, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 38 },
   stateIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: colors.surfaceRaised },
   listeningIcon: { backgroundColor: colors.positiveSoft },

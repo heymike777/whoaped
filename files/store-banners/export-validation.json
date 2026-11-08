@@ -1,0 +1,26 @@
+{
+  "01-apple-header": {
+    "width": 3840,
+    "height": 1646,
+    "mode": "RGB",
+    "jpgBytes": 309453
+  },
+  "02-apple-search": {
+    "width": 3840,
+    "height": 2560,
+    "mode": "RGB",
+    "jpgBytes": 474461
+  },
+  "03-solana-listing-banner": {
+    "width": 1200,
+    "height": 600,
+    "mode": "RGB",
+    "jpgBytes": 86596
+  },
+  "04-solana-feature-graphic": {
+    "width": 1200,
+    "height": 1200,
+    "mode": "RGB",
+    "jpgBytes": 121276
+  }
+}
