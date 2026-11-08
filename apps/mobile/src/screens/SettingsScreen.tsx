@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PremiumCard } from '../components/PremiumCard';
 import { TelegramAccountCard } from '../components/TelegramAccountCard';
 import { getAccount, setTrackFailedTransactions } from '../api/client';
 import { enablePushNotifications, syncEnabledPushNotifications } from '../lib/notifications';
@@ -77,7 +76,6 @@ export function SettingsScreen() {
       <Text style={styles.subheading}>Account and preferences.</Text>
 
       <TelegramAccountCard />
-      <PremiumCard />
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
