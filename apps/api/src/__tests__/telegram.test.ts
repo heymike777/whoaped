@@ -33,6 +33,16 @@ describe('Telegram tracker', () => {
     mocks.userFind.mockResolvedValue({ trackFailedTransactions: true });
     discoveryMocks.catalog.mockResolvedValue({ profiles: [{ address, name: 'Example KOL', twitter: 'https://x.com/example', telegram: 'https://t.me/example' }], importedAt: new Date().toISOString() });
   });
+  it('hides Discovery from the default menu while keeping its command available', async () => {
+    await handleTelegramUpdate(update('/start'));
+    const welcome = JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string);
+    expect(welcome.text).not.toContain('/discovery');
+    expect(welcome.reply_markup.inline_keyboard.flat()).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ callback_data: 'discovery' }),
+    ]));
+    await handleTelegramUpdate(update('/discovery'));
+    expect(JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string).text).toContain('Example KOL');
+  });
   it('shows Discovery profiles, social links and explicit unavailable PnL', async () => {
     await handleTelegramUpdate(update('/discovery Example'));
     const list = JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string);

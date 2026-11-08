@@ -98,10 +98,12 @@ final class WhoApedTabBarView: UIView, UITabBarDelegate {
   @objc var onTabSelected: RCTDirectEventBlock?
 
   private let tabBar = UITabBar()
+  // Discovery remains implemented, but is not a visible tab for now.
+  private let showDiscoveryTab = false
   private lazy var tabItems: [UITabBarItem] = [
     makeItem(title: "Activity", symbol: "waveform.path.ecg", selectedSymbol: "waveform.path.ecg"),
     makeItem(title: "Wallets", symbol: "wallet.pass", selectedSymbol: "wallet.pass.fill"),
-    makeItem(title: "Discover", symbol: "safari", selectedSymbol: "safari.fill"),
+  ] + (showDiscoveryTab ? [makeItem(title: "Discover", symbol: "safari", selectedSymbol: "safari.fill")] : []) + [
     makeItem(title: "Settings", symbol: "gearshape", selectedSymbol: "gearshape.fill"),
   ]
 

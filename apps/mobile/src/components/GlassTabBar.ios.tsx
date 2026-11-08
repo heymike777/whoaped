@@ -16,7 +16,8 @@ type NativeProps = ViewProps & {
   onTabSelected: (event: NativeSyntheticEvent<{ index: number }>) => void;
 };
 
-const tabOrder: TabKey[] = ['activity', 'wallets', 'discovery', 'settings'];
+// Keep the Discovery route available, but hide its tab until the feature is ready to surface again.
+const tabOrder: TabKey[] = ['activity', 'wallets', 'settings'];
 const NativeLiquidGlassTabBar = requireNativeComponent<NativeProps>('WhoApedTabBar');
 
 export function GlassTabBar({ activeTab, onChange }: Props) {

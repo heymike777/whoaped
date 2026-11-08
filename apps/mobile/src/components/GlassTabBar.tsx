@@ -18,7 +18,7 @@ const tabs = [
   { key: 'wallets' as const, label: 'Wallets', Icon: WalletCards },
   { key: 'discovery' as const, label: 'Discover', Icon: Compass },
   { key: 'settings' as const, label: 'Settings', Icon: Settings },
-];
+].filter(({ key }) => key !== 'discovery');
 
 export function GlassTabBar({ activeTab, onChange }: Props) {
   const { colors, styles } = useThemedStyles(createStyles);
