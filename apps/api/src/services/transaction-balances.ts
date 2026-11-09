@@ -1,5 +1,6 @@
 import type { ParsedSolanaTransaction } from '../chains/solana.js';
 import type { NormalizedActivity } from '../chains/types.js';
+import { touchedByOpaqueInstruction } from './native-balance-reconciliation.js';
 
 const symbols: Record<string, string> = {
   So11111111111111111111111111111111111111112: 'WSOL',
@@ -122,6 +123,12 @@ export function transactionBalanceLines(transaction: ParsedSolanaTransaction, ad
   for (const [mint, { amount, decimals }] of tokens) {
     if (amount !== 0n) lines.push(`${signedAmount(amount, decimals)} ${labels[mint] ?? mint}`);
   }
-  if (!lines.length) lines.push(native != null || tokens.size ? 'No balance changes' : 'Balance changes unavailable');
+  if (!lines.length) {
+    const hasAuthoritativeNative = transaction.nativeBalanceChanges?.[address] != null
+      || transaction.accountData?.find(account => account.account === address)?.nativeBalanceChange != null;
+    lines.push(!hasAuthoritativeNative && touchedByOpaqueInstruction(transaction, address)
+      ? 'Balance changes unavailable'
+      : native != null || tokens.size ? 'No balance changes' : 'Balance changes unavailable');
+  }
   return lines;
 }

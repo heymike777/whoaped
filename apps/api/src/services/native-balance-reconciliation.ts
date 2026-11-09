@@ -10,13 +10,22 @@ function hasAccountClosure(transaction: ParsedSolanaTransaction) {
     (instruction.instructionName ?? '').replace(/[^a-z]/gi, '').toLowerCase().includes('close')) ?? false;
 }
 
+export function touchedByOpaqueInstruction(transaction: ParsedSolanaTransaction, address: string) {
+  // Parsed Events can omit lamport movements made by an undecoded program.
+  // Only look up wallets explicitly passed to that instruction.
+  return transaction.instructions?.some((instruction) =>
+    !instruction.instructionName && instruction.rawAccounts?.includes(address)) ?? false;
+}
+
 export async function reconcileNativeBalanceChanges(
   transaction: ParsedSolanaTransaction,
   watchedAddresses: string[],
 ): Promise<ParsedSolanaTransaction> {
   const missing = [...new Set(watchedAddresses)].filter((address) =>
-    transaction.nativeBalanceChanges?.[address] == null);
-  if (!missing.length || !hasAccountClosure(transaction)) return transaction;
+    transaction.nativeBalanceChanges?.[address] == null
+    && transaction.accountData?.find((account) => account.account === address)?.nativeBalanceChange == null
+    && (hasAccountClosure(transaction) || touchedByOpaqueInstruction(transaction, address)));
+  if (!missing.length) return transaction;
 
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey) return transaction;

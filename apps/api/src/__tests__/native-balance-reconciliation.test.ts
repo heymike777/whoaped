@@ -4,6 +4,8 @@ import { solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js
 import type { TransactionDocument, WalletDocument } from '../db.js';
 import { reclassifyStoredActivities } from '../services/activity-reclassification.js';
 import { reconcileNativeBalanceChanges } from '../services/native-balance-reconciliation.js';
+import { formatTelegramActivity } from '../services/telegram-activity-format.js';
+import { transactionBalanceLines } from '../services/transaction-balances.js';
 
 const signature = '3xjqax8cPC3wZQNekQiDaqRdTMJTVtZDYyzKharQZd2zNvASADLYXHBQRe2d7U3ftVemqNeTnpF81PY8o5V91f8V';
 const wallet = 'kFee8WRgfV6CwNxFS4QzhqyMLm3ZMbpyshZakRGPiic';
@@ -62,6 +64,40 @@ describe('native SOL balance reconciliation', () => {
     expect(await reconcileNativeBalanceChanges(ordinary, [wallet])).toBe(ordinary);
     expect(solanaAdapter.normalize(ordinary, wallet)[0].title).toBe('−0.001155 SOL');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('recovers SOL received through an opaque program even when Parsed Events omits the transfer', async () => {
+    const recipient = 'heyRCBh8cD3GjtkdmW6PcNTqWUgJz67tgZ5GCvUNiqD';
+    const feePayer = 'W97m2N12NdSgWu3bppYCPHdXNwz15SDUZNoD5jNFaqH';
+    const opaque = {
+      signature: '3uDEpv8h6x1mkkbgZuvXJ7cppx36JeC3PD7dmZbtKD49cSmGvdgwYGs9mPRHfvJnPxkvgC57rHTTNbaWFbbbUpZJ',
+      slot: 467_362_696,
+      feePayer,
+      fee: 165_000,
+      nativeTransfers: [{ fromUserAccount: feePayer, toUserAccount: 'other-account', amount: 695_960 }],
+      instructions: [{ programId: '9fhQBbumKEFuXtMBDw8AaQyAjCorLGJQiS3skWZdQyQD',
+        programName: null, instructionName: null, rawAccounts: [feePayer, recipient] }],
+    } satisfies ParsedSolanaTransaction;
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ result: {
+      transaction: { message: { accountKeys: [{ pubkey: feePayer }, { pubkey: recipient }] } },
+      meta: { preBalances: [9392652888, 6_963_371], postBalances: [9391095968, 529_108_371] },
+    } }) });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('HELIUS_API_KEY', 'test-key');
+
+    expect(transactionBalanceLines(opaque, recipient, [])).toEqual(['Balance changes unavailable']);
+    expect(solanaAdapter.normalize(opaque, recipient)).toEqual([]);
+
+    const corrected = await reconcileNativeBalanceChanges(opaque, [recipient]);
+    const activities = solanaAdapter.normalize(corrected, recipient);
+    const watched = { _id: 'wallet-2', userId: 'user-1', name: 'HeyWallet', address: recipient,
+      chain: 'solana', status: 'active', createdAt: new Date() } as WalletDocument;
+
+    expect(corrected.nativeBalanceChanges?.[recipient]).toBe(522_145_000);
+    expect(activities[0]).toMatchObject({ kind: 'balance', title: '+0.522145 SOL' });
+    expect(transactionBalanceLines(corrected, recipient, activities)).toEqual(['+0.522145 SOL']);
+    expect(formatTelegramActivity(watched, corrected, activities)).toContain('• <code>+0.522145 SOL</code>');
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('repairs an already stored wrong-sign balance from the saved parsed event', async () => {
