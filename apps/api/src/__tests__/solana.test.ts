@@ -1,10 +1,42 @@
 import { describe, expect, it } from 'vitest';
 
-import { isDustInboundTransfer, solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
+import { isDustInboundTransfer, solanaAdapter, walletHasDirectActivity, type ParsedSolanaTransaction } from '../chains/solana.js';
 
 const wallet = '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe';
 const sol = 'So11111111111111111111111111111111111111112';
 const usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
+describe('wallet participation', () => {
+  it('does not confuse a read-only Pump AMM account with the trader', () => {
+    const creator = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
+    const trader = '41g6ZszUMGqw5dDokJLDtGiyzpCoXYMR4BUscxaQeAtK';
+    const payload = parsedTransaction({
+      signature: '2wcGijtz5XZ8dVAJBtqD3d79FpGMxrUR5d9fPXuEjZcKcmBr7SvSdZtRgdkvrPwUZgwqrvNRP8QuQv2eoMprg3UQ',
+      slot: 468_073_539,
+      feePayer: trader,
+      accountKeys: [trader, creator],
+      summary: { type: 'swap', parsedData: { protocol: 'pump_fun_amm',
+        input_mint: '8Uajau44UoTrk9tWYao8Ev8CWxq99w2h868BKav3bonk', output_mint: sol,
+        in_amount: '255083648', actual_out_amount: '167903529' } },
+      tokenTransfers: [{ fromUserAccount: trader, toUserAccount: 'pool',
+        mint: '8Uajau44UoTrk9tWYao8Ev8CWxq99w2h868BKav3bonk', rawTokenAmount: 255_083_648, decimals: 6 }],
+      instructions: [{ programName: 'pump_amm', instructionName: 'buy_exact_quote_in',
+        rawAccounts: [trader, creator], decoded: { accounts: [
+          { name: 'user', pubkey: trader, isSigner: true },
+          { name: 'coin_creator', pubkey: creator, isSigner: false },
+        ] } }],
+    });
+    expect(solanaAdapter.extractAddresses(payload)).toContain(creator);
+    expect(walletHasDirectActivity(payload, creator)).toBe(false);
+    expect(walletHasDirectActivity(payload, trader)).toBe(true);
+  });
+
+  it('keeps real balance movements and signed zero-balance actions', () => {
+    expect(walletHasDirectActivity(parsedTransaction({ nativeBalanceChanges: { [wallet]: 522_145_000 } }), wallet)).toBe(true);
+    expect(walletHasDirectActivity(parsedTransaction({ instructions: [{ instructionName: 'proposal_approve',
+      decoded: { accounts: [{ name: 'member', pubkey: wallet, isSigner: true }] } }] }), wallet)).toBe(true);
+  });
+});
 
 function parsedTransaction(overrides: Partial<ParsedSolanaTransaction>): ParsedSolanaTransaction {
   return {

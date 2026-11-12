@@ -973,6 +973,29 @@ function isPlainTransferInstruction(
   return false;
 }
 
+/** An account mentioned as a read-only protocol parameter is not a participant. */
+export function walletHasDirectActivity(transaction: ParsedSolanaTransaction, watchedAddress: string) {
+  if (transaction.feePayer === watchedAddress) return true;
+  if (transaction.nativeBalanceChanges?.[watchedAddress]) return true;
+  if (transaction.accountData?.some((account) =>
+    (account.account === watchedAddress && Boolean(account.nativeBalanceChange))
+    || account.tokenBalanceChanges?.some((change) => {
+      const raw = typeof change.rawTokenAmount === 'object'
+        ? change.rawTokenAmount.tokenAmount : change.rawTokenAmount;
+      return change.userAccount === watchedAddress && raw != null
+        && Number.isFinite(Number(raw)) && Number(raw) !== 0;
+    }))) return true;
+  if (transaction.nativeTransfers?.some((transfer) =>
+    (transfer.fromUserAccount === watchedAddress || transfer.toUserAccount === watchedAddress)
+    && Number(transfer.amount) > 0)) return true;
+  if (transaction.tokenTransfers?.some((transfer) =>
+    (transfer.fromUserAccount === watchedAddress || transfer.toUserAccount === watchedAddress)
+    && transfer.rawTokenAmount != null && Number.isFinite(Number(transfer.rawTokenAmount))
+    && Number(transfer.rawTokenAmount) !== 0)) return true;
+  return transaction.instructions?.some((instruction) => instruction.decoded?.accounts?.some((account) =>
+    account.pubkey === watchedAddress && account.isSigner === true)) ?? false;
+}
+
 /** Suppress only provable, unsigned, inbound dust transfers—not protocol activity. */
 export function isDustInboundTransfer(transaction: ParsedSolanaTransaction, watchedAddress: string) {
   if (transaction.feePayer === watchedAddress) return false;

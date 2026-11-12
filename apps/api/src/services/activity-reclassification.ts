@@ -1,4 +1,4 @@
-import { isDustInboundTransfer, solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
+import { isDustInboundTransfer, solanaAdapter, walletHasDirectActivity, type ParsedSolanaTransaction } from '../chains/solana.js';
 import type { Collections, TransactionDocument, WalletDocument } from '../db.js';
 import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
 import { enrichActivityMetadata } from './token-metadata.js';
@@ -48,6 +48,10 @@ export async function reclassifyStoredActivities(
     const wallet = walletById.get(transaction.walletId);
     const payload = eventBySignature.get(transaction.txHash)?.payload;
     if (!wallet || !isParsedSolanaTransaction(payload)) return transaction;
+    if (transaction.kind === 'swap' && !walletHasDirectActivity(payload, wallet.address)) {
+      await db.transactions.updateOne({ _id: transaction._id }, { $set: { suppressed: true } });
+      return null;
+    }
     if (transaction.kind === 'balance' && isDustInboundTransfer(payload, wallet.address)) {
       await db.transactions.updateOne({ _id: transaction._id }, { $set: { suppressed: true } });
       return null;

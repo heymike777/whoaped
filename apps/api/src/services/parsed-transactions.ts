@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { isDustInboundTransfer, solanaAdapter, type ParsedSolanaTransaction } from '../chains/solana.js';
+import { isDustInboundTransfer, solanaAdapter, walletHasDirectActivity, type ParsedSolanaTransaction } from '../chains/solana.js';
 import { collections, type WalletDocument } from '../db.js';
 import { enrichActivityMetadata } from './token-metadata.js';
 import { admitAccountTransaction, walletTrackingEligible } from './rate-limits.js';
 import { withAccountMutation } from './accounts.js';
 import { enqueueTelegramTransactionGroup } from './telegram.js';
-import { reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
+import { needsNativeReconciliation, reconcileNativeBalanceChanges } from './native-balance-reconciliation.js';
 import { transactionBalanceLines } from './transaction-balances.js';
 
 export async function ingestParsedTransaction(
@@ -36,6 +36,8 @@ export async function ingestParsedTransaction(
   let cooldownStarted = false;
   for (const wallet of wallets) {
     if (failed && !enabledFailedAccounts?.has(wallet.userId)) continue;
+    if (!failed && !walletHasDirectActivity(transaction, wallet.address)
+      && !needsNativeReconciliation(transaction, wallet.address)) continue;
     if (!failed && isDustInboundTransfer(transaction, wallet.address)) continue;
     if (!await walletTrackingEligible(wallet, transaction.slot, transaction.blockTime)) continue;
     // Admission itself resolves aliases and serializes concurrent stream connections.
@@ -50,7 +52,9 @@ export async function ingestParsedTransaction(
   if (cooldownStarted) await options.onCooldown?.();
   if (!eligibleWallets.length) return { activities: 0 };
   if (!failed) transaction = await reconcileNativeBalanceChanges(transaction, eligibleWallets.map((wallet) => wallet.address));
-  const normalizedByWallet = await Promise.all(eligibleWallets.map(async (wallet) => ({
+  const involvedWallets = failed ? eligibleWallets : eligibleWallets.filter((wallet) => walletHasDirectActivity(transaction, wallet.address));
+  if (!involvedWallets.length) return { activities: 0 };
+  const normalizedByWallet = await Promise.all(involvedWallets.map(async (wallet) => ({
     wallet,
     activities: await Promise.all((failed ? [{
       chain: 'solana' as const, txHash: transaction.signature, eventIndex: 0,

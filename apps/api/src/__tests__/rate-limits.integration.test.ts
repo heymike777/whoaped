@@ -90,7 +90,12 @@ describe('per-account transaction limits', () => {
     expect(await db.rateEvents.countDocuments({ userId: user })).toBe(20);
   }, 15_000);
   it('charges one signature across all wallets, including unclassified transactions', async () => {
-    await ingest({ signature: 'both-wallets', slot: 500, accountKeys: [address, exclusive] }, { provider: 'helius-parsed-stream' });
+    await ingest({ signature: 'both-wallets', slot: 500, accountKeys: [address, exclusive],
+      instructions: [{ instructionName: 'authorize', decoded: { accounts: [
+        { name: 'first_signer', pubkey: address, isSigner: true },
+        { name: 'second_signer', pubkey: exclusive, isSigner: true },
+      ] } }],
+    }, { provider: 'helius-parsed-stream' });
     expect(await db.rateEvents.countDocuments({ userId: user })).toBe(1);
     expect(await db.telegramJobs.countDocuments({ txHash: 'both-wallets' })).toBe(1);
     const message = await db.telegramJobs.findOne({ txHash: 'both-wallets' });
@@ -135,7 +140,7 @@ describe('per-account transaction limits', () => {
     await db.trackingStates.deleteMany({});
     const onCooldown = vi.fn().mockResolvedValue(undefined);
     vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({
-      data: Array.from({ length: 100 }, (_, i) => ({ parserStatus: 'OK', signature: `history:${i}`, parsed: { slot: i + 1, accountKeys: [address] } })), paginationToken: 'more',
+      data: Array.from({ length: 100 }, (_, i) => ({ parserStatus: 'OK', signature: `history:${i}`, parsed: { slot: i + 1, accountKeys: [address], feePayer: address } })), paginationToken: 'more',
     }) } as Response);
     const result = await history(address, 1, 1000, 20, { onCooldown });
     expect(result.pages).toBe(1); expect(fetch).toHaveBeenCalledTimes(1);
@@ -185,7 +190,8 @@ describe('per-account transaction limits', () => {
     await seed(19);
     const adapter = (await import('../chains/solana.js')).solanaAdapter;
     const spy = vi.spyOn(adapter, 'normalize');
-    await ingest({ signature: 'over', slot: 701, accountKeys: [address], instructions: [{ instructionName: 'closeAccount' }] }, { provider: 'helius-parsed-stream' });
+    await ingest({ signature: 'over', slot: 701, accountKeys: [address], feePayer: address,
+      instructions: [{ instructionName: 'closeAccount' }] }, { provider: 'helius-parsed-stream' });
     expect(spy).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
     spy.mockRestore();
   });

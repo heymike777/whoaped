@@ -7,6 +7,29 @@ const walletAddress = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
 const signature = '5gd69toC169WBCN9Nq2ygKDYP1Wxfb8g2T8Xer6kLVPLj4Yk7P6Ard967rSt3P9eK6MNikUG71nyvV4ebh9GxFC3';
 
 describe('activity reclassification', () => {
+  it('hides a previously stored swap attributed to a read-only Pump AMM account', async () => {
+    const txHash = '2wcGijtz5XZ8dVAJBtqD3d79FpGMxrUR5d9fPXuEjZcKcmBr7SvSdZtRgdkvrPwUZgwqrvNRP8QuQv2eoMprg3UQ';
+    const transaction = { _id: 'swap-readonly', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',
+      txHash, eventIndex: 0, slot: 468_073_539, kind: 'swap', title: 'Swapped token → SOL',
+      detail: 'Pump.fun', occurredAt: new Date(), metadata: {}, createdAt: new Date(),
+    } as TransactionDocument;
+    const wallet = { _id: 'wallet-1', userId: 'user-1', name: 'heymike.sns', address: walletAddress,
+      chain: 'solana', status: 'active', createdAt: new Date(), deletedAt: null,
+    } as WalletDocument;
+    const payload = { signature: txHash, slot: transaction.slot,
+      feePayer: '41g6ZszUMGqw5dDokJLDtGiyzpCoXYMR4BUscxaQeAtK',
+      summary: { type: 'swap' },
+      instructions: [{ programName: 'pump_amm', instructionName: 'buy_exact_quote_in',
+        decoded: { accounts: [{ name: 'coin_creator', pubkey: walletAddress, isSigner: false }] } }],
+    };
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    const db = { ingestionEvents: { find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([{ externalId: txHash, payload, receivedAt: new Date() }]),
+    }) }) }, transactions: { updateOne } };
+    expect(await reclassifyStoredActivities([transaction], new Map([[wallet._id, wallet]]), db as never)).toEqual([]);
+    expect(updateOne).toHaveBeenCalledWith({ _id: transaction._id }, { $set: { suppressed: true } });
+  });
+
   it('upgrades an already stored balance transfer to a Pump.fun creator-fee claim', async () => {
     const txHash = 't4Gxo9SsxLDpQmkw7Xb212G91rNzz9GiU5aYubGsbuVebNkjKn4WW3LaZve2SPHTXuD87QmwejqLsxDuHjooA2z';
     const transaction = { _id: 'claim-old', userId: 'user-1', walletId: 'wallet-1', chain: 'solana',

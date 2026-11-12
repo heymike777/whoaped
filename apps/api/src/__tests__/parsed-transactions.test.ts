@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   notificationUpdateOne: vi.fn(),
   usersFind: vi.fn(),
   userFindOne: vi.fn(),
+  admit: vi.fn(),
 }));
 
 vi.mock('../db.js', () => ({
@@ -31,7 +32,7 @@ vi.mock('../services/accounts.js', async (importOriginal) => ({
 
 vi.mock('../services/rate-limits.js', () => ({
   walletTrackingEligible: async () => true,
-  admitAccountTransaction: async (userId: string) => ({ allowed: true, cooldownStarted: false, accountId: userId }),
+  admitAccountTransaction: mocks.admit,
 }));
 
 import type { ParsedSolanaTransaction } from '../chains/solana.js';
@@ -62,6 +63,7 @@ describe('parsed transaction ingestion', () => {
     mocks.transactionUpdateOne.mockResolvedValue({ upsertedCount: 1 });
     mocks.usersFind.mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) });
     mocks.userFindOne.mockResolvedValue({ trackFailedTransactions: true });
+    mocks.admit.mockImplementation(async (userId: string) => ({ allowed: true, cooldownStarted: false, accountId: userId }));
     mocks.deviceFind.mockReturnValue({ toArray: vi.fn().mockResolvedValue([{
       _id: 'device-1', userId: 'user-1', token: 'push-token',
     }]) });
@@ -153,5 +155,62 @@ describe('parsed transaction ingestion', () => {
     expect(mocks.ingestionUpdateOne).not.toHaveBeenCalled();
     expect(mocks.transactionUpdateOne).not.toHaveBeenCalled();
     expect(mocks.notificationUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('does not notify a read-only address about another wallet\'s Pump.fun swap', async () => {
+    const creator = '9Xt9Zj9HoAh13MpoB6hmY9UZz37L4Jabtyn8zE7AAsL';
+    const trader = '41g6ZszUMGqw5dDokJLDtGiyzpCoXYMR4BUscxaQeAtK';
+    mocks.walletFind.mockReturnValue({ toArray: vi.fn().mockResolvedValue([{
+      _id: 'wallet-1', userId: 'user-1', name: 'heymike.sns', address: creator,
+    }]) });
+    const result = await ingestParsedTransaction(transaction({
+      signature: '2wcGijtz5XZ8dVAJBtqD3d79FpGMxrUR5d9fPXuEjZcKcmBr7SvSdZtRgdkvrPwUZgwqrvNRP8QuQv2eoMprg3UQ',
+      slot: 468_073_539, feePayer: trader, accountKeys: [trader, creator], nativeTransfers: [],
+      summary: { type: 'swap', parsedData: { protocol: 'pump_fun_amm',
+        input_mint: '8Uajau44UoTrk9tWYao8Ev8CWxq99w2h868BKav3bonk',
+        output_mint: 'So11111111111111111111111111111111111111112',
+        in_amount: '255083648', actual_out_amount: '167903529' } },
+      tokenTransfers: [{ fromUserAccount: trader, toUserAccount: 'pool',
+        mint: '8Uajau44UoTrk9tWYao8Ev8CWxq99w2h868BKav3bonk', rawTokenAmount: 255_083_648, decimals: 6 }],
+      instructions: [{ programName: 'pump_amm', instructionName: 'buy_exact_quote_in',
+        decoded: { accounts: [{ name: 'coin_creator', pubkey: creator, isSigner: false }] } },
+      { programName: 'token', instructionName: 'close_account', rawAccounts: [trader, 'temporary-wsol-account'] }],
+    }), { provider: 'helius-parsed-stream' });
+    expect(result).toEqual({ activities: 0 });
+    expect(mocks.ingestionUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.transactionUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.notificationUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.admit).not.toHaveBeenCalled();
+  });
+
+  it('still ingests an opaque transfer after RPC reveals the watched wallet received SOL', async () => {
+    const recipient = 'heyRCBh8cD3GjtkdmW6PcNTqWUgJz67tgZ5GCvUNiqD';
+    mocks.walletFind.mockReturnValue({ toArray: vi.fn().mockResolvedValue([{
+      _id: 'wallet-1', userId: 'user-1', name: 'HeyWallet', address: recipient,
+    }]) });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ result: {
+      transaction: { message: { accountKeys: [{ pubkey: recipient }] } },
+      meta: { preBalances: [6_963_371], postBalances: [529_108_371] },
+    } }) });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('HELIUS_API_KEY', 'test-key');
+    try {
+      const result = await ingestParsedTransaction(transaction({
+        signature: '3uDEpv8h6x1mkkbgZuvXJ7cppx36JeC3PD7dmZbtKD49cSmGvdgwYGs9mPRHfvJnPxkvgC57rHTTNbaWFbbbUpZJ',
+        slot: 467_362_696, feePayer: 'other-payer', accountKeys: [recipient], nativeTransfers: [],
+        instructions: [{ programId: 'opaque-program', instructionName: null, rawAccounts: [recipient] }],
+      }), { provider: 'helius-parsed-stream' });
+      expect(result).toEqual({ activities: 1 });
+      expect(mocks.transactionUpdateOne).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        $set: expect.objectContaining({ title: '+0.522145 SOL', metadata: expect.objectContaining({
+          balanceChanges: ['+0.522145 SOL'],
+        }) }),
+      }), expect.anything());
+      expect(mocks.notificationUpdateOne).toHaveBeenCalledOnce();
+      expect(fetchMock).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
   });
 });

@@ -5,9 +5,11 @@ type RpcTransaction = {
   meta?: { preBalances?: number[]; postBalances?: number[] };
 };
 
-function hasAccountClosure(transaction: ParsedSolanaTransaction) {
+function hasAccountClosure(transaction: ParsedSolanaTransaction, address: string) {
   return transaction.instructions?.some((instruction) =>
-    (instruction.instructionName ?? '').replace(/[^a-z]/gi, '').toLowerCase().includes('close')) ?? false;
+    (instruction.instructionName ?? '').replace(/[^a-z]/gi, '').toLowerCase().includes('close')
+    && (transaction.feePayer === address || instruction.rawAccounts?.includes(address)
+      || instruction.decoded?.accounts?.some((account) => account.pubkey === address))) ?? false;
 }
 
 export function touchedByOpaqueInstruction(transaction: ParsedSolanaTransaction, address: string) {
@@ -17,14 +19,17 @@ export function touchedByOpaqueInstruction(transaction: ParsedSolanaTransaction,
     !instruction.instructionName && instruction.rawAccounts?.includes(address)) ?? false;
 }
 
+export function needsNativeReconciliation(transaction: ParsedSolanaTransaction, address: string) {
+  return transaction.nativeBalanceChanges?.[address] == null
+    && transaction.accountData?.find((account) => account.account === address)?.nativeBalanceChange == null
+    && (hasAccountClosure(transaction, address) || touchedByOpaqueInstruction(transaction, address));
+}
+
 export async function reconcileNativeBalanceChanges(
   transaction: ParsedSolanaTransaction,
   watchedAddresses: string[],
 ): Promise<ParsedSolanaTransaction> {
-  const missing = [...new Set(watchedAddresses)].filter((address) =>
-    transaction.nativeBalanceChanges?.[address] == null
-    && transaction.accountData?.find((account) => account.account === address)?.nativeBalanceChange == null
-    && (hasAccountClosure(transaction) || touchedByOpaqueInstruction(transaction, address)));
+  const missing = [...new Set(watchedAddresses)].filter((address) => needsNativeReconciliation(transaction, address));
   if (!missing.length) return transaction;
 
   const apiKey = process.env.HELIUS_API_KEY;
