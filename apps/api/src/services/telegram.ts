@@ -19,6 +19,7 @@ import { claimDiscoveryReportChat, formatDiscoveryReport, getDiscoveryCatalog, i
 
 const starsPaymentSchema = z.object({ currency: z.string(), total_amount: z.number().int().positive(), invoice_payload: z.string().max(128), telegram_payment_charge_id: z.string().min(1).max(256) });
 const messageSchema = z.object({
+  message_id: z.number().int().safe().nonnegative().optional(),
   chat: z.object({ id: z.number().int().safe(), type: z.string() }),
   from: z.object({ id: z.number().int().safe(), is_bot: z.boolean().optional(), username: z.string().optional() }).optional(),
   text: z.string().max(4096).optional(),
@@ -207,17 +208,30 @@ export async function handleTelegramUpdate(update: Update) {
       return send(chatId, 'Portfolio is temporarily unavailable. Please try again later.');
     }
   }
-  if (command === '/settings' || command === 'settings' || command.startsWith('settings:failed:')) {
-    if (command === 'settings:failed:on' || command === 'settings:failed:off') {
+  const togglesFailedTransactions = command === 'settings:failed:on' || command === 'settings:failed:off';
+  if (command === '/settings' || command === 'settings' || togglesFailedTransactions) {
+    if (togglesFailedTransactions) {
+      if (!callback || !message.message_id) return;
       await setTrackFailedTransactions(userId, command.endsWith(':on'));
     }
     const accountId = await canonicalAccountId(userId, db);
     const user = await db.users.findOne({ _id: accountId });
     const enabled = user?.trackFailedTransactions === true;
-    return send(chatId, `Transaction settings\n\nFailed onchain transactions: ${enabled ? 'On' : 'Off'}\n\nThese landed in a block but failed during execution. Attempts that never land onchain are not visible. This setting is shared with the mobile app.`, [[{
-      text: enabled ? 'Turn off failed transactions' : 'Turn on failed transactions',
+    const settingsText = `Transaction settings\n\nFailed onchain transactions: ${enabled ? 'On' : 'Off'}\n\nThese landed in a block but failed during execution. Attempts that never land onchain are not visible. This setting is shared with the mobile app.`;
+    const buttons = [[{
+      text: enabled ? '🟢 Failed transactions' : '🔴 Failed transactions',
       callback_data: enabled ? 'settings:failed:off' : 'settings:failed:on',
-    }], ...menu]);
+    }], ...menu];
+    if (!togglesFailedTransactions) return send(chatId, settingsText, buttons);
+    try {
+      await telegramCall('editMessageText', {
+        chat_id: chatId, message_id: message.message_id, text: settingsText,
+        reply_markup: { inline_keyboard: buttons },
+      });
+    } catch (error) {
+      if (!(error instanceof TelegramError) || !error.messageNotModified) throw error;
+    }
+    return;
   }
   if (command === '/terms') return send(chatId, PAYMENT_TERMS);
   if (command === '/paysupport') {

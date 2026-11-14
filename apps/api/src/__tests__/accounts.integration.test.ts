@@ -58,27 +58,37 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     expect((await accounts.getAccount(source)).preferences.trackFailedTransactions).toBe(true);
     const telegram = await import('../services/telegram.js');
     await telegram.handleTelegramUpdate({ update_id: 98, message: { chat: { id: 123, type: 'private' }, from: { id: 123 }, text: '/settings' } });
-    expect(JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string).text).toContain('Failed onchain transactions: On');
+    const settings = JSON.parse(vi.mocked(fetch).mock.calls.at(-1)![1]!.body as string);
+    expect(settings.text).toContain('Failed onchain transactions: On');
+    expect(settings.reply_markup.inline_keyboard[0]).toEqual([{ text: '🟢 Failed transactions', callback_data: 'settings:failed:off' }]);
+    const message = { message_id: 314, chat: { id: 123, type: 'private' } };
+    async function toggle(updateId: number, state: 'on' | 'off') {
+      const requestStart = vi.mocked(fetch).mock.calls.length;
+      await telegram.handleTelegramUpdate(telegram.telegramUpdateSchema.parse({ update_id: updateId, callback_query: {
+        id: `failed-${state}`, data: `settings:failed:${state}`, from: { id: 123 }, message,
+      } }));
+      const calls = vi.mocked(fetch).mock.calls.slice(requestStart);
+      expect(calls.map(([url]) => String(url).split('/').at(-1))).toEqual(['answerCallbackQuery', 'editMessageText']);
+      return JSON.parse(calls[1][1]!.body as string);
+    }
     await db.deviceTokens.insertOne({ _id: 'failed-device', userId: target, token: 'push-token', platform: 'ios', createdAt: now, lastSeenAt: now });
     const { ingestParsedTransaction } = await import('../services/parsed-transactions.js');
     await ingestParsedTransaction({ signature: 'failed-opt-in', status: 'error', slot: 250, accountKeys: [address] }, { provider: 'helius-parsed-stream' });
     expect(await db.transactions.countDocuments({ userId: target, kind: 'failed', txHash: 'failed-opt-in' })).toBe(1);
     expect(await db.telegramJobs.countDocuments({ txHash: 'failed-opt-in', kind: 'failed', status: 'pending' })).toBe(1);
     expect(await db.notificationJobs.countDocuments({ userId: target, failedTransaction: true, status: 'pending' })).toBe(1);
-    const disabled = await app.request('/v1/account/preferences', {
-      method: 'PATCH', headers: { Authorization: 'Bearer mobile-token', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trackFailedTransactions: false }),
-    });
-    expect(disabled.status).toBe(200);
+    const disabled = await toggle(99, 'off');
+    expect(disabled).toMatchObject({ chat_id: '123', message_id: 314 });
+    expect(disabled.text).toContain('Failed onchain transactions: Off');
+    expect(disabled.reply_markup.inline_keyboard[0]).toEqual([{ text: '🔴 Failed transactions', callback_data: 'settings:failed:on' }]);
+    expect((await accounts.getAccount(source)).preferences.trackFailedTransactions).toBe(false);
     expect(await db.telegramJobs.countDocuments({ txHash: 'failed-opt-in', status: 'failed' })).toBe(1);
     expect(await db.notificationJobs.countDocuments({ failedTransaction: true, status: 'failed' })).toBe(1);
     await ingestParsedTransaction({ signature: 'failed-opt-out', status: 'error', slot: 251, accountKeys: [address] }, { provider: 'helius-parsed-stream' });
     expect(await db.transactions.countDocuments({ txHash: 'failed-opt-out' })).toBe(0);
     expect(await db.rateEvents.countDocuments({ txHash: 'failed-opt-out' })).toBe(0);
-    await telegram.handleTelegramUpdate({ update_id: 99, callback_query: {
-      id: 'failed-on', data: 'settings:failed:on', from: { id: 123 },
-      message: { chat: { id: 123, type: 'private' } },
-    } });
+    const reenabled = await toggle(100, 'on');
+    expect(reenabled).toEqual({ chat_id: '123', message_id: 314, text: settings.text, reply_markup: settings.reply_markup });
     expect((await accounts.getAccount(source)).preferences.trackFailedTransactions).toBe(true);
   });
   it('merges wallets, sessions, push devices, history and entitlements and shares future writes', async () => {
