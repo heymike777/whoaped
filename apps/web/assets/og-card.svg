@@ -7,6 +7,6 @@
   <circle cx="102" cy="154" r="5" fill="#F04B2F"/>
   <text x="163" y="171" fill="#111313" font-family="Arial,sans-serif" font-size="42" font-weight="700">WhoAped</text>
   <text x="60" y="348" fill="#111313" font-family="Arial,sans-serif" font-size="93" font-weight="700" letter-spacing="-4">Know what your</text>
-  <text x="60" y="448" fill="#F04B2F" font-family="Arial,sans-serif" font-size="93" font-weight="700" letter-spacing="-4">agents did.</text>
-  <text x="60" y="598" fill="#5A605D" font-family="Arial,sans-serif" font-size="24">A live record for your Solana agent wallets.</text>
+  <text x="60" y="448" fill="#F04B2F" font-family="Arial,sans-serif" font-size="93" font-weight="700" letter-spacing="-4">wallets did.</text>
+  <text x="60" y="598" fill="#5A605D" font-family="Arial,sans-serif" font-size="24">Building an open-source tracker for Solana wallets.</text>
 </svg>
