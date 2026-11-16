@@ -15,6 +15,11 @@ img{display:block;max-width:100%}
 .shell{width:min(100% - 48px,1240px);margin-inline:auto}
 .skip-link{position:absolute;left:12px;top:-60px;z-index:20;padding:12px 16px;background:var(--ink);color:var(--sheet)}
 .skip-link:focus{top:12px}
+.token-announcement{display:flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:8px 18px;border-bottom:1px solid var(--line);background:var(--surface);color:var(--ink);font-family:var(--font);font-size:12px;font-weight:700;line-height:1.4;text-decoration:none;transition:background-color .15s ease}
+.token-announcement code{min-width:0;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;font-weight:600;letter-spacing:-.025em}
+.token-announcement-arrow{color:var(--orange);font-size:17px;line-height:1}
+.token-announcement:hover{background:var(--sheet)}
+.token-announcement:focus-visible{outline-offset:-4px}
 .site-header{display:flex;align-items:center;justify-content:space-between;min-height:96px;border-bottom:1px solid var(--line)}
 .header-actions{display:flex;align-items:center;gap:24px}
 .theme-toggle{min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:11px;background:var(--sheet);color:var(--ink);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer}
@@ -117,6 +122,7 @@ img{display:block;max-width:100%}
 @media(max-width:700px){.availability{padding-bottom:76px}.availability-heading{display:block}.availability-heading h2{margin-top:14px}.availability-grid{grid-template-columns:1fr}.seeker-card{min-height:290px}.telegram-cards{gap:12px}.telegram-card{min-height:132px}}
 @media(max-width:440px){.home-header .nav a:last-child{display:none}.hero-actions .text-link{width:100%;justify-content:center}}
 @media(max-width:440px){.availability-follow{align-items:flex-start;flex-direction:column;gap:2px}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.button,.nav a,.telegram-card{transition:none}.button:hover{transform:none}.skeleton{animation:none}}
+@media(max-width:440px){.token-announcement{display:grid;grid-template-columns:1fr auto;justify-items:start;column-gap:8px;row-gap:2px;padding:8px 16px}.token-announcement code{grid-column:1/-1;grid-row:2;font-size:12px}.token-announcement-arrow{grid-column:2;grid-row:1}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.button,.nav a,.telegram-card,.token-announcement{transition:none}.button:hover{transform:none}.skeleton{animation:none}}
 .analytics-consent{position:fixed;z-index:50;right:20px;bottom:20px;width:min(440px,calc(100vw - 40px));padding:22px;background:var(--sheet);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 50px rgba(0,0,0,.15)}
 .analytics-consent strong{font-family:var(--font);font-size:17px}.analytics-consent p{margin:9px 0 16px;color:var(--quiet);font-size:13px;line-height:1.5}.analytics-consent-actions{display:flex;gap:10px;flex-wrap:wrap}.analytics-consent-actions button{min-height:44px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer}.analytics-decline{background:transparent;color:var(--ink);border:1px solid var(--line)}.analytics-allow{background:var(--ink);color:var(--button-on-ink);border:1px solid var(--ink)}.analytics-privacy{min-height:44px;background:transparent;color:var(--quiet);border:0;cursor:pointer;font-size:13px}.analytics-privacy:hover{text-decoration:underline}

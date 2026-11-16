@@ -33,3 +33,11 @@ test('home page links to Telegram, X, and the public source repository', async (
   assert.match(home, /search for <strong>WhoAped<\/strong>/);
   assert.doesNotMatch(home, /href="\/download\//);
 });
+
+test('home page shows the exact token CA above the header and links to Pump.fun', async () => {
+  const home = await read('index.html');
+  const address = 'AFkMcpbnwEg328181CCresbTTG52DexwKM7FFo9Hpump';
+  assert.match(home, new RegExp(`href="https://pump\\.fun/coin/${address}"`));
+  assert.match(home, new RegExp(`<code>${address}</code>`));
+  assert.ok(home.indexOf('class="token-announcement"') < home.indexOf('<header class="site-header'));
+});
