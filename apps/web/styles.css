@@ -66,6 +66,10 @@ img{display:block;max-width:100%}
 .telegram-card strong{margin-top:13px;font-family:var(--font);font-size:25px;letter-spacing:-.04em}
 .telegram-card small{margin-top:5px;color:var(--quiet);font-size:14px;line-height:1.4}
 .telegram-card-arrow{position:absolute;top:23px;right:26px;color:var(--ink);font-size:23px}
+.availability-follow{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;padding:16px 0;border-bottom:1px solid var(--line)}
+.availability-follow>span{color:var(--quiet);font-size:11px;font-weight:700;letter-spacing:.09em}
+.availability-follow a{display:inline-flex;align-items:center;gap:12px;min-height:44px;color:var(--ink);font-family:var(--font);font-size:18px;font-weight:700;letter-spacing:-.025em;text-decoration:none}
+.availability-follow a:hover{color:var(--orange)}
 .open-source{scroll-margin-top:20px;background:var(--sheet);border-block:1px solid var(--line)}
 .open-source-inner{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:80px;align-items:end;padding-block:94px 100px}
 .open-source h2{margin:19px 0 0;font-family:var(--font);font-size:clamp(40px,4.3vw,64px);line-height:1.06;letter-spacing:-.06em}
@@ -111,6 +115,7 @@ img{display:block;max-width:100%}
 @media(max-width:700px){.open-source-inner{grid-template-columns:1fr;gap:28px;padding-block:70px}.open-source h2{font-size:clamp(38px,9vw,58px)}.open-source-detail>p{margin-bottom:26px}}
 @media(max-width:700px){.availability{padding-bottom:76px}.availability-heading{display:block}.availability-heading h2{margin-top:14px}.availability-grid{grid-template-columns:1fr}.seeker-card{min-height:290px}.telegram-cards{gap:12px}.telegram-card{min-height:132px}}
 @media(max-width:440px){.home-header .nav a:last-child{display:none}.hero-actions .text-link{width:100%;justify-content:center}}
+@media(max-width:440px){.availability-follow{align-items:flex-start;flex-direction:column;gap:2px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.button,.nav a,.telegram-card{transition:none}.button:hover{transform:none}.skeleton{animation:none}}
 .analytics-consent{position:fixed;z-index:50;right:20px;bottom:20px;width:min(440px,calc(100vw - 40px));padding:22px;background:var(--sheet);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 50px rgba(0,0,0,.15)}
 .analytics-consent strong{font-family:var(--font);font-size:17px}.analytics-consent p{margin:9px 0 16px;color:var(--quiet);font-size:13px;line-height:1.5}.analytics-consent-actions{display:flex;gap:10px;flex-wrap:wrap}.analytics-consent-actions button{min-height:44px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer}.analytics-decline{background:transparent;color:var(--ink);border:1px solid var(--line)}.analytics-allow{background:var(--ink);color:var(--button-on-ink);border:1px solid var(--ink)}.analytics-privacy{min-height:44px;background:transparent;color:var(--quiet);border:0;cursor:pointer;font-size:13px}.analytics-privacy:hover{text-decoration:underline}
