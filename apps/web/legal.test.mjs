@@ -22,11 +22,13 @@ test('privacy and terms pages have public canonical URLs and cross-links', async
   assert.match(terms, /financial, investment, tax, or legal advice/);
 });
 
-test('home page links to Telegram and X and gives honest Seeker store instructions', async () => {
+test('home page links to Telegram, X, and the public source repository', async () => {
   const home = await read('index.html');
   assert.match(home, /href="https:\/\/t\.me\/whoapedbot"/);
   assert.match(home, /href="https:\/\/t\.me\/whoaped"/);
   assert.match(home, /href="https:\/\/x\.com\/whoaped"/);
+  assert.match(home, /href="https:\/\/github\.com\/heymike777\/whoaped"/);
+  assert.doesNotMatch(home, /Public repository coming soon/);
   assert.match(home, /Live on Seeker/);
   assert.match(home, /search for <strong>WhoAped<\/strong>/);
   assert.doesNotMatch(home, /href="\/download\//);
