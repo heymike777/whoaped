@@ -1,0 +1,13 @@
+{
+  "fileKey": "fisuvajEDXx8uP2A8lcyCi",
+  "pageId": "7:2",
+  "pageName": "Store banners · EN",
+  "validatedOn": "2026-11-08",
+  "evidence": "Native Figma plugin validation report and post-repair visual review through Figma Desktop",
+  "frames": [
+    {"id":"7:20","placement":"Apple product page header","width":3840,"height":1646,"editableTextCount":2,"font":"Space Grotesk","rasterFills":0,"textOutsideAppleSafeArea":0},
+    {"id":"7:36","placement":"Apple search results","width":3840,"height":2560,"editableTextCount":7,"font":"Space Grotesk","rasterFills":0,"textOutsideAppleSafeArea":0},
+    {"id":"7:65","placement":"Solana listing banner","width":1200,"height":600,"editableTextCount":3,"font":"Space Grotesk","rasterFills":0,"appleSafeArea":"not applicable"},
+    {"id":"7:77","placement":"Solana feature graphic","width":1200,"height":1200,"editableTextCount":3,"font":"Space Grotesk","rasterFills":0,"appleSafeArea":"not applicable"}
+  ]
+}

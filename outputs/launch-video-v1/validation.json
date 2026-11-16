@@ -1,0 +1,36 @@
+{
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "codec_name": "h264",
+      "codec_type": "video",
+      "width": 1080,
+      "height": 1080,
+      "pix_fmt": "yuv420p",
+      "color_space": "bt709",
+      "r_frame_rate": "30/1",
+      "nb_frames": "720"
+    },
+    {
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "sample_rate": "48000",
+      "channels": 2,
+      "r_frame_rate": "0/0",
+      "nb_frames": "1127"
+    }
+  ],
+  "format": {
+    "duration": "24.000000",
+    "size": "2231299"
+  },
+  "checks": {
+    "full_decode": "pass",
+    "black_frames_over_100ms": false,
+    "fast_start": true,
+    "visual_review": "key frames checked at 0, 38, 150, 190, 230, 300, 390, 470, 540, 620, 700",
+    "cta": "https://whoaped.com/",
+    "typecheck": "pass"
+  }
+}

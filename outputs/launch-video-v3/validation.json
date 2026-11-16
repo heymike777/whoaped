@@ -1,0 +1,27 @@
+{
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "codec_name": "h264",
+      "codec_type": "video",
+      "width": 1080,
+      "height": 1080,
+      "nb_frames": "720"
+    },
+    {
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "nb_frames": "1127"
+    }
+  ],
+  "format": {
+    "duration": "24.000000",
+    "size": "2242902"
+  },
+  "checks": {
+    "full_decode": "pass",
+    "cta": "Start watching.",
+    "website": "whoaped.com"
+  }
+}

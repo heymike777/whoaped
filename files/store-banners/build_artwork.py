@@ -36,8 +36,15 @@ def save(name,w,h,body,title):
     (OUT / f'{name}.svg').write_text(source)
     png=resvg_py.svg_to_bytes(svg_string=source,font_dirs=[str(FONTS)])
     image=Image.open(io.BytesIO(png)).convert('RGB')
+    native=list((OUT/'figma-exports').glob(f'{name[:2]} — *.jpg'))
+    if len(native)==1:
+        image=Image.open(native[0]).convert('RGB')
+        assert image.size==(w,h), (name,image.size)
     image.save(OUT / f'{name}.png')
-    image.save(OUT / f'{name}.jpg',quality=97,subsampling=0)
+    if len(native)==1:
+        (OUT / f'{name}.jpg').write_bytes(native[0].read_bytes())
+    else:
+        image.save(OUT / f'{name}.jpg',quality=97,subsampling=0)
     return image
 
 header=rect(0,0,3840,1646,INK)

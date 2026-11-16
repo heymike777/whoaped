@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 node_modules/
+__pycache__/
+*.pyc
 dist/
 .vercel/
 .expo/
@@ -10,6 +12,10 @@ dist/
 coverage/
 *.log
 /keys
+
+# Generated local release packages and research exports are not source assets.
+/outputs/android/
+/outputs/discovery-fees-*/
 
 # Local wallet keypairs: never commit private keys.
 /files/private/

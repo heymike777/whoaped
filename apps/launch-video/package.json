@@ -1,0 +1,26 @@
+{
+  "name": "whoaped-launch-video",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "studio": "remotion studio src/index.tsx",
+    "typecheck": "tsc --noEmit",
+    "assets": "node scripts/prepare-assets.mjs",
+    "render": "remotion render src/index.tsx WhoApedLaunch ../../outputs/launch-video-v5/whoaped-launch-v5.mp4 --codec h264 --crf 18 --pixel-format yuv420p --color-space bt709 --concurrency 4",
+    "poster": "remotion still src/index.tsx WhoApedLaunch ../../outputs/launch-video-v5/cover.png --frame 38",
+    "closing": "remotion still src/index.tsx WhoApedLaunch ../../outputs/launch-video-v5/closing-preview.png --frame 865"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.542",
+    "@remotion/fonts": "4.0.542",
+    "@remotion/transitions": "4.0.542",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.542"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "typescript": "5.9.3"
+  }
+}

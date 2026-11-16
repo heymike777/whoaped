@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <title>WhoAped Editor’s Choice carousel graphic</title>
+  <defs>
+    <radialGradient id="background" cx="50%" cy="41%" r="63%">
+      <stop stop-color="#26342D" />
+      <stop offset="0.75" stop-color="#151A17" />
+      <stop offset="1" stop-color="#111313" />
+    </radialGradient>
+    <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse" x="24" y="70">
+      <path d="M0 72V0H72" fill="none" stroke="#45584D" stroke-width="1" />
+    </pattern>
+    <radialGradient id="grid-fade" gradientUnits="userSpaceOnUse" cx="600" cy="500" r="485">
+      <stop stop-color="white" />
+      <stop offset="1" stop-color="black" />
+    </radialGradient>
+    <mask id="grid-mask">
+      <rect width="1200" height="1200" fill="url(#grid-fade)" />
+    </mask>
+  </defs>
+  <rect width="1200" height="1200" fill="url(#background)" />
+  <rect width="1200" height="1200" fill="url(#grid)" mask="url(#grid-mask)" />
+  <g fill="none" stroke="#4D6156" stroke-width="2" opacity="0.65">
+    <circle cx="600" cy="502" r="312" />
+    <path d="M600 172v36m0 588v36M270 502h36m588 0h36" />
+  </g>
+  <g transform="translate(290 192) scale(.60546875)" fill="none">
+    <path d="M362 204H250C224 204 204 224 204 250V362M662 204H774C800 204 820 224 820 250V362M362 820H250C224 820 204 800 204 774V662M662 820H774C800 820 820 800 820 774V662" stroke="#F4F4EF" stroke-width="76" stroke-linecap="round" />
+    <path d="M322 512C370 426 432 382 512 382C592 382 654 426 702 512C654 598 592 642 512 642C432 642 370 598 322 512Z" stroke="#F4F4EF" stroke-width="66" stroke-linejoin="round" />
+    <circle cx="512" cy="512" r="58" fill="#F04B2F" />
+  </g>
+</svg>

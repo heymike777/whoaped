@@ -1,0 +1,318 @@
+{
+  "images": [
+    {
+      "path": "apple-iphone/01-activity.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 335525,
+      "capture": "captures/ios/01-activity.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone/02-swaps.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 303413,
+      "capture": "captures/ios/02-swaps.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone/03-swap-routes.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 321337,
+      "capture": "captures/ios/03-swap-routes.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone/04-verify-on-chain.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 350417,
+      "capture": "captures/ios/04-verify-on-chain.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone/05-wallets.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 251525,
+      "capture": "captures/ios/05-wallets.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone/06-add-wallet.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 284948,
+      "capture": "captures/ios/06-add-wallet.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone/07-notifications.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 340403,
+      "capture": "captures/ios/07-notifications.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone/08-dark-mode.jpg",
+      "width": 1206,
+      "height": 2622,
+      "bytes": 290636,
+      "capture": "captures/ios/08-dark-mode.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/01-activity.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 379933,
+      "capture": "captures/ios/01-activity.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/02-swaps.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 346091,
+      "capture": "captures/ios/02-swaps.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/03-swap-routes.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 366869,
+      "capture": "captures/ios/03-swap-routes.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/04-verify-on-chain.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 395638,
+      "capture": "captures/ios/04-verify-on-chain.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/05-wallets.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 288902,
+      "capture": "captures/ios/05-wallets.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/06-add-wallet.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 321695,
+      "capture": "captures/ios/06-add-wallet.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/07-notifications.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 385428,
+      "capture": "captures/ios/07-notifications.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "apple-iphone-large/08-dark-mode.jpg",
+      "width": 1320,
+      "height": 2868,
+      "bytes": 330692,
+      "capture": "captures/ios/08-dark-mode.png",
+      "captureSize": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "solana-mobile/01-activity.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 202085,
+      "capture": "captures/android/01-activity.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "solana-mobile/02-wallet-search.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 139459,
+      "capture": "captures/android/02-wallet-search.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "solana-mobile/03-failed-transactions.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 203237,
+      "capture": "captures/android/03-failed-transactions.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "solana-mobile/04-verify-on-chain.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 258570,
+      "capture": "captures/android/04-verify-on-chain.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "solana-mobile/05-wallets.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 172517,
+      "capture": "captures/android/05-wallets.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "solana-mobile/06-add-wallet.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 193658,
+      "capture": "captures/android/06-add-wallet.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "solana-mobile/07-notifications.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 211196,
+      "capture": "captures/android/07-notifications.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "solana-mobile/08-dark-mode.jpg",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 160344,
+      "capture": "captures/android/08-dark-mode.png",
+      "captureSize": [
+        1080,
+        2424
+      ]
+    },
+    {
+      "path": "apple-ipad/01-activity.jpg",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 280018,
+      "capture": "captures/ipad/01-activity.png",
+      "captureSize": [
+        2064,
+        2752
+      ]
+    },
+    {
+      "path": "apple-ipad/06-add-wallet.jpg",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 327625,
+      "capture": "captures/ipad/06-add-wallet.png",
+      "captureSize": [
+        2064,
+        2752
+      ]
+    },
+    {
+      "path": "apple-ipad/07-notifications.jpg",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 347979,
+      "capture": "captures/ipad/07-notifications.png",
+      "captureSize": [
+        2064,
+        2752
+      ]
+    },
+    {
+      "path": "apple-ipad/08-dark-mode.jpg",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 229536,
+      "capture": "captures/ipad/08-dark-mode.png",
+      "captureSize": [
+        2064,
+        2752
+      ]
+    }
+  ],
+  "missing": [
+    "captures/ipad/02-swaps.png",
+    "captures/ipad/03-swap-routes.png",
+    "captures/ipad/04-verify-on-chain.png",
+    "captures/ipad/05-wallets.png"
+  ]
+}

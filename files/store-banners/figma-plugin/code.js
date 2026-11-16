@@ -8,10 +8,48 @@ async function main() {
   };
   const regular = font('Regular'), bold = font('Bold'), medium = font('Medium');
   await Promise.all([regular, bold, medium].map(f => figma.loadFontAsync(f)));
-  const page = figma.currentPage;
-  if (page.children.some(n => n.name === '01 — Apple · Product page header · 3840×1646'))
-    throw new Error('Artwork already exists. This command does not create duplicate banners.');
-  if (page.children.length) throw new Error('Please run in the empty WhoAped banner page.');
+  let page = figma.currentPage;
+  if (page.children.some(n => n.name === '01 — Apple · Product page header · 3840×1646')) {
+    // Targeted repair of the existing artwork; rerunning never duplicates banners.
+    const repaired=[];
+    for (const row of page.findAllWithCriteria({types:['FRAME']}).filter(n=>n.name.startsWith('Activity / '))) {
+      row.primaryAxisSizingMode='FIXED';row.counterAxisSizingMode='AUTO';row.layoutSizingVertical='HUG';row.clipsContent=false;
+      repaired.push(row.id);
+    }
+    const source=page.findAllWithCriteria({types:['FRAME']}).find(n=>n.name==='Sources');
+    if(source) {
+      const details=source.children.find(n=>n.type==='TEXT'&&n.name==='Details');
+      if(details) {
+        const links=[
+          ['Apple — Creative assets specifications','https://developer.apple.com/help/app-store-connect/reference/app-information/creative-assets-specifications'],
+          ['Apple — Asset best practices and templates','https://developer.apple.com/app-store/asset-best-practices/'],
+          ['Solana Mobile — Listing Page Guidelines','https://docs.solanamobile.com/dapp-store/listing-page-guidelines'],
+          ['Solana Mobile — Publishing specification','https://github.com/solana-mobile/dapp-publishing/blob/main/publishing-spec/SPEC.md']
+        ];
+        details.characters=links.map(l=>l[0]).join('\n');
+        let start=0;for(const [label,url] of links){details.setRangeHyperlink(start,start+label.length,{type:'URL',value:url});start+=label.length+1;}
+        repaired.push(details.id);
+      }
+    }
+    const frames=page.children.filter(n=>/^0[1-4] — /.test(n.name));
+    const report=frames.map(f=>{
+      const nodes=f.findAll(()=>true),texts=nodes.filter(n=>n.type==='TEXT');
+      const safe=f.name.startsWith('01')?{x:1097,y:493,w:1646,h:661}:f.name.startsWith('02')?{x:836,y:765,w:2168,h:1030}:null;
+      const outside=safe?texts.filter(t=>{const b=t.absoluteBoundingBox,base=f.absoluteBoundingBox;return b.x-base.x<safe.x||b.y-base.y<safe.y||b.x-base.x+b.width>safe.x+safe.w||b.y-base.y+b.height>safe.y+safe.h;}).map(t=>t.name):[];
+      return {id:f.id,name:f.name,width:f.width,height:f.height,editableTextCount:texts.length,fonts:[...new Set(texts.map(t=>t.fontName.family))],imageFilledNodes:nodes.filter(n=>Array.isArray(n.fills)&&n.fills.some(p=>p.type==='IMAGE')).length,textOutsideAppleSafeArea:outside};
+    });
+    const sizes=[[3840,1646],[3840,2560],[1200,600],[1200,1200]];
+    for(const r of report){const index=Number(r.name.slice(0,2))-1;const size=sizes[index];if(!size||r.width!==size[0]||r.height!==size[1]||r.editableTextCount<2||r.fonts.length!==1||r.fonts[0]!=='Space Grotesk'||r.imageFilledNodes!==0||r.textOutsideAppleSafeArea.length)throw new Error('Validation failed: '+JSON.stringify(r));}
+    figma.currentPage.selection=frames;figma.viewport.scrollAndZoomIntoView(frames);
+    const summaries=report.map(r=>'<p><b>'+r.name+'</b><br>Node '+r.id+' · '+r.width+' × '+r.height+' · '+r.editableTextCount+' editable text layers · '+r.fonts.join(', ')+' · '+r.imageFilledNodes+' raster fills · '+r.textOutsideAppleSafeArea.length+' text layers outside safe area</p>').join('');
+    figma.showUI('<html><body style="font:14px system-ui;padding:20px;background:#f4f4ef;color:#111313"><h2>WhoAped · 4 banners verified</h2>'+summaries+'<button onclick="parent.postMessage({pluginMessage:{type:\'close\'}},\'*\')">Close</button><details><summary>Validation JSON</summary><pre style="white-space:pre-wrap;font-size:12px">'+JSON.stringify({frames:report,repairedNodeIds:repaired},null,2)+'</pre></details></body></html>',{width:650,height:650});
+    figma.ui.onmessage=msg=>{if(msg.type==='close')figma.closePlugin();};
+    return;
+  }
+  if (page.children.length) {
+    page = figma.createPage();
+    await figma.setCurrentPageAsync(page);
+  }
   page.name = 'Store banners · EN';
   page.backgrounds = [{type:'SOLID',color:{r:.80,g:.81,b:.79}}];
   const created = [];
@@ -37,7 +75,7 @@ async function main() {
   }
   function stack(parent,name,x,y,w,gap) {
     const n=record(figma.createFrame());n.name=name;n.fills=[];n.layoutMode='VERTICAL';
-    n.primaryAxisSizingMode='AUTO';n.counterAxisSizingMode='FIXED';n.resize(w,1);n.itemSpacing=gap;
+    n.resize(w,1);n.primaryAxisSizingMode='AUTO';n.counterAxisSizingMode='FIXED';n.itemSpacing=gap;
     parent.appendChild(n);n.x=x;n.y=y;return n;
   }
   function widthText(parent,name,copy,size,color,weight,w) {
@@ -79,7 +117,7 @@ async function main() {
   logo(track,0,0,250);
   const categories=stack(track,'Activity categories',0,0,580,30);
   for (const label of ['Swaps','Yield','Launches']) {
-    const row=record(figma.createFrame());row.name='Activity / '+label;row.layoutMode='HORIZONTAL';row.primaryAxisSizingMode='FIXED';row.counterAxisSizingMode='AUTO';row.resize(580,1);row.fills=[];row.itemSpacing=28;row.counterAxisAlignItems='CENTER';categories.appendChild(row);
+    const row=record(figma.createFrame());row.name='Activity / '+label;row.layoutMode='HORIZONTAL';row.resize(580,1);row.primaryAxisSizingMode='FIXED';row.counterAxisSizingMode='AUTO';row.fills=[];row.itemSpacing=28;row.counterAxisAlignItems='CENTER';categories.appendChild(row);
     dot(row,0,0,14,label==='Swaps'?'blue':label==='Yield'?'green':'orange');text(row,label,label,60,'ink','medium');
   }
   const safety=text(search,'Watch-only product statement','Watch-only. No private keys.',43,'quiet');safety.x=896;safety.y=1670;
@@ -128,7 +166,7 @@ async function main() {
   });
   figma.currentPage.selection=exports;
   figma.viewport.scrollAndZoomIntoView(exports);
-  figma.showUI('<html><body style="font:14px system-ui;padding:20px;background:#f4f4ef;color:#111313"><h2>WhoAped artwork created</h2><p>4 editable banners · Space Grotesk · vector logo · JPG export at 1×.</p><p>All critical Apple content fits the official template safe areas. Green guide copies on the right are separate from exports.</p><pre style="white-space:pre-wrap;font-size:11px">'+JSON.stringify({createdNodeIds:created,frames:report},null,2)+'</pre><button onclick="parent.postMessage({pluginMessage:{type:\'close\'}},\'*\')">Close</button></body></html>',{width:600,height:600});
+  figma.showUI('<html><body style="font:14px system-ui;padding:20px;background:#f4f4ef;color:#111313"><h2>WhoAped artwork created</h2><p>4 editable banners · Space Grotesk · vector logo · JPG export at 1×.</p><p>All critical Apple content fits the official template safe areas. Green guide copies on the right are separate from exports.</p><button onclick="parent.postMessage({pluginMessage:{type:\'close\'}},\'*\')">Close</button><pre style="white-space:pre-wrap;font-size:11px">'+JSON.stringify({frames:report,createdNodeIds:created},null,2)+'</pre></body></html>',{width:600,height:600});
   figma.ui.onmessage=msg=>{if(msg.type==='close')figma.closePlugin();};
 }
 main().catch(error=>{figma.showUI('<p style="font:15px system-ui;padding:24px">'+String(error.message).replace(/</g,'&lt;')+'</p>',{width:500,height:240});});

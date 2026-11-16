@@ -1,0 +1,29 @@
+1
+00:00:00,000 --> 00:00:02,999
+Who just aped?
+Follow the wallets that move first.
+
+2
+00:00:03,000 --> 00:00:06,999
+Watch the wallets.
+One public address. That's all.
+
+3
+00:00:07,000 --> 00:00:14,666
+The move. Not the hash.
+See who moved, what changed, and where it happened.
+
+4
+00:00:14,667 --> 00:00:19,666
+Wallet activity. In plain English.
+Alerts in the app and Telegram.
+
+5
+00:00:19,667 --> 00:00:24,499
+WhoAped is launching.
+The Solana wallet tracker for traders.
+whoaped.com — Follow the launch.
+
+6
+00:00:24,500 --> 00:00:30,000
+Powered by $WHOAPED.

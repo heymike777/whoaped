@@ -1,0 +1,22 @@
+{
+  "version": 5,
+  "file": "whoaped-launch-v5.mp4",
+  "duration_seconds": 30.016,
+  "video": {
+    "codec": "h264",
+    "width": 1080,
+    "height": 1080,
+    "fps": 30
+  },
+  "audio": {
+    "codec": "aac",
+    "sample_rate": 48000
+  },
+  "checks": {
+    "typescript": "pass",
+    "activity_preview": "pass",
+    "notification_preview": "pass",
+    "full_decode": "pass",
+    "token_labels": ["$CLMFND", "$WHOAPED"]
+  }
+}

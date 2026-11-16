@@ -1,0 +1,150 @@
+{
+  "language": "en",
+  "brand": "WhoAped · The Live Ledger",
+  "platforms": {
+    "apple-iphone": {
+      "width": 1206,
+      "height": 2622,
+      "capturePlatform": "ios"
+    },
+    "apple-iphone-large": {
+      "width": 1320,
+      "height": 2868,
+      "capturePlatform": "ios"
+    },
+    "solana-mobile": {
+      "width": 1080,
+      "height": 1920,
+      "capturePlatform": "android",
+      "maxFileBytes": 3000000
+    },
+    "apple-ipad": {
+      "width": 2064,
+      "height": 2752,
+      "capturePlatform": "ipad"
+    }
+  },
+  "shots": [
+    {
+      "id": "01-activity",
+      "title": "Follow wallets.\nRead every move.",
+      "subtitle": "A clear, live feed of the Solana wallets you choose.",
+      "action": "Start with a wallet worth watching.",
+      "capture": "01-activity",
+      "tone": "paper",
+      "layout": "hero"
+    },
+    {
+      "id": "02-swaps",
+      "title": "Read every\nswap.",
+      "subtitle": "See what was sent, what was received, and where it happened.",
+      "action": "Follow the transaction, step by step.",
+      "capture": "02-swaps",
+      "tone": "ink",
+      "layout": "focus"
+    },
+    {
+      "id": "03-swap-routes",
+      "title": "Trace every\nstep.",
+      "subtitle": "See multi-step swaps as one readable route.",
+      "action": "Keep the full picture in view.",
+      "capture": "03-swap-routes",
+      "tone": "paper",
+      "layout": "offset"
+    },
+    {
+      "id": "04-verify-on-chain",
+      "title": "Follow the\non-chain story.",
+      "subtitle": "Open the original transaction in Solscan from your feed.",
+      "action": "Go from a clear summary to the source.",
+      "capture": "04-verify-on-chain",
+      "tone": "paper",
+      "layout": "hero"
+    },
+    {
+      "id": "05-wallets",
+      "title": "Build your\nwatchlist.",
+      "subtitle": "Keep the public wallets that matter to you in one place.",
+      "action": "Make the feed your own.",
+      "capture": "05-wallets",
+      "tone": "ink",
+      "layout": "offset"
+    },
+    {
+      "id": "06-add-wallet",
+      "title": "Start with a\npublic address.",
+      "subtitle": "Name a wallet, paste its address, and start watching.",
+      "action": "Watch-only. No private keys.",
+      "capture": "06-add-wallet",
+      "tone": "paper",
+      "layout": "hero"
+    },
+    {
+      "id": "07-notifications",
+      "title": "Keep up with\nwallet activity.",
+      "subtitle": "Enable alerts after tracked transactions confirm.",
+      "action": "Stay in the loop with push alerts.",
+      "capture": "07-notifications",
+      "tone": "paper",
+      "layout": "offset"
+    },
+    {
+      "id": "08-dark-mode",
+      "title": "Follow in\nyour style.",
+      "subtitle": "Switch between light and dark, or follow your device.",
+      "action": "A clearer view, day or night.",
+      "capture": "08-dark-mode",
+      "tone": "ink",
+      "layout": "hero"
+    }
+  ],
+  "fallbackShots": {
+    "android": {
+      "02-swaps": {
+        "id": "02-wallet-search",
+        "capture": "02-wallet-search",
+        "title": "Find a wallet\nfast.",
+        "subtitle": "Search your watchlist by name or public address.",
+        "tone": "ink",
+        "layout": "focus"
+      },
+      "03-swap-routes": {
+        "id": "03-failed-transactions",
+        "capture": "03-failed-transactions",
+        "title": "Track failed\ntransactions.",
+        "subtitle": "Choose whether failed transactions appear in your activity and alerts.",
+        "tone": "paper",
+        "layout": "offset"
+      }
+    },
+    "ipad": {
+      "02-swaps": {
+        "id": "02-wallet-search",
+        "capture": "02-wallet-search",
+        "title": "Find a wallet\nfast.",
+        "subtitle": "Search your watchlist by name or public address.",
+        "tone": "ink",
+        "layout": "focus"
+      },
+      "03-swap-routes": {
+        "id": "03-failed-transactions",
+        "capture": "03-failed-transactions",
+        "title": "Track failed\ntransactions.",
+        "subtitle": "Choose whether failed transactions appear in your activity and alerts.",
+        "tone": "paper",
+        "layout": "offset"
+      }
+    }
+  },
+  "rules": {
+    "capturePolicy": "Real native app captures only. No invented balances, transactions, awards, or interface features.",
+    "copyPolicy": "Action-led feature copy; no fake tappable download buttons, financial promises, prices, or rankings.",
+    "devicePolicy": "iOS captures in iPhone presentations; Android captures in Android presentations; native iPad captures in tablet presentations.",
+    "figmaPolicy": "Editable typography, vector device shells and brand assets; actual screenshot images remain replaceable image fills."
+  },
+  "sources": [
+    "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
+    "https://developer.apple.com/app-store/product-page/",
+    "https://docs.solanamobile.com/dapp-store/listing-page-guidelines"
+  ]
+}

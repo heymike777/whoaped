@@ -1,0 +1,7 @@
+Who just aped?
+
+Meet WhoAped. Follow Solana wallets, read their activity in plain English, and get push alerts after tracked transactions confirm.
+
+Watch-only. No private keys.
+
+Choose your install → https://whoaped.com/
