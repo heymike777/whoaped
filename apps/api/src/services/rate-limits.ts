@@ -80,7 +80,7 @@ export async function admitAccountTransaction(userId: string, txHash: string, sl
     }
     await db.rateEvents.insertOne({ _id: randomUUID(), userId: accountId, chain: 'solana', txHash, slot, observedAt: now }, { session });
     return { allowed: true, cooldownStarted: false, accountId };
-  });
+  }, () => ({ allowed: false, cooldownStarted: false, accountId: userId }));
 }
 
 export async function getTrackingStatus(userId: string) {
@@ -132,7 +132,7 @@ export async function resumeAccountsAtSlot(addresses: string[], slot: number, no
     await database.trackingStates.updateOne({ _id: accountId }, {
       $set: { resumePending: false, updatedAt: now }, $max: { ignoreThroughSlot: slot },
     }, { session });
-  });
+  }, () => undefined);
 }
 
 /** Re-evaluated before every paid history request, including each pagination page. */

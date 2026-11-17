@@ -18,6 +18,7 @@ beforeAll(async () => {
 afterAll(async () => { await database?.closeDatabase(); await replica?.stop(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 beforeEach(async () => {
   await (await database.getDatabase()).collection('paybox_imports').deleteMany({});
+  await (await database.collections()).users.updateOne({ _id: 'owner' }, { $setOnInsert: { createdAt: new Date() } }, { upsert: true });
   calls = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
     const body = String(init.body);

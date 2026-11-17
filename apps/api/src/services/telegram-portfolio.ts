@@ -1,4 +1,5 @@
 import type { Collections, PortfolioHolding, PortfolioSnapshotDocument, PortfolioWallet, WalletDocument } from '../db.js';
+import { withAccountMutation } from './accounts.js';
 
 const SOL = 'So11111111111111111111111111111111111111112';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -166,7 +167,10 @@ export async function getPortfolioSnapshot(db: Collections, userId: string, refr
     expiresAt: new Date(now.getTime() + SNAPSHOT_MS),
     incomplete: mapped.some(row => row.incomplete || row.error),
   };
-  await db.portfolioSnapshots.replaceOne({ _id: userId }, snapshot, { upsert: true });
+  await withAccountMutation(userId, async (database, session, accountId) => {
+    if (accountId !== userId) return;
+    await database.portfolioSnapshots.replaceOne({ _id: userId }, snapshot, { upsert: true, session });
+  });
   return snapshot;
 }
 

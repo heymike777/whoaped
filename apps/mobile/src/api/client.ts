@@ -7,10 +7,13 @@ import { Activity, Chain, Wallet } from '../types';
 const API_URL = Config.API_URL?.replace(/\/$/, '');
 const SESSION_KEY = 'whoaped.session-token';
 const LOCAL_WALLETS_KEY = 'whoaped.local-wallets';
+const ACCOUNT_DELETED_KEY = 'whoaped.account-deleted';
+export const PENDING_PREMIUM_PAYMENT_KEY = 'whoaped.pending-premium-payment';
 
 type SessionResponse = { token: string };
 
 let sessionRequest: Promise<string | null> | undefined;
+let accountDeletion: Promise<void> | undefined;
 async function getSessionToken() {
   if (sessionRequest) return sessionRequest;
   sessionRequest = loadSessionToken().finally(() => { sessionRequest = undefined; });
@@ -216,6 +219,43 @@ export type Account = {
 };
 export type TelegramLink = { url: string; code: string; expiresAt: string };
 const TELEGRAM_LINK_KEY = 'whoaped.telegram-link';
+
+export async function wasAccountDeleted() {
+  return (await AsyncStorage.getItem(ACCOUNT_DELETED_KEY)) === 'true';
+}
+
+export async function startOverAfterDeletion() {
+  await Keychain.resetGenericPassword({ service: SESSION_KEY });
+  await AsyncStorage.removeItem(ACCOUNT_DELETED_KEY);
+}
+
+export function deleteAccount() {
+  accountDeletion ??= deleteAccountAndClearDevice().finally(() => { accountDeletion = undefined; });
+  return accountDeletion;
+}
+
+async function deleteAccountAndClearDevice() {
+  // Use the existing session only. Deletion must never create a guest account.
+  await sessionRequest?.catch(() => undefined);
+  const saved = await Keychain.getGenericPassword({ service: SESSION_KEY });
+  if (saved) {
+    if (!API_URL) throw new Error('WhoAped could not reach the tracker.');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const response = await fetch(`${API_URL}/v1/account`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${saved.password}` }, signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
+    if (response.status !== 204) {
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(body?.error ?? 'WhoAped could not delete your account. Please try again.');
+    }
+  }
+  await AsyncStorage.multiRemove([LOCAL_WALLETS_KEY, PENDING_PREMIUM_PAYMENT_KEY]);
+  await Keychain.resetGenericPassword({ service: TELEGRAM_LINK_KEY });
+  await AsyncStorage.setItem(ACCOUNT_DELETED_KEY, 'true');
+  await Keychain.resetGenericPassword({ service: SESSION_KEY });
+}
+
 export const getAccount = () => apiFetch<Account>('/v1/account');
 export const setTrackFailedTransactions = (enabled: boolean) => apiFetch<{ preferences: Account['preferences'] }>('/v1/account/preferences', {
   method: 'PATCH', body: JSON.stringify({ trackFailedTransactions: enabled }),

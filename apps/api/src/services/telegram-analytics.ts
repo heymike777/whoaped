@@ -1,3 +1,4 @@
+import type { ClientSession } from 'mongodb';
 import type { Collections, TelegramAnalyticsEventDocument } from '../db.js';
 
 // No message text, wallet address, username or callback payload is stored.
@@ -15,12 +16,12 @@ export function interactionLabel(command: string, callback: boolean): Pick<Teleg
 }
 
 export async function recordTelegramEvent(db: Collections, updateId: number, chatId: string,
-  type: TelegramAnalyticsEventDocument['type'], suffix = '', details: Pick<TelegramAnalyticsEventDocument, 'command' | 'surface' | 'userStatus'> = {}) {
+  type: TelegramAnalyticsEventDocument['type'], suffix = '', details: Pick<TelegramAnalyticsEventDocument, 'command' | 'surface' | 'userStatus'> = {}, session?: ClientSession) {
   const event: TelegramAnalyticsEventDocument = {
     _id: `${updateId}:${type}:${suffix}`, chatId, type, ...details, occurredAt: new Date(),
   };
   // The Telegram update ID is globally unique for this bot. Retries cannot double-count.
-  await db.telegramAnalyticsEvents.updateOne({ _id: event._id }, { $setOnInsert: event }, { upsert: true });
+  await db.telegramAnalyticsEvents.updateOne({ _id: event._id }, { $setOnInsert: event }, { upsert: true, ...(session ? { session } : {}) });
 }
 
 export type TelegramDailyAnalytics = {

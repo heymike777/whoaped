@@ -116,11 +116,12 @@ export async function handleTelegramUpdate(update: Update) {
   const db = await collections();
   const telegramChat = await db.telegramChats.findOne({ _id: chatId });
   const userId = telegramChat?.userId ?? `telegram:${chatId}`;
-  await db.telegramChats.updateOne({ _id: chatId }, {
+  const touchedChat = await db.telegramChats.updateOne({ _id: chatId }, {
     $setOnInsert: { createdAt: new Date() },
     ...(sender?.username ? { $set: { username: sender.username } } : {}),
     $unset: { disabledAt: '' },
-  }, { upsert: true });
+  }, { upsert: !telegramChat });
+  if (telegramChat && touchedChat?.matchedCount === 0) return;
   if (callback) await telegramCall('answerCallbackQuery', { callback_query_id: callback.id }).catch(() => {});
   if (message.successful_payment) {
     try {
@@ -137,7 +138,10 @@ export async function handleTelegramUpdate(update: Update) {
   const command = callback?.data ?? rawCommand.toLowerCase().split('@')[0];
   const userStatus = (telegramChat?.createdAt ?? new Date()).toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)
     ? 'new' as const : 'returning' as const;
-  await recordTelegramEvent(db, update.update_id, chatId, 'interaction', '', { ...interactionLabel(command, Boolean(callback)), userStatus })
+  const recordEvent = (type: Parameters<typeof recordTelegramEvent>[3], suffix: string, details?: Parameters<typeof recordTelegramEvent>[5]) =>
+    withAccountMutation(userId, (database, session) =>
+      recordTelegramEvent(database, update.update_id, chatId, type, suffix, details, session), () => undefined);
+  await recordEvent('interaction', '', { ...interactionLabel(command, Boolean(callback)), userStatus })
     .catch(error => console.error('Telegram analytics interaction failed', error));
   if (command === '/discoveryreports') {
     if (!await isDiscoveryReportAdmin(chatId, sender?.username)) {
@@ -178,7 +182,7 @@ export async function handleTelegramUpdate(update: Update) {
         }
         return 'added';
       });
-      if (result === 'added') await recordTelegramEvent(db, update.update_id, chatId, 'wallet_added', 'discovery')
+      if (result === 'added') await recordEvent('wallet_added', 'discovery')
         .catch(error => console.error('Telegram Discovery wallet analytics failed', error));
       const status = result === 'added' ? 'Tracking enabled. New transactions will arrive in this chat.' :
         result === 'already' ? 'This wallet is already tracked.' : `${TELEGRAM_WALLET_LIMIT}-wallet limit reached.`;
@@ -278,7 +282,7 @@ export async function handleTelegramUpdate(update: Update) {
   }
   if (command.startsWith('remove:')) {
     const result = await withAccountMutation(userId, (database, session, accountId) => database.wallets.updateOne({ _id: command.slice(7), userId: accountId, deletedAt: null }, { $set: { deletedAt: new Date() } }, { session }));
-    if (result.matchedCount) await recordTelegramEvent(db, update.update_id, chatId, 'wallet_removed', '0')
+    if (result.matchedCount) await recordEvent('wallet_removed', '0')
       .catch(error => console.error('Telegram analytics wallet removal failed', error));
     return send(chatId, result.matchedCount ? 'Wallet removed. Notifications stopped.' : 'Wallet not found.');
   }
@@ -343,8 +347,7 @@ export async function handleTelegramUpdate(update: Update) {
     // Keep the mode on invalid input so the user can correct and resend the list.
     if (!results.length) await db.telegramChats.updateOne({ _id: chatId }, { $unset: { pendingAction: '' } });
     else await db.telegramChats.updateOne({ _id: chatId }, { $set: { pendingAction: action } });
-    for (const index of changedIndexes) await recordTelegramEvent(db, update.update_id, chatId,
-      action === 'add' ? 'wallet_added' : 'wallet_removed', String(index))
+    for (const index of changedIndexes) await recordEvent(action === 'add' ? 'wallet_added' : 'wallet_removed', String(index))
       .catch(error => console.error('Telegram analytics wallet change failed', error));
     return send(chatId, [
       `${action === 'add' ? 'Added' : 'Removed'} ${completed} of ${lines.length} wallets.`,
@@ -462,7 +465,7 @@ export async function enqueueTelegramTransactionGroup(entries: TelegramWalletAct
       txHash: transaction.signature, slot: transaction.slot, ...telegramGroupNotification(currentEntries, transaction, addressLabels),
       status: 'pending', attempts: 0, availableAt: now, createdAt: now,
     } }, { upsert: true, session });
-  });
+  }, () => undefined);
 }
 
 export async function drainTelegramJobs() {

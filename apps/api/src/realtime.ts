@@ -10,7 +10,7 @@ type RealtimeClient = {
   close(code?: number, reason?: string): void;
 };
 
-type ClientState = { userId: string; client: RealtimeClient };
+type ClientState = { userId: string; sessionId: string; client: RealtimeClient };
 
 const HEARTBEAT_MS = 25_000;
 
@@ -28,7 +28,7 @@ export class ActivityRealtimeHub {
       return false;
     }
 
-    this.clients.add({ userId: session.userId, client });
+    this.clients.add({ userId: session.userId, sessionId: session._id, client });
     client.send(JSON.stringify({ type: 'ready' }));
     this.ensureHeartbeat();
     this.ensureWatching();
@@ -107,9 +107,18 @@ export class ActivityRealtimeHub {
     for (const state of this.clients) state.userId = await canonicalAccountId(state.userId, db);
     const recipients = [...this.clients].filter((state) => state.userId === transaction.userId);
     if (!recipients.length) return;
+    const sessions = new Set(await db.sessions.distinct('_id', {
+      _id: { $in: recipients.map(state => state.sessionId) }, expiresAt: { $gt: new Date() },
+    }));
     const wallet = await db.wallets.findOne({ _id: transaction.walletId });
     const payload = JSON.stringify({ type: 'activity', data: activityView(transaction, wallet ?? undefined) });
     for (const state of recipients) {
+      if (!sessions.has(state.sessionId)) {
+        this.unsubscribe(state.client);
+        state.client.close(4001, 'Session expired');
+        continue;
+      }
+      if (!wallet || wallet.userId !== transaction.userId) continue;
       try {
         state.client.send(payload);
       } catch {

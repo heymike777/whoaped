@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Collections, PortfolioSnapshotDocument, WalletDocument } from '../db.js';
 import { addDasBalances, aggregatePortfolio, formatPortfolio, getPortfolioSnapshot } from '../services/telegram-portfolio.js';
 
+vi.mock('../services/accounts.js', () => ({ withAccountMutation: vi.fn() }));
+import { withAccountMutation } from '../services/accounts.js';
+
 const SOL = 'So11111111111111111111111111111111111111112';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const BONK = 'DezXAZ8z7PnrnRJjz3wXBoRgixCaKGKZ5PjyaWE5BqB';
@@ -59,6 +62,7 @@ describe('Telegram portfolio', () => {
     const replaceOne = vi.fn().mockResolvedValue({});
     const db = { wallets: { find: vi.fn(() => ({ sort: () => ({ toArray: async () => wallets }) })) },
       portfolioSnapshots: { findOne, replaceOne } } as unknown as Collections;
+    vi.mocked(withAccountMutation).mockImplementation((userId, work) => work(db, undefined as never, userId));
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.includes('helius-rpc')) {
         const owner = JSON.parse(String(init?.body)).params.ownerAddress;
@@ -93,6 +97,7 @@ describe('Telegram portfolio', () => {
     const wallets = [wallet(0), wallet(1)];
     const db = { wallets: { find: () => ({ sort: () => ({ toArray: async () => wallets }) }) },
       portfolioSnapshots: { findOne: async () => null, replaceOne: async () => ({}) } } as unknown as Collections;
+    vi.mocked(withAccountMutation).mockImplementation((userId, work) => work(db, undefined as never, userId));
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       if (url.includes('helius-rpc')) {
         const owner = JSON.parse(String(init?.body)).params.ownerAddress;

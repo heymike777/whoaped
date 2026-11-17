@@ -1,15 +1,15 @@
-import { Bell, CheckCircle2, ExternalLink } from 'lucide-react-native';
+import { Bell, CheckCircle2, ExternalLink, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TelegramAccountCard } from '../components/TelegramAccountCard';
-import { getAccount, setTrackFailedTransactions } from '../api/client';
+import { deleteAccount, getAccount, setTrackFailedTransactions } from '../api/client';
 import { enablePushNotifications, syncEnabledPushNotifications } from '../lib/notifications';
 import { type ThemeColors, layout, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
 
-export function SettingsScreen() {
+export function SettingsScreen({ onAccountDeleted }: { onAccountDeleted: () => void }) {
   const { colors, styles, preference, setPreference } = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -19,6 +19,7 @@ export function SettingsScreen() {
   const [failedLoading, setFailedLoading] = useState(true);
   const [failedSaving, setFailedSaving] = useState(false);
   const [failedError, setFailedError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -65,6 +66,24 @@ export function SettingsScreen() {
     }
   };
 
+  const confirmDeletion = () => {
+    Alert.alert('Delete account?',
+      'This permanently removes your WhoAped watchlist and activity history, including any linked Telegram watchlist, and stops your alerts. Public blockchain records remain. We keep limited records of past payments for receipts, disputes, and refunds.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete account', style: 'destructive', onPress: async () => {
+          setDeleting(true);
+          try {
+            await deleteAccount();
+            onAccountDeleted();
+          } catch {
+            setDeleting(false);
+            Alert.alert('Could not confirm deletion', 'Please try again. If the account was already deleted, trying again will finish clearing this device.');
+          }
+        } },
+      ]);
+  };
+
   return (
     <ScrollView contentContainerStyle={[styles.content, width >= 700 && styles.wideContent, {
       paddingTop: insets.top + 18,
@@ -76,6 +95,17 @@ export function SettingsScreen() {
       <Text style={styles.subheading}>Account and preferences.</Text>
 
       <TelegramAccountCard />
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: deleting, busy: deleting }}
+          disabled={deleting} onPress={confirmDeletion} style={({ pressed }) => [styles.linksCard, pressed && styles.pressed]}>
+          <View style={styles.legalLink}>
+            <Text style={[styles.cardTitle, styles.errorText]}>{deleting ? 'Deleting account…' : 'Delete account'}</Text>
+            <Trash2 color={colors.coral} size={18} />
+          </View>
+        </Pressable>
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>

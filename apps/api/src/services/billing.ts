@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { collections } from '../db.js';
 import { BillingError, PREMIUM_PLANS, type PremiumPlan } from '../config/premium.js';
-import { canonicalAccountId, withAccountMutation } from './accounts.js';
+import { withAccountMutation } from './accounts.js';
 import { grantPaidOrder, premiumAccess, repackPaidAccess } from './premium-access.js';
 import { refreshPaidTrackingPolicy } from './rate-limits.js';
 import { telegramCall } from './telegram-api.js';
@@ -53,6 +53,11 @@ export async function settleStarsPayment(chatId: string, payment: StarsPayment, 
   const initial = await db.paymentOrders.findOne({ _id: orderId(payment.invoice_payload) });
   if (!initial || initial.provider !== 'stars' || initial.telegramUserId !== chatId
     || payment.currency !== 'XTR' || initial.amount !== payment.total_amount) throw new BillingError('Payment could not be matched. Send /paysupport with your Telegram receipt.');
+  if (initial.accountDeletedAt) {
+    if (initial.paymentId !== payment.telegram_payment_charge_id) throw new BillingError('This invoice has another payment receipt. Contact /paysupport.');
+    if (refund) await db.paymentOrders.updateOne({ _id: initial._id, status: 'paid' }, { $set: { status: 'refunded' } });
+    return { active: false, expiresAt: null };
+  }
   return withAccountMutation(initial.userId, async (database, session, accountId) => {
     const order = await database.paymentOrders.findOne({ _id: initial._id }, { session });
     if (!order) throw new BillingError('Payment order is unavailable. Contact /paysupport.');
@@ -74,11 +79,11 @@ export async function settleStarsPayment(chatId: string, payment: StarsPayment, 
   });
 }
 export async function createBillingSupport(userId: string, message: string) {
-  const db = await collections();
-  const accountId = await canonicalAccountId(userId, db);
-  const recent = await db.billingSupport.countDocuments({ userId: accountId, createdAt: { $gt: new Date(Date.now() - 60 * 60_000) } });
-  if (recent >= 5) throw new BillingError('Your support requests are already recorded. Please wait for a response.');
-  const id = randomUUID();
-  await db.billingSupport.insertOne({ _id: id, userId: accountId, message: message.slice(0, 4000), createdAt: new Date(), status: 'open' });
-  return id;
+  return withAccountMutation(userId, async (db, session, accountId) => {
+    const recent = await db.billingSupport.countDocuments({ userId: accountId, createdAt: { $gt: new Date(Date.now() - 60 * 60_000) } }, { session });
+    if (recent >= 5) throw new BillingError('Your support requests are already recorded. Please wait for a response.');
+    const id = randomUUID();
+    await db.billingSupport.insertOne({ _id: id, userId: accountId, message: message.slice(0, 4000), createdAt: new Date(), status: 'open' }, { session });
+    return id;
+  });
 }

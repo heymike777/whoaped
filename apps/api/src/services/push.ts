@@ -66,7 +66,7 @@ export async function drainNotificationJobs(limit = 100) {
       continue;
     }
     const device = await db.deviceTokens.findOne({ _id: job.deviceTokenId });
-    if (!device || device.disabledAt) {
+    if (!device || device.disabledAt || device.userId !== job.userId) {
       await db.notificationJobs.updateOne(
         { _id: job._id },
         { $set: { status: 'failed', lastError: 'Push token is unavailable' } },
@@ -85,9 +85,14 @@ export async function drainNotificationJobs(limit = 100) {
   }
   if (!jobs.length) return { processed: 0, sent: 0 };
 
+  // A deletion can remove a queued job while the rest of the batch is being collected.
+  const available = new Set(await db.notificationJobs.distinct('_id', { _id: { $in: jobs.map(job => job.id) }, status: 'processing' }));
+  const pendingJobs = jobs.filter(job => available.has(job.id));
+  if (!pendingJobs.length) return { processed: 0, sent: 0 };
+
   try {
     const response = await getMessaging(firebaseApp()).sendEach(
-      jobs.map((job) => ({
+      pendingJobs.map((job) => ({
         token: job.pushToken,
         notification: { title: job.title, body: job.body },
         data: stringData(job.data),
@@ -105,7 +110,7 @@ export async function drainNotificationJobs(limit = 100) {
     const failedIds: string[] = [];
     const invalidDeviceIds: string[] = [];
     response.responses.forEach((result, index) => {
-      const job = jobs[index];
+      const job = pendingJobs[index];
       if (result.success) {
         sentIds.push(job.id);
         return;

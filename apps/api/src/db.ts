@@ -19,13 +19,19 @@ export type PaymentOrderDocument = {
   accessStartsAt?: Date; accessEndsAt?: Date; telegramUserId?: string;
   payer?: string; recipient?: string; sourceTokenAccount?: string; destinationTokenAccount?: string;
   reference?: string; memo?: string; signature?: string; requestKey?: string;
-  nextCheckAt?: Date; checks?: number; lastError?: string;
+  nextCheckAt?: Date; checks?: number; lastError?: string; accountDeletedAt?: Date;
 };
 export type BillingSupportDocument = {
   _id: string; userId: string; message: string; createdAt: Date; status: 'open' | 'closed';
 };
 export type SessionDocument = {
   _id: string; userId: string; tokenHash: string; expiresAt: Date; createdAt: Date;
+};
+export type AccountDeletionReceipt = { _id: string; expiresAt: Date };
+export type PayboxImportDocument = {
+  _id: string; userId: string; stateHash: string; verifier?: string; clientId: string;
+  redirectUri: string; expiresAt: Date; status: 'pending' | 'processing' | 'ready' | 'error';
+  wallets?: Array<{ name: string; address: string }>;
 };
 export type WalletDocument = {
   _id: string;
@@ -162,6 +168,8 @@ export type TelegramAnalyticsEventDocument = {
 export type Collections = {
   users: Collection<UserDocument>;
   sessions: Collection<SessionDocument>;
+  accountDeletionReceipts: Collection<AccountDeletionReceipt>;
+  payboxImports: Collection<PayboxImportDocument>;
   wallets: Collection<WalletDocument>;
   ingestionEvents: Collection<IngestionEventDocument>;
   transactions: Collection<TransactionDocument>;
@@ -197,6 +205,8 @@ function databaseCollections(database: Db): Collections {
   return {
     users: database.collection<UserDocument>('users'),
     sessions: database.collection<SessionDocument>('sessions'),
+    accountDeletionReceipts: database.collection<AccountDeletionReceipt>('account_deletion_receipts'),
+    payboxImports: database.collection<PayboxImportDocument>('paybox_imports'),
     wallets: database.collection<WalletDocument>('wallets'),
     ingestionEvents: database.collection<IngestionEventDocument>('ingestion_events'),
     transactions: database.collection<TransactionDocument>('transactions'),
@@ -223,8 +233,12 @@ function databaseCollections(database: Db): Collections {
 async function ensureIndexes(database: Db) {
   const db = databaseCollections(database);
   await Promise.all([
+    db.users.createIndex({ mergedInto: 1 }, { sparse: true }),
     db.sessions.createIndex({ tokenHash: 1 }, { unique: true }),
     db.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.accountDeletionReceipts.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.payboxImports.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.payboxImports.createIndex({ userId: 1 }),
     db.wallets.createIndex(
       { userId: 1, chain: 1, address: 1 },
       { unique: true, partialFilterExpression: { deletedAt: null } },
@@ -252,6 +266,7 @@ async function ensureIndexes(database: Db) {
       { unique: true, partialFilterExpression: { dedupeKey: { $type: 'string' } } },
     ),
     db.notificationJobs.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
+    db.notificationJobs.createIndex({ userId: 1 }),
     db.telegramJobs.createIndex({ walletId: 1, txHash: 1 }, { unique: true }),
     db.telegramJobs.createIndex({ status: 1, availableAt: 1, createdAt: 1 }),
     db.telegramJobs.createIndex({ chatId: 1, createdAt: -1, _id: -1 }),
@@ -273,6 +288,7 @@ async function ensureIndexes(database: Db) {
     db.paymentOrders.createIndex({ userId: 1, createdAt: -1 }),
     db.paymentOrders.createIndex({ provider: 1, status: 1, nextCheckAt: 1 }),
     db.billingSupport.createIndex({ status: 1, createdAt: 1 }),
+    db.billingSupport.createIndex({ userId: 1 }),
   ]);
 }
 

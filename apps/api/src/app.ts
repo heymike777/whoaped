@@ -13,7 +13,8 @@ import { withActivityBalances } from './services/activity-balances.js';
 import { reclassifyStoredActivities } from './services/activity-reclassification.js';
 import { drainNotificationJobs } from './services/push.js';
 import { enrichActivityMetadata, warmActivityTokenMetadata } from './services/token-metadata.js';
-import { AccountLinkError, createTelegramLink, getAccount, setTrackFailedTransactions, withAccountMutation } from './services/accounts.js';
+import { AccountLinkError, AccountUnavailableError, createTelegramLink, getAccount, setTrackFailedTransactions, withAccountMutation } from './services/accounts.js';
+import { deleteAccountForSession } from './services/account-deletion.js';
 import { BillingError } from './config/premium.js';
 import { answerStarsPreCheckout, billingCatalog } from './services/billing.js';
 import { getPaymentOrder, reportUsdcSignature } from './services/usdc-payments.js';
@@ -90,7 +91,21 @@ app.post('/v1/sessions', async (context) => {
   return context.json(await createAnonymousSession(), 201);
 });
 
+// This endpoint also accepts a completed deletion receipt after the session is revoked.
+app.delete('/v1/account', async (context) => {
+  context.header('Cache-Control', 'no-store');
+  const token = /^Bearer ([A-Za-z0-9_-]+)$/.exec(context.req.header('authorization') ?? '')?.[1];
+  if (!token || !await deleteAccountForSession(token)) return context.json({ error: 'Session expired.' }, 401);
+  return context.body(null, 204);
+});
+
 app.use('/v1/*', requireSession);
+
+app.onError((error, context) => {
+  if (error instanceof AccountUnavailableError) return context.json({ error: error.message }, 401);
+  console.error(error);
+  return context.text('Internal Server Error', 500);
+});
 
 app.get('/v1/discovery', async context => {
   const query = (context.req.query('q') ?? '').trim().toLocaleLowerCase().slice(0, 80);

@@ -1,11 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
-import { getBillingCatalog, getPaymentStatus, getStakeOffer, type BillingCatalog, type StakeOffer } from '../api/client';
+import { getBillingCatalog, getPaymentStatus, getStakeOffer, PENDING_PREMIUM_PAYMENT_KEY, type BillingCatalog, type StakeOffer } from '../api/client';
 import { type ThemeColors, typography } from '../theme';
 import { useThemedStyles } from '../themeContext';
-
-const PENDING_KEY = 'whoaped.pending-premium-payment';
 
 export function PremiumCard() {
   const { styles } = useThemedStyles(createStyles);
@@ -21,11 +19,11 @@ export function PremiumCard() {
     try {
       const next = await getBillingCatalog();
       const nextOffer = await getStakeOffer().catch(() => null);
-      const id = await AsyncStorage.getItem(PENDING_KEY);
+      const id = await AsyncStorage.getItem(PENDING_PREMIUM_PAYMENT_KEY);
       if (id) {
         const status = await getPaymentStatus(id);
         if (status.status !== 'pending') {
-          await AsyncStorage.removeItem(PENDING_KEY);
+          await AsyncStorage.removeItem(PENDING_PREMIUM_PAYMENT_KEY);
           if (mounted.current) {
             setPending(null);
             setMessage(status.status === 'paid' ? 'Your earlier payment was confirmed.' : `Earlier payment ${status.status}. Contact /paysupport in @whoapedbot if you sent funds.`);

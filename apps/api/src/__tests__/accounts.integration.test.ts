@@ -47,6 +47,53 @@ async function pendingLink() {
 }
 
 describe('atomic Telegram account linking (real MongoDB replica set)', () => {
+  it('deletes a linked account and its aliases, revokes sessions and supports safe retries', async () => {
+    const link = await pendingLink();
+    await accounts.confirmTelegramLink(link.token, '123');
+    const expiresAt = new Date(Date.now() + 60_000);
+    await db.users.insertOne({ _id: 'older-installation', mergedInto: source, createdAt: now });
+    await db.sessions.insertOne({ _id: 'other-session', userId: 'older-installation', tokenHash: auth.hashToken('older-token'), createdAt: now, expiresAt });
+    await db.deviceTokens.insertOne({ _id: 'deletion-device', userId: target, token: 'old-push-token', platform: 'ios', createdAt: now, lastSeenAt: now });
+    await db.notificationJobs.insertOne({ _id: 'deletion-push', userId: target, deviceTokenId: 'deletion-device', transactionId: 'test',
+      title: 'Queued update', body: '', data: {}, status: 'pending', attempts: 0, availableAt: now, createdAt: now });
+    await db.telegramJobs.insertOne({ _id: 'deletion-chat-job', chatId: '123', walletId: 'bot-shared', txHash: 'test', slot: 1,
+      text: 'Queued update', buttons: [], status: 'pending', attempts: 0, availableAt: now, createdAt: now });
+    await db.telegramUpdates.insertOne({ _id: 'queued-update', payload: { message: { chat: { id: 123 }, text: 'private name' } },
+      status: 'pending', availableAt: now, createdAt: now, attempts: 0 });
+    await db.payboxImports.insertOne({ _id: 'deletion-import', userId: source, stateHash: 'state', clientId: 'client', redirectUri: 'https://example.test', status: 'ready', expiresAt });
+    await db.paymentOrders.insertMany([
+      { _id: 'settled-order', userId: target, plan: 'month', provider: 'usdc', amount: 1, currency: 'USDC', status: 'paid',
+        createdAt: now, expiresAt, paymentId: 'receipt', payer: address, accessEndsAt: expiresAt },
+      { _id: 'pending-order', userId: target, plan: 'month', provider: 'usdc', amount: 1, currency: 'USDC', status: 'pending', createdAt: now, expiresAt },
+    ]);
+
+    const request = (token?: string) => app.request('/v1/account', { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    expect((await request()).status).toBe(401);
+    expect((await request('wrong-token')).status).toBe(401);
+    const responses = await Promise.all([request('mobile-token'), request('mobile-token')]);
+    expect(responses.map(response => response.status)).toEqual([204, 204]);
+
+    expect(await db.users.countDocuments()).toBe(0);
+    expect(await db.sessions.countDocuments()).toBe(0);
+    expect(await db.wallets.distinct('_id')).toEqual(['other-wallet']);
+    expect(await db.deviceTokens.countDocuments()).toBe(0);
+    expect(await db.notificationJobs.countDocuments()).toBe(0);
+    expect(await db.telegramJobs.countDocuments()).toBe(0);
+    expect(await db.telegramChats.countDocuments()).toBe(0);
+    expect(await db.accountLinks.countDocuments()).toBe(0);
+    expect(await db.payboxImports.countDocuments()).toBe(0);
+    expect(await db.telegramUpdates.findOne({ _id: 'queued-update' })).toMatchObject({ payload: null, status: 'sent' });
+    expect(await db.paymentOrders.findOne({ _id: 'settled-order' })).toMatchObject({ userId: 'deleted-account', paymentId: 'receipt' });
+    expect(await db.paymentOrders.findOne({ _id: 'settled-order' })).not.toHaveProperty('payer');
+    expect(await db.paymentOrders.findOne({ _id: 'pending-order' })).toBeNull();
+
+    expect(await auth.authenticateSessionToken('mobile-token')).toBeNull();
+    expect(await auth.authenticateSessionToken('older-token')).toBeNull();
+    const staleWrite = vi.fn();
+    await expect(accounts.withAccountMutation(target, staleWrite)).rejects.toBeInstanceOf(accounts.AccountUnavailableError);
+    expect(staleWrite).not.toHaveBeenCalled();
+  });
+
   it('shares the failed-transaction preference between app and bot and cancels queued alerts when disabled', async () => {
     const enabled = await app.request('/v1/account/preferences', {
       method: 'PATCH', headers: { Authorization: 'Bearer mobile-token', 'Content-Type': 'application/json' },

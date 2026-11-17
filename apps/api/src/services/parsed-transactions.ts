@@ -128,7 +128,7 @@ export async function ingestParsedTransaction(
         );
         return saved.upsertedCount ? { wallet: currentWallet, accountId, title: activity.title,
           balanceChanges: activity.metadata.balanceChanges as string[], transactionId } : null;
-      });
+      }, () => null);
       if (inserted) {
         activities += 1;
         const group = insertedByAccount.get(inserted.accountId) ?? [];
@@ -161,7 +161,7 @@ export async function ingestParsedTransaction(
       } },
       { upsert: true, session },
     );
-  });
+  }, () => undefined);
 
   return { activities };
 }

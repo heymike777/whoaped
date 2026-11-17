@@ -5,6 +5,7 @@ import { getTrackingStatus, mergeAccountRateLimits } from './rate-limits.js';
 import { collections, withDatabaseTransaction, type Collections } from '../db.js';
 
 export class AccountLinkError extends Error {}
+export class AccountUnavailableError extends Error {}
 export const linkHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export async function canonicalAccountId(userId: string, db?: Collections, session?: ClientSession): Promise<string> {
@@ -19,10 +20,24 @@ export async function canonicalAccountId(userId: string, db?: Collections, sessi
 
 // Wallet/device writes take the same account lock as a merge. An in-flight write
 // either commits before the merge scans it, or retries against the new owner.
-export async function withAccountMutation<T>(userId: string, work: (db: Collections, session: ClientSession, accountId: string) => Promise<T>) {
+export async function lockAccount(db: Collections, session: ClientSession, accountId: string) {
+  const result = await db.users.updateOne({ _id: accountId }, { $inc: { writeVersion: 1 } }, { session });
+  if (result.matchedCount) return true;
+  // Older bot sessions can have a chat row before their first account write.
+  if (!accountId.startsWith('telegram:') || !await db.telegramChats.findOne({
+    _id: accountId.slice(9), $or: [{ userId: accountId }, { userId: { $exists: false } }],
+  }, { session })) return false;
+  await db.users.updateOne({ _id: accountId }, { $inc: { writeVersion: 1 }, $setOnInsert: { createdAt: new Date() } }, { session, upsert: true });
+  return true;
+}
+
+export async function withAccountMutation<T>(userId: string, work: (db: Collections, session: ClientSession, accountId: string) => Promise<T>, onMissing?: () => T) {
   return withDatabaseTransaction(async (db, session) => {
     const accountId = await canonicalAccountId(userId, db, session);
-    await db.users.updateOne({ _id: accountId }, { $inc: { writeVersion: 1 }, $setOnInsert: { createdAt: new Date() } }, { session, upsert: true });
+    if (!await lockAccount(db, session, accountId)) {
+      if (onMissing) return onMissing();
+      throw new AccountUnavailableError('This account is no longer available.');
+    }
     return work(db, session, accountId);
   });
 }
@@ -58,14 +73,15 @@ export async function setTrackFailedTransactions(userId: string, enabled: boolea
 }
 
 export async function createTelegramLink(userId: string) {
-  const db = await collections();
-  if (await db.telegramChats.findOne({ userId })) throw new AccountLinkError('Telegram is already connected to this account.');
-  // Reissuing cancels earlier links. Only a hash of the high-entropy token is stored.
-  await db.accountLinks.updateMany({ userId, status: 'pending' }, { $set: { status: 'cancelled' } });
   const token = randomBytes(32).toString('base64url');
   const now = new Date(), expiresAt = new Date(now.getTime() + 10 * 60_000);
   const code = String(randomInt(100_000, 1_000_000));
-  await db.accountLinks.insertOne({ _id: linkHash(token), userId, code, createdAt: now, expiresAt, status: 'pending' });
+  await withAccountMutation(userId, async (db, session, accountId) => {
+    if (await db.telegramChats.findOne({ userId: accountId }, { session })) throw new AccountLinkError('Telegram is already connected to this account.');
+    // Reissuing cancels earlier links. Only a hash of the high-entropy token is stored.
+    await db.accountLinks.updateMany({ userId: accountId, status: 'pending' }, { $set: { status: 'cancelled' } }, { session });
+    await db.accountLinks.insertOne({ _id: linkHash(token), userId: accountId, code, createdAt: now, expiresAt, status: 'pending' }, { session });
+  });
   return { url: `https://t.me/whoapedbot?start=link_${token}`, code, expiresAt };
 }
 
@@ -94,6 +110,7 @@ export async function confirmTelegramLink(token: string, chatId: string, usernam
     }
     if (link.claimedChatId !== chatId) throw new AccountLinkError('Open this connection link in this Telegram chat first.');
     const sourceId = await canonicalAccountId(link.userId, db, session);
+    if (!await lockAccount(db, session, sourceId)) throw new AccountLinkError('This app account no longer exists.');
     const chat = await db.telegramChats.findOne({ _id: chatId }, options);
     const targetId = await canonicalAccountId(chat?.userId ?? `telegram:${chatId}`, db, session);
     const otherChat = await db.telegramChats.findOne({ userId: sourceId }, options);
@@ -141,6 +158,7 @@ export async function mergeAccountData(db: Collections, session: ClientSession, 
   await db.transactions.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await db.sessions.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await db.deviceTokens.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
+  await db.payboxImports.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await db.notificationJobs.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await mergePaidAccess(db, session, sourceId, targetId, now);
   await db.accountEntitlements.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);

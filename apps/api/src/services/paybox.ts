@@ -1,20 +1,14 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { getDatabase } from '../db.js';
+import { collections, getDatabase } from '../db.js';
+import { withAccountMutation } from './accounts.js';
 
 const ORIGIN = 'https://api.paybox.sh';
 const RESOURCE = `${ORIGIN}/mcp`;
 export type PayboxWallet = { name: string; address: string };
-type Import = {
-  _id: string; userId: string; stateHash: string; verifier?: string; clientId: string;
-  redirectUri: string; expiresAt: Date; status: 'pending' | 'processing' | 'ready' | 'error';
-  wallets?: PayboxWallet[];
-};
 const hash = (value: string) => createHash('sha256').update(value).digest('base64url');
 async function imports() {
-  const collection = (await getDatabase()).collection<Import>('paybox_imports');
-  await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-  return collection;
+  return (await collections()).payboxImports;
 }
 export function payboxAvailable() {
   try { return new URL(process.env.PAYBOX_REDIRECT_URI ?? '').protocol === 'https:'; } catch { return false; }
@@ -27,10 +21,6 @@ async function jsonRequest(url: string, init: RequestInit) {
 export async function createPayboxImport(userId: string) {
   const redirectUri = process.env.PAYBOX_REDIRECT_URI;
   if (!redirectUri || new URL(redirectUri).protocol !== 'https:') throw new Error('Paybox import is not configured.');
-  const db = await imports();
-  if (await db.countDocuments({ userId, status: { $in: ['pending', 'processing'] }, expiresAt: { $gt: new Date() } }) >= 3) {
-    throw new Error('Finish or cancel the current Paybox connection first.');
-  }
   const clients = (await getDatabase()).collection<{ _id: string; clientId: string }>('paybox_clients');
   let registered = await clients.findOne({ _id: redirectUri });
   if (!registered) {
@@ -45,8 +35,13 @@ export async function createPayboxImport(userId: string) {
   const state = randomBytes(32).toString('base64url');
   const verifier = randomBytes(32).toString('base64url');
   const id = randomUUID();
-  await db.insertOne({ _id: id, userId, stateHash: hash(state), verifier, clientId, redirectUri,
-    status: 'pending', expiresAt: new Date(Date.now() + 10 * 60_000) });
+  await withAccountMutation(userId, async (db, session, accountId) => {
+    if (await db.payboxImports.countDocuments({ userId: accountId, status: { $in: ['pending', 'processing'] }, expiresAt: { $gt: new Date() } }, { session }) >= 3) {
+      throw new Error('Finish or cancel the current Paybox connection first.');
+    }
+    await db.payboxImports.insertOne({ _id: id, userId: accountId, stateHash: hash(state), verifier, clientId, redirectUri,
+      status: 'pending', expiresAt: new Date(Date.now() + 10 * 60_000) }, { session });
+  });
   const params = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: redirectUri,
     code_challenge: hash(verifier), code_challenge_method: 'S256', scope: 'mcp', resource: RESOURCE, state });
   return { id, url: `${ORIGIN}/oauth/authorize?${params}` };
