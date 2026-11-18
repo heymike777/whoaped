@@ -21,7 +21,8 @@ import { getPaymentOrder, reportUsdcSignature } from './services/usdc-payments.j
 import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-limits.js';
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
 import { completePayboxImport, createPayboxImport, deletePayboxImport, getPayboxImport, payboxAvailable } from './services/paybox.js';
-import { stakingOffer } from './config/staking.js';
+import { seekerStakingOffer, stakeFastConfig } from './config/stakefast.js';
+import { createStakeFastChallenge, linkStakeFastWallet, prepareStakeFastAction, stakeFastConfirmation, stakeFastStatus, StakeFastLinkError, unlinkStakeFastWallet } from './services/stakefast.js';
 import { getDiscoveryCatalog } from './services/kolscan-discovery.js';
 
 const walletSchema = z.object({
@@ -164,8 +165,60 @@ app.delete('/v1/account/telegram-link', async (context) => {
   return context.json({ ok: true });
 });
 
-app.get('/v1/billing/products', async (context) => context.json(await billingCatalog(context.get('userId'))));
-app.get('/v1/staking/offer', (context) => context.json(stakingOffer()));
+app.get('/v1/billing/products', async (context) => context.json(await billingCatalog(context.get('userId'), true)));
+app.get('/v1/staking/offer', (context) => context.json(seekerStakingOffer()));
+app.get('/v1/stakefast/status', async (context) => {
+  const config = stakeFastConfig();
+  context.header('Cache-Control', 'no-store');
+  try { return context.json(await stakeFastStatus(context.get('userId'), config)); }
+  catch { return context.json({ error: 'StakeFast status is temporarily unavailable.' }, 503); }
+});
+app.post('/v1/stakefast/challenges', async (context) => {
+  const config = stakeFastConfig();
+  const input = z.object({ wallet: z.string().min(32).max(44) }).safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return context.json({ error: 'Enter a valid Solana signing wallet.' }, 400);
+  try { return context.json(await createStakeFastChallenge(context.get('userId'), input.data.wallet, config), 201); }
+  catch (error) { if (error instanceof StakeFastLinkError) return context.json({ error: error.message }, 400); throw error; }
+});
+app.post('/v1/stakefast/link', async (context) => {
+  const config = stakeFastConfig();
+  const input = z.object({ challengeId: z.uuid(), signature: z.string().length(88) }).safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return context.json({ error: 'Invalid wallet proof.' }, 400);
+  try { return context.json(await linkStakeFastWallet(context.get('userId'), input.data.challengeId, input.data.signature, config)); }
+  catch (error) { if (error instanceof StakeFastLinkError) return context.json({ error: error.message }, 409); throw error; }
+});
+app.delete('/v1/stakefast/wallets/:wallet', async (context) => {
+  try {
+    await unlinkStakeFastWallet(context.get('userId'), context.req.param('wallet'));
+    return context.json({ ok: true });
+  } catch (error) { if (error instanceof StakeFastLinkError) return context.json({ error: error.message }, 400); throw error; }
+});
+const stakingWallet = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+const stakingAction = z.discriminatedUnion('action', [
+  z.object({ wallet: stakingWallet, action: z.literal('stake'), amountRaw: z.string().regex(/^[1-9]\d{0,19}$/) }),
+  z.object({ wallet: stakingWallet, action: z.enum(['unstake', 'cancel', 'claim']) }),
+]);
+app.post('/v1/stakefast/transactions', async (context) => {
+  context.header('Cache-Control', 'no-store');
+  const input = stakingAction.safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return context.json({ error: 'Enter a valid staking action and amount.' }, 400);
+  try {
+    return context.json(await prepareStakeFastAction(context.get('userId'), input.data.wallet, input.data, stakeFastConfig()));
+  } catch (error) {
+    const message = error instanceof Error ? error.message.replace(/([?&]api-key=)[^\s&]+/gi, '$1[redacted]') : 'Could not prepare the staking transaction.';
+    return context.json({ error: message }, error instanceof StakeFastLinkError ? 403 : 400);
+  }
+});
+app.get('/v1/stakefast/transactions/:signature', async (context) => {
+  context.header('Cache-Control', 'no-store');
+  const signature = context.req.param('signature');
+  const lastValidBlockHeight = Number(context.req.query('lastValidBlockHeight'));
+  if (!/^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(signature) || !Number.isSafeInteger(lastValidBlockHeight) || lastValidBlockHeight <= 0) {
+    return context.json({ error: 'Invalid transaction reference.' }, 400);
+  }
+  try { return context.json({ status: await stakeFastConfirmation(signature, lastValidBlockHeight, stakeFastConfig()) }); }
+  catch { return context.json({ error: 'Transaction confirmation is temporarily unavailable.' }, 503); }
+});
 app.post('/v1/billing/usdc/orders', (context) => context.json({ error: 'Premium purchases are paused.' }, 410));
 app.get('/v1/billing/orders/:id', async (context) => {
   try { return context.json(await getPaymentOrder(context.get('userId'), context.req.param('id'))); }

@@ -12,6 +12,10 @@ export type AccountEntitlementDocument = {
   _id: string; userId: string; provider: string; externalId: string;
   feature: string; expiresAt?: Date; revokedAt?: Date; createdAt: Date;
 };
+export type StakeFastChallengeDocument = {
+  _id: string; challengeId: string; message: string; wallet: string; vault: string; expiresAt: Date;
+};
+export type StakeFastWalletDocument = { _id: string; userId: string; linkedAt: Date };
 export type PaymentOrderDocument = {
   _id: string; userId: string; plan: 'month' | 'year'; provider: 'usdc' | 'stars';
   amount: number; currency: 'USDC' | 'XTR'; status: 'pending' | 'paid' | 'refunded' | 'expired';
@@ -186,6 +190,8 @@ export type Collections = {
   telegramAnalyticsEvents: Collection<TelegramAnalyticsEventDocument>;
   accountLinks: Collection<AccountLinkDocument>;
   accountEntitlements: Collection<AccountEntitlementDocument>;
+  stakeFastChallenges: Collection<StakeFastChallengeDocument>;
+  stakeFastWallets: Collection<StakeFastWalletDocument>;
   trackingStates: Collection<TrackingStateDocument>;
   rateEvents: Collection<RateEventDocument>;
   paymentOrders: Collection<PaymentOrderDocument>;
@@ -223,6 +229,8 @@ function databaseCollections(database: Db): Collections {
     telegramAnalyticsEvents: database.collection<TelegramAnalyticsEventDocument>('telegram_analytics_events'),
     accountLinks: database.collection<AccountLinkDocument>('account_links'),
     accountEntitlements: database.collection<AccountEntitlementDocument>('account_entitlements'),
+    stakeFastChallenges: database.collection<StakeFastChallengeDocument>('stakefast_challenges'),
+    stakeFastWallets: database.collection<StakeFastWalletDocument>('stakefast_wallets'),
     trackingStates: database.collection<TrackingStateDocument>('tracking_states'),
     rateEvents: database.collection<RateEventDocument>('rate_events'),
     paymentOrders: database.collection<PaymentOrderDocument>('payment_orders'),
@@ -280,6 +288,8 @@ async function ensureIndexes(database: Db) {
     db.accountLinks.createIndex({ userId: 1, status: 1 }),
     db.accountEntitlements.createIndex({ provider: 1, externalId: 1 }, { unique: true }),
     db.accountEntitlements.createIndex({ userId: 1 }),
+    db.stakeFastChallenges.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.stakeFastWallets.createIndex({ userId: 1 }),
     db.trackingStates.createIndex({ cooldownUntil: 1 }),
     db.rateEvents.createIndex({ userId: 1, chain: 1, txHash: 1 }, { unique: true }),
     db.rateEvents.createIndex({ userId: 1, observedAt: -1 }),

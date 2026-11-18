@@ -51,12 +51,13 @@ export async function getAccount(userId: string) {
   const entitlements = await db.accountEntitlements.find({ userId: accountId, revokedAt: { $exists: false }, $or: [
     { expiresAt: { $exists: false } }, { expiresAt: { $gt: now } },
   ] }).toArray();
+  const premium = await premiumAccess(accountId, db);
   return {
     id: accountId,
     preferences: { trackFailedTransactions: user?.trackFailedTransactions === true },
     telegram: chat ? { connected: true as const, username: chat.username ?? null, linkedAt: chat.linkedAt } : null,
-    tracking: await getTrackingStatus(accountId),
-    premium: await premiumAccess(accountId),
+    tracking: await getTrackingStatus(accountId, premium.active),
+    premium,
     entitlements: entitlements.map(e => ({ feature: e.feature, expiresAt: e.expiresAt ?? null })),
   };
 }
@@ -162,5 +163,7 @@ export async function mergeAccountData(db: Collections, session: ClientSession, 
   await db.notificationJobs.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
   await mergePaidAccess(db, session, sourceId, targetId, now);
   await db.accountEntitlements.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
+  await db.stakeFastWallets.updateMany({ userId: sourceId }, { $set: { userId: targetId } }, options);
+  await db.stakeFastChallenges.deleteOne({ _id: sourceId }, options);
   await mergeAccountRateLimits(db, session, sourceId, targetId, now);
 }

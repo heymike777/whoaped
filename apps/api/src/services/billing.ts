@@ -2,19 +2,19 @@ import { randomUUID } from 'node:crypto';
 import { collections } from '../db.js';
 import { BillingError, PREMIUM_PLANS, type PremiumPlan } from '../config/premium.js';
 import { withAccountMutation } from './accounts.js';
-import { grantPaidOrder, premiumAccess, repackPaidAccess } from './premium-access.js';
+import { grantPaidOrder, paidPremiumAccess, premiumAccess, repackPaidAccess } from './premium-access.js';
 import { refreshPaidTrackingPolicy } from './rate-limits.js';
 import { telegramCall } from './telegram-api.js';
 
 export const PAYMENT_TERMS = 'WhoAped Premium is a one-time purchase of 30 or 365 days. No automatic renewal. Repeat purchases add unused access time to your shared account. Premium limits: 60 transactions/minute, 1,000/hour, 3,000/day across all wallets; usage protection and manual account pauses still apply. Access activates after payment verification. Billing help and refund requests: send /paysupport followed by your message and payment reference in this bot. Never send private keys or seed phrases.';
 export const TERMS_VERSION = '2026-11-01';
-export async function billingCatalog(userId: string) {
+export async function billingCatalog(userId: string, includeStakeFast = false) {
   return {
     // Legacy orders remain queryable and refundable, but new purchases are paused.
     plans: [],
     usdcAvailable: false,
     terms: PAYMENT_TERMS, termsVersion: TERMS_VERSION,
-    premium: await premiumAccess(userId),
+    premium: await (includeStakeFast ? premiumAccess : paidPremiumAccess)(userId),
   };
 }
 export async function createStarsInvoice(userId: string, telegramUserId: string, plan: PremiumPlan) {
@@ -65,17 +65,17 @@ export async function settleStarsPayment(chatId: string, payment: StarsPayment, 
     if (order.paymentId && order.paymentId !== paymentId) throw new BillingError('This invoice has another payment receipt. Contact /paysupport.');
     const now = new Date();
     if (refund) {
-      if (order.status === 'refunded') return premiumAccess(accountId, database, session, now);
+      if (order.status === 'refunded') return paidPremiumAccess(accountId, database, session, now);
       await database.paymentOrders.updateOne({ _id: order._id }, { $set: { status: 'refunded', paymentId } }, { session });
       await repackPaidAccess(database, session, accountId, now);
       await refreshPaidTrackingPolicy(database, session, accountId, now);
-      return premiumAccess(accountId, database, session, now);
+      return paidPremiumAccess(accountId, database, session, now);
     }
     if (order.status === 'refunded') throw new BillingError('This payment was refunded. Premium was not activated.');
-    if (order.status === 'paid') return premiumAccess(accountId, database, session, now);
+    if (order.status === 'paid') return paidPremiumAccess(accountId, database, session, now);
     await grantPaidOrder(database, session, order, accountId, paymentId, now);
     await refreshPaidTrackingPolicy(database, session, accountId, now);
-    return premiumAccess(accountId, database, session, now);
+    return paidPremiumAccess(accountId, database, session, now);
   });
 }
 export async function createBillingSupport(userId: string, message: string) {

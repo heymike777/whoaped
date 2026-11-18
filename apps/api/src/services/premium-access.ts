@@ -1,12 +1,24 @@
 import type { ClientSession } from 'mongodb';
 import { collections, type Collections, type PaymentOrderDocument } from '../db.js';
 import { BillingError, PREMIUM_PLANS } from '../config/premium.js';
+import { stakeFastConfig } from '../config/stakefast.js';
+import { stakeFastPremiumAccess } from './stakefast.js';
 const entitlementId = (userId: string) => `whoaped-premium:${userId}`;
 
-export async function premiumAccess(userId: string, database?: Collections, session?: ClientSession, now = new Date()) {
+export async function paidPremiumAccess(userId: string, database?: Collections, session?: ClientSession, now = new Date()) {
   const db = database ?? await collections();
   const grant = await db.accountEntitlements.findOne({ _id: entitlementId(userId), userId, provider: 'whoaped-billing', revokedAt: { $exists: false } }, { session });
   return { active: Boolean(grant?.expiresAt && grant.expiresAt > now), expiresAt: grant?.expiresAt ?? null };
+}
+export async function premiumAccess(userId: string, database?: Collections, session?: ClientSession, now = new Date()) {
+  const db = database ?? await collections();
+  const paid = await paidPremiumAccess(userId, db, session, now);
+  if (paid.active) return paid;
+  const config = stakeFastConfig();
+  if (await stakeFastPremiumAccess(userId, config, db, session)) {
+    return { active: true, expiresAt: null };
+  }
+  return paid;
 }
 async function setExpiry(db: Collections, session: ClientSession, userId: string, expiresAt: Date, now: Date) {
   await db.accountEntitlements.updateOne({ _id: entitlementId(userId) }, {
@@ -15,7 +27,7 @@ async function setExpiry(db: Collections, session: ClientSession, userId: string
   }, { session, upsert: true });
 }
 export async function grantPaidOrder(db: Collections, session: ClientSession, order: PaymentOrderDocument, userId: string, paymentId: string, now: Date) {
-  const current = await premiumAccess(userId, db, session, now);
+  const current = await paidPremiumAccess(userId, db, session, now);
   const start = new Date(Math.max(now.getTime(), current.expiresAt?.getTime() ?? 0));
   const end = new Date(start.getTime() + PREMIUM_PLANS[order.plan].days * 86400_000);
   const saved = await db.paymentOrders.updateOne({ _id: order._id, status: { $in: ['pending', 'expired'] } }, { $set: {

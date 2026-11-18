@@ -83,14 +83,16 @@ export async function admitAccountTransaction(userId: string, txHash: string, sl
   }, () => ({ allowed: false, cooldownStarted: false, accountId: userId }));
 }
 
-export async function getTrackingStatus(userId: string) {
+export async function getTrackingStatus(userId: string, hasPremium?: boolean) {
   const db = await collections();
   const state = await db.trackingStates.findOne({ _id: userId });
+  const premium = hasPremium ?? (await premiumAccess(userId, db)).active;
+  const limits = premium ? PREMIUM_TRANSACTION_LIMITS : FREE_TRANSACTION_LIMITS;
   return {
     paused: Boolean(state?.paused), cooldownUntil: state?.cooldownUntil ?? null,
     resuming: Boolean(state?.resumePending && !subscriptionBlocked(state)), reason: state?.reason ?? null,
-    tier: (await premiumAccess(userId, db)).active ? 'premium' : 'free',
-    limits: Object.fromEntries((await accountPolicy(userId, db)).map(p => [p.name, p.limit])),
+    tier: premium ? 'premium' : 'free',
+    limits: Object.fromEntries(limits.map(p => [p.name, p.limit])),
   };
 }
 

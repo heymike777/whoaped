@@ -58,6 +58,8 @@ export function deleteAccountForSession(token: string) {
     await db.accountLinks.deleteMany({ $or: [owned, { claimedChatId: { $in: chatIds } }, { confirmedChatId: { $in: chatIds } }] }, options);
     await db.payboxImports.deleteMany(owned, options);
     await db.accountEntitlements.deleteMany(owned, options);
+    await db.stakeFastWallets.deleteMany(owned, options);
+    await db.stakeFastChallenges.deleteMany({ _id: { $in: owners } }, options);
     await db.trackingStates.deleteMany({ _id: { $in: owners } }, options);
     await db.rateEvents.deleteMany(owned, options);
     await db.portfolioSnapshots.deleteMany({ _id: { $in: owners } }, options);

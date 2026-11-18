@@ -1,0 +1,20 @@
+{
+  "name": "@stakefast/sdk",
+  "version": "0.5.0",
+  "description": "Read StakeFast positions and build Solana transactions from Node.js and React Native",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./index.d.ts", "default": "./index.js" },
+    "./accounts": { "types": "./accounts.d.ts", "default": "./accounts.js" },
+    "./transactions": { "types": "./transactions.d.ts", "default": "./transactions.js" }
+  },
+  "files": ["*.js", "*.d.ts"],
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "1.2.6",
+    "@solana/instructions": "8.6.0",
+    "@solana/transaction-messages": "8.6.0",
+    "@solana/transactions": "8.6.0"
+  }
+}

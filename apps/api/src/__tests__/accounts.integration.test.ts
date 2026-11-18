@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { createPrivateKey, sign } from 'node:crypto';
+import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { MAINNET_GENESIS_HASH, stakeFastConfig } from '../config/stakefast.js';
+import { anchorDiscriminator, positionAddress } from '../services/stakefast-accounts.js';
 import type { Collections } from '../db.js';
 
 let replica: MongoMemoryReplSet;
@@ -47,6 +52,93 @@ async function pendingLink() {
 }
 
 describe('atomic Telegram account linking (real MongoDB replica set)', () => {
+  it('grants Seeker PRO from finalized stake and keeps Telegram on paid billing', async () => {
+    vi.stubEnv('STAKEFAST_DEVNET_ENABLED', 'false');
+    vi.stubEnv('STAKEFAST_MAINNET_RPC_URL', 'https://staking-rpc.test');
+    const config = stakeFastConfig();
+    const wallet = Keypair.generate();
+    const address = wallet.publicKey.toBase58();
+    const key = createPrivateKey({ key: Buffer.concat([
+      Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.from(wallet.secretKey.subarray(0, 32)),
+    ]), format: 'der', type: 'pkcs8' });
+    const vault = Buffer.alloc(130);
+    anchorDiscriminator('account', 'Vault').copy(vault);
+    new PublicKey('HskTaEWSV7z4YDBsXt2Zks7ELpf4iCWYaGYiH6wuEFuy').toBuffer().copy(vault, 8);
+    config.mint.toBuffer().copy(vault, 40);
+    TOKEN_2022_PROGRAM_ID.toBuffer().copy(vault, 72);
+    vault.writeBigUInt64LE(1n, 104);
+    vault.writeBigInt64LE(604800n, 120);
+    const position = Buffer.alloc(88);
+    anchorDiscriminator('account', 'Position').copy(position);
+    config.vault.toBuffer().copy(position, 8);
+    wallet.publicKey.toBuffer().copy(position, 40);
+    const positionKey = positionAddress(config.program, config.vault, wallet.publicKey).toBase58();
+    const accountInfo = (data: Buffer, executable = false) => ({ executable, owner: config.program.toBase58(), lamports: 1_000_000, rentEpoch: 0, data: [data.toString('base64'), 'base64'] });
+    const botMessages: string[] = [];
+    const rpcCommitments: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: { body: string }) => {
+      const payload = JSON.parse(init.body);
+      if (url.startsWith('https://api.telegram.org/')) {
+        if (url.endsWith('/sendMessage')) botMessages.push(payload.text);
+        return Response.json({ ok: true, result: {} });
+      }
+      let result;
+      const context = { slot: 42 };
+      switch (payload.method) {
+        case 'getGenesisHash': result = MAINNET_GENESIS_HASH; break;
+        case 'getAccountInfo': result = { context, value: accountInfo(Buffer.alloc(0), true) }; break;
+        case 'getMultipleAccounts':
+          rpcCommitments.push(payload.params[1].commitment);
+          result = { context, value: payload.params[0].map((id: string) => id === config.vault.toBase58() ? accountInfo(vault)
+            : id === positionKey && position.readBigUInt64LE(72) ? accountInfo(position) : null) };
+          break;
+        case 'getLatestBlockhash': result = { context, value: { blockhash: wallet.publicKey.toBase58(), lastValidBlockHeight: 90 } }; break;
+        default: throw new Error(`Unexpected RPC call ${payload.method}`);
+      }
+      return Response.json({ jsonrpc: '2.0', id: payload.id, result });
+    }));
+    const request = (path: string, data?: object) => app.request(path, {
+      method: data ? 'POST' : 'GET', headers: { Authorization: 'Bearer mobile-token', 'Content-Type': 'application/json' },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    const action = { wallet: address, action: 'stake', amountRaw: '1000000000000' };
+    expect((await request('/v1/stakefast/transactions', action)).status).toBe(403);
+    const challenge = await (await request('/v1/stakefast/challenges', { wallet: address })).json() as { challengeId: string; messageBase64: string };
+    const message = Buffer.from(challenge.messageBase64, 'base64');
+    expect(message.toString()).toContain('Network: Solana mainnet');
+    const proof = { challengeId: challenge.challengeId, signature: sign(null, message, key).toString('base64') };
+    expect((await request('/v1/stakefast/link', proof)).status).toBe(200);
+    expect((await request('/v1/stakefast/link', proof)).status).toBe(409);
+    const prepared = await request('/v1/stakefast/transactions', action);
+    expect(prepared.status).toBe(200);
+    const transaction = Transaction.from(Buffer.from((await prepared.json() as { transaction: string }).transaction, 'base64'));
+    expect(transaction.feePayer?.toBase58()).toBe(address);
+    expect(transaction.instructions[0].programId.equals(config.program)).toBe(true);
+
+    const link = await pendingLink();
+    await accounts.confirmTelegramLink(link.token, '123');
+    const { handleTelegramUpdate } = await import('../services/telegram.js');
+    const bot = (id: number) => handleTelegramUpdate({ update_id: id, message: { chat: { id: 123, type: 'private' }, from: { id: 123 }, text: '/premium' } });
+    position.writeBigUInt64LE(999_999_999_999n, 72);
+    expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: false }, tracking: { tier: 'free' } });
+    position.writeBigUInt64LE(1_000_000_000_000n, 72);
+    expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: true }, tracking: { tier: 'premium' } });
+    await bot(4000);
+    expect(botMessages.at(-1)).toContain('WhoAped Premium · Coming Soon');
+    expect(botMessages.at(-1)).not.toContain('Premium active until');
+    expect(await (await request('/v1/billing/products')).json()).toMatchObject({ premium: { active: true } });
+    position.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1000)) + 604800n, 80);
+    expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: false }, tracking: { tier: 'free' } });
+    expect(await (await request('/v1/stakefast/status')).json()).toMatchObject({ qualifiesForPremium: false, positions: [{ wallet: address, qualifies: false }] });
+    await bot(4001);
+    expect(botMessages.at(-1)).toBe(botMessages.at(-2));
+    expect((await request('/v1/stakefast/transactions', { wallet: address, action: 'cancel' })).status).toBe(200);
+    position.writeBigInt64LE(0n, 80);
+    expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: true } });
+    expect(rpcCommitments.length).toBeGreaterThan(0);
+    expect(rpcCommitments.every(commitment => commitment === 'finalized')).toBe(true);
+  });
+
   it('deletes a linked account and its aliases, revokes sessions and supports safe retries', async () => {
     const link = await pendingLink();
     await accounts.confirmTelegramLink(link.token, '123');
