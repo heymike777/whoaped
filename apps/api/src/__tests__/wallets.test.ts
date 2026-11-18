@@ -37,6 +37,7 @@ vi.mock('../services/accounts.js', async (importOriginal) => ({
 }));
 
 import { app } from '../app.js';
+import { WHOAPED_STAKEFAST_VAULT } from '../config/stakefast.js';
 
 const address = '7V4Qz8VvTtKrpWLDPKyPYxMcBoQvfHBkHjx1hq4hGQPe';
 
@@ -48,10 +49,13 @@ describe('wallet routes', () => {
     expect(response.status).toBe(410);
   });
 
-  it('exposes Streamflow as coming soon without a deposit address', async () => {
+  it('exposes the mainnet StakeFast offer for Seeker', async () => {
     const response = await app.request('/v1/staking/offer');
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ provider: 'streamflow', status: 'coming_soon', amount: 1_000_000, available: false, poolAddress: null });
+    await expect(response.json()).resolves.toMatchObject({
+      provider: 'stakefast', status: 'live', cluster: 'mainnet', available: true,
+      amount: 1_000_000, cooldownSeconds: 604_800, poolAddress: WHOAPED_STAKEFAST_VAULT.toBase58(),
+    });
   });
 
   it('returns a transaction count for the last 24 hours with each wallet', async () => {
