@@ -113,6 +113,15 @@ function positionLabel(position) {
   return Date.now() >= deadline.getTime() ? 'Ready to withdraw' : `Withdrawal opens ${deadline.toLocaleString()}`;
 }
 
+function withdrawalWait(raw = '604800') {
+  const seconds = BigInt(raw);
+  if (seconds === 0n) return 'as soon as';
+  const units = [[86_400n, 'day'], [3_600n, 'hour'], [60n, 'minute'], [1n, 'second']];
+  const [size, unit] = units.find(([size]) => seconds % size === 0n);
+  const amount = seconds / size;
+  return `${amount.toLocaleString('en-US')} ${unit}${amount === 1n ? '' : 's'} after`;
+}
+
 function render() {
   const wallets = availableWallets();
   const telegramLinked = Boolean(telegramAccount);
@@ -140,6 +149,9 @@ function render() {
   if (lastSignature) element('receipt').href = 'https://explorer.solana.com/tx/' + encodeURIComponent(lastSignature);
   const pending = busy || Boolean(saved.receipt);
   element('confirm-unstake').disabled = pending || !status;
+  const wait = withdrawalWait(status?.cooldownSeconds);
+  element('withdrawal-wait').textContent = wait;
+  element('unstake-wait').textContent = wait;
   element('pro').hidden = !status;
   if (!status) return;
 
