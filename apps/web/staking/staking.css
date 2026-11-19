@@ -68,11 +68,6 @@
 }
 
 .staking-intro {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px 28px;
   margin-bottom: 34px;
 }
 
@@ -81,17 +76,6 @@
   margin-top: 10px;
 }
 
-.staking-network {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  color: var(--quiet);
-  font-size: .8125rem;
-  font-weight: 600;
-}
-
-.staking-network::before,
 .staking-status::before {
   width: 7px;
   height: 7px;
@@ -99,10 +83,6 @@
   border-radius: 50%;
   background: currentColor;
   content: "";
-}
-
-.staking-network::before {
-  color: var(--blue);
 }
 
 .staking-layout {
@@ -602,10 +582,6 @@
 
   .staking h1 {
     font-size: 2.125rem;
-  }
-
-  .staking-intro {
-    gap: 8px;
   }
 
   .wallet-balances dd {
