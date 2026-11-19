@@ -7,6 +7,7 @@ const storageKey = 'whoaped.telegram-staking';
 const registry = getWallets();
 const element = id => document.getElementById(id);
 const walletPicker = element('wallet-picker');
+const unstakeDialog = element('unstake-dialog');
 const decodeBase64 = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 const shorten = address => `${address.slice(0, 6)}…${address.slice(-5)}`;
 
@@ -133,10 +134,11 @@ function render() {
 
   element('receipt').hidden = !lastSignature;
   if (lastSignature) element('receipt').href = 'https://explorer.solana.com/tx/' + encodeURIComponent(lastSignature);
+  const pending = busy || Boolean(saved.receipt);
+  element('confirm-unstake').disabled = pending || !status;
   element('pro').hidden = !status;
   if (!status) return;
 
-  const pending = busy || Boolean(saved.receipt);
   element('pro').textContent = status.qualifiesForPremium ? 'Stake-based PRO active' : 'Stake-based PRO inactive';
   element('pro').dataset.active = String(status.qualifiesForPremium);
   element('pro-minimum').textContent = `${displayAmount(status.minimumAmountRaw)} WHOAPED`;
@@ -377,9 +379,30 @@ element('stake-max').onclick = () => {
   element('amount').value = decimalAmount(walletBalances.whoapedAmountRaw);
   element('staking-error').hidden = true;
 };
-element('unstake').onclick = () => {
-  if (confirm('Request unstake? Stake-based PRO ends when this transaction finalizes and the withdrawal cooldown starts.')) void runStakingAction(() => submit('unstake'));
+element('unstake').onclick = event => {
+  const position = status?.positions.find(item => item.wallet === account?.address);
+  if (!position || position.amountRaw === '0' || position.unlockAt) return;
+  const selectedWallet = wallet;
+  element('unstake-amount').textContent = `${displayAmount(position.amountRaw)} WHOAPED`;
+  element('unstake-wallet').textContent = shorten(position.wallet);
+  element('unstake-wallet').title = position.wallet;
+  element('confirm-unstake').onclick = () => {
+    unstakeDialog.close();
+    void runStakingAction(() => {
+      const current = status?.positions.find(item => item.wallet === account?.address);
+      if (wallet !== selectedWallet || current?.wallet !== position.wallet || current.amountRaw !== position.amountRaw || current.unlockAt) {
+        throw new Error('Your staking position changed. Review it before requesting unstake.');
+      }
+      return submit('unstake');
+    });
+  };
+  event.currentTarget.focus();
+  unstakeDialog.showModal();
 };
+element('close-unstake-dialog').onclick = () => unstakeDialog.close();
+unstakeDialog.addEventListener('click', event => {
+  if (event.target === unstakeDialog) unstakeDialog.close();
+});
 element('cancel-unstake').onclick = () => runStakingAction(() => submit('cancel'));
 element('claim').onclick = () => runStakingAction(() => submit('claim'));
 element('refresh').onclick = () => run(refreshStatus);
