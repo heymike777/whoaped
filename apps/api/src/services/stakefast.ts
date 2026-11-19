@@ -1,5 +1,5 @@
 import { createPublicKey, randomUUID, verify } from 'node:crypto';
-import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { Connection, PublicKey, VersionedTransaction, type AccountInfo } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, unpackAccount } from '@solana/spl-token';
 import { MongoServerError, type ClientSession } from 'mongodb';
 import { createStakeFastClient } from '@stakefast/sdk';
@@ -142,6 +142,32 @@ export async function stakeFastStatus(userId: string, config: StakeFastConfig) {
   return readStakeFastStatus(config, wallets.map(wallet => new PublicKey(wallet)));
 }
 
+function stakeFastSource(owner: PublicKey, mint: PublicKey) {
+  return getAssociatedTokenAddressSync(mint, owner, false, TOKEN_2022_PROGRAM_ID);
+}
+
+function stakeFastSourceBalance(source: PublicKey, info: AccountInfo<Buffer> | null, owner: PublicKey, mint: PublicKey) {
+  if (!info?.owner.equals(TOKEN_2022_PROGRAM_ID)) return 0n;
+  const tokens = unpackAccount(source, info, TOKEN_2022_PROGRAM_ID);
+  return tokens.isInitialized && !tokens.isFrozen && tokens.mint.equals(mint) && tokens.owner.equals(owner) ? tokens.amount : 0n;
+}
+
+export async function stakeFastWalletBalances(wallet: string, config: StakeFastConfig) {
+  const owner = parseStakeFastWallet(wallet);
+  const source = stakeFastSource(owner, config.mint);
+  const connection = await stakeFastConnection(config);
+  const [sol, tokens] = await connection.getMultipleAccountsInfo([owner, source], 'confirmed');
+  const solLamports = sol?.lamports ?? 0;
+  if (!Number.isSafeInteger(solLamports) || solLamports < 0) throw new Error('Invalid Solana balance.');
+  return {
+    wallet: owner.toBase58(),
+    mint: config.mint.toBase58(),
+    cluster: config.cluster,
+    whoapedAmountRaw: stakeFastSourceBalance(source, tokens, owner, config.mint).toString(),
+    solLamports: solLamports.toString(),
+  };
+}
+
 type StakeFastAction = { action: 'stake'; amountRaw: string } | { action: 'unstake' | 'cancel' | 'claim' };
 let sdk: { key: string; client: ReturnType<typeof createStakeFastClient> } | undefined;
 
@@ -152,10 +178,9 @@ async function checkStakeFastFunds(config: StakeFastConfig, owner: PublicKey, in
     const connection = await stakeFastConnection(config);
     if (input.action === 'stake') {
       // StakeFast debits the owner's associated Token-2022 account for this mint.
-      const source = getAssociatedTokenAddressSync(config.mint, owner, false, TOKEN_2022_PROGRAM_ID);
+      const source = stakeFastSource(owner, config.mint);
       const info = await connection.getAccountInfo(source, 'confirmed');
-      const tokens = info?.owner.equals(TOKEN_2022_PROGRAM_ID) ? unpackAccount(source, info, TOKEN_2022_PROGRAM_ID) : null;
-      if (!tokens || !tokens.mint.equals(config.mint) || !tokens.owner.equals(owner) || tokens.amount < BigInt(input.amountRaw)) {
+      if (stakeFastSourceBalance(source, info, owner, config.mint) < BigInt(input.amountRaw)) {
         return null;
       }
     }

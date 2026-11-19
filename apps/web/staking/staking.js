@@ -17,6 +17,9 @@ let status;
 let wallet;
 let account;
 let accounts = [];
+let walletBalances;
+let balancesUnavailable = false;
+let balanceRequest = 0;
 let stopWalletEvents;
 let busy = false;
 let pollTimer;
@@ -50,11 +53,17 @@ async function api(path, body) {
   return data;
 }
 
-function displayAmount(raw) {
-  const amount = BigInt(raw);
-  const whole = (amount / 1_000_000n).toLocaleString('en-US');
-  const fraction = (amount % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
+function decimalAmount(raw, decimals = 6) {
+  const digits = raw.padStart(decimals + 1, '0');
+  const whole = digits.slice(0, -decimals);
+  const fraction = digits.slice(-decimals).replace(/0+$/, '');
   return fraction ? `${whole}.${fraction}` : whole;
+}
+
+function displayAmount(raw, decimals = 6) {
+  const [whole, fraction] = decimalAmount(raw, decimals).split('.');
+  const formatted = BigInt(whole).toLocaleString('en-US');
+  return fraction ? `${formatted}.${fraction}` : formatted;
 }
 
 function amountInBaseUnits(value) {
@@ -71,13 +80,23 @@ function availableWallets() {
     && item.features['solana:signAndSendTransaction']?.supportedTransactionVersions.includes('legacy'));
 }
 
+function selectWalletAccount(next) {
+  const changed = account?.address !== next?.address;
+  account = next;
+  element('staking-error').hidden = true;
+  if (changed) {
+    element('amount').value = '';
+    void refreshWalletBalances();
+  }
+}
+
 function selectAccounts(nextAccounts) {
   accounts = nextAccounts.filter(item => item.chains.includes(chain)
     && item.features.includes('solana:signMessage') && item.features.includes('solana:signAndSendTransaction'));
-  account = accounts.find(item => item.address === account?.address) ?? accounts[0];
-  element('staking-error').hidden = true;
+  const selected = accounts.find(item => item.address === account?.address) ?? accounts[0];
   element('wallet-account').replaceChildren(...accounts.map(item =>
     new Option(item.label ? `${item.label} · ${shorten(item.address)}` : item.address, item.address)));
+  selectWalletAccount(selected);
   if (account) element('wallet-account').value = account.address;
 }
 
@@ -117,6 +136,16 @@ function render() {
   element('account-label').hidden = !account;
   element('wallet-account').hidden = !account;
   element('wallet-account').disabled = pending;
+  element('wallet-balances').hidden = !account;
+  element('wallet-balance-values').hidden = !walletBalances;
+  element('wallet-balance-message').hidden = Boolean(walletBalances);
+  element('wallet-balance-message').textContent = balancesUnavailable
+    ? 'Wallet balances are unavailable. Refresh status to try again.'
+    : 'Loading wallet balances…';
+  if (walletBalances) {
+    element('whoaped-balance').textContent = displayAmount(walletBalances.whoapedAmountRaw);
+    element('sol-balance').textContent = displayAmount(walletBalances.solLamports, 9);
+  }
   const selected = status.positions.find(item => item.wallet === account?.address);
   element('link-wallet').hidden = !account || Boolean(selected);
   element('link-wallet').disabled = pending;
@@ -130,13 +159,36 @@ function render() {
   const form = element('stake-form');
   form.hidden = !selected || Boolean(selected.unlockAt) || status.depositsPaused;
   element('amount').disabled = pending;
-  form.querySelector('button').disabled = pending;
+  form.querySelector('button[type="submit"]').disabled = pending;
+  element('stake-max').disabled = pending || !walletBalances || walletBalances.whoapedAmountRaw === '0';
   element('unstake').hidden = !selected || selected.amountRaw === '0' || Boolean(selected.unlockAt);
   element('unstake').disabled = pending;
   element('cancel-unstake').hidden = !selected?.unlockAt;
   element('cancel-unstake').disabled = pending;
   element('claim').hidden = !selected?.unlockAt;
   element('claim').disabled = pending || !(Date.now() >= Number(selected?.unlockAt) * 1000);
+}
+
+async function refreshWalletBalances() {
+  const request = ++balanceRequest;
+  const address = account?.address;
+  walletBalances = undefined;
+  balancesUnavailable = false;
+  render();
+  if (!address || !saved.token) return;
+
+  try {
+    const balances = await api(`/v1/stakefast/wallets/${encodeURIComponent(address)}/balances`);
+    if (request !== balanceRequest) return;
+    if (balances.wallet !== address || balances.cluster !== 'mainnet' || balances.mint !== status?.mint) {
+      throw new Error('Balance response does not match the selected wallet.');
+    }
+    walletBalances = balances;
+  } catch {
+    if (request !== balanceRequest) return;
+    balancesUnavailable = true;
+  }
+  render();
 }
 
 async function refreshStatus() {
@@ -149,6 +201,7 @@ async function refreshStatus() {
   const next = await api('/v1/stakefast/status');
   if (next.cluster !== 'mainnet') throw new Error('The mainnet staking vault is unavailable.');
   status = next;
+  if (account) void refreshWalletBalances();
 }
 
 async function run(work, errorOutput = element('notice')) {
@@ -267,8 +320,7 @@ walletPicker.addEventListener('click', event => {
   if (event.target === walletPicker) walletPicker.close();
 });
 element('wallet-account').onchange = () => {
-  account = accounts.find(item => item.address === element('wallet-account').value);
-  element('staking-error').hidden = true;
+  selectWalletAccount(accounts.find(item => item.address === element('wallet-account').value));
   render();
 };
 element('link-wallet').onclick = () => run(async () => {
@@ -298,6 +350,11 @@ function runStakingAction(work) {
 element('stake-form').onsubmit = event => {
   event.preventDefault();
   void runStakingAction(() => submit('stake', amountInBaseUnits(element('amount').value)));
+};
+element('stake-max').onclick = () => {
+  if (!walletBalances) return;
+  element('amount').value = decimalAmount(walletBalances.whoapedAmountRaw);
+  element('staking-error').hidden = true;
 };
 element('unstake').onclick = () => {
   if (confirm('Request unstake? Stake-based PRO ends when this transaction finalizes and the withdrawal cooldown starts.')) void runStakingAction(() => submit('unstake'));

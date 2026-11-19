@@ -10,6 +10,11 @@
 .staking-controls, .staking-step { display: grid; gap: 8px; }
 .staking-controls label { font-weight: 600; }
 .staking input, .staking select { min-height: 44px; width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
+.wallet-balances { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 0; padding: 12px; border-radius: 8px; background: var(--paper); }
+.wallet-balances > div { flex: 1 1 max-content; min-width: 0; }
+.wallet-balances dt { font-size: 13px; color: var(--quiet); }
+.wallet-balances dd { margin: 4px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stake-amount-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .staking-step strong, .staking-positions { font-variant-numeric: tabular-nums; }
 .staking-positions { margin: 0; padding-inline-start: 20px; overflow-wrap: anywhere; }
 .staking-positions li + li { margin-top: 8px; }

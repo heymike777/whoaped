@@ -43,11 +43,21 @@
           <select id="wallet-account" hidden></select>
           <button id="link-wallet" class="button button-outline" type="button" hidden>Verify wallet ownership</button>
         </div>
+        <div id="wallet-balances" aria-live="polite" hidden>
+          <dl id="wallet-balance-values" class="wallet-balances" hidden>
+            <div><dt>Available WHOAPED</dt><dd id="whoaped-balance"></dd></div>
+            <div><dt>SOL balance</dt><dd id="sol-balance"></dd></div>
+          </dl>
+          <p id="wallet-balance-message"></p>
+        </div>
         <ul id="positions" class="staking-positions"></ul>
         <p id="position-state"></p>
         <form id="stake-form" class="staking-controls" hidden>
           <label for="amount">Amount to stake</label>
-          <input id="amount" type="text" inputmode="decimal" maxlength="21" required />
+          <div class="stake-amount-row">
+            <input id="amount" type="text" inputmode="decimal" maxlength="21" required />
+            <button id="stake-max" class="button button-outline" type="button" aria-label="Use maximum WHOAPED amount" disabled>Max</button>
+          </div>
           <button class="button button-outline" type="submit">Stake WHOAPED</button>
         </form>
         <div class="staking-actions">

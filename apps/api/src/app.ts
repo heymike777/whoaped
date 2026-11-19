@@ -22,7 +22,10 @@ import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-lim
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
 import { completePayboxImport, createPayboxImport, deletePayboxImport, getPayboxImport, payboxAvailable } from './services/paybox.js';
 import { seekerStakingOffer, stakeFastConfig } from './config/stakefast.js';
-import { createStakeFastChallenge, linkStakeFastWallet, prepareStakeFastAction, stakeFastConfirmation, stakeFastStatus, StakeFastLinkError, StakeFastPreflightUnavailableError, unlinkStakeFastWallet } from './services/stakefast.js';
+import {
+  createStakeFastChallenge, linkStakeFastWallet, prepareStakeFastAction, stakeFastConfirmation, stakeFastStatus,
+  StakeFastLinkError, StakeFastPreflightUnavailableError, stakeFastWalletBalances, unlinkStakeFastWallet,
+} from './services/stakefast.js';
 import { getDiscoveryCatalog } from './services/kolscan-discovery.js';
 
 const walletSchema = z.object({
@@ -172,6 +175,14 @@ app.get('/v1/stakefast/status', async (context) => {
   context.header('Cache-Control', 'no-store');
   try { return context.json(await stakeFastStatus(context.get('userId'), config)); }
   catch { return context.json({ error: 'StakeFast status is temporarily unavailable.' }, 503); }
+});
+app.get('/v1/stakefast/wallets/:wallet/balances', async (context) => {
+  context.header('Cache-Control', 'no-store');
+  try { return context.json(await stakeFastWalletBalances(context.req.param('wallet'), stakeFastConfig())); }
+  catch (error) {
+    if (error instanceof StakeFastLinkError) return context.json({ error: error.message }, 400);
+    return context.json({ error: 'Wallet balances are temporarily unavailable.' }, 503);
+  }
 });
 app.post('/v1/stakefast/challenges', async (context) => {
   const config = stakeFastConfig();

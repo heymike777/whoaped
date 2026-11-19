@@ -77,6 +77,17 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     const sourceKey = getAssociatedTokenAddressSync(config.mint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID).toBase58();
     const accountInfo = (data: Buffer, executable = false) => ({ executable, owner: config.program.toBase58(), lamports: 1_000_000, rentEpoch: 0, data: [data.toString('base64'), 'base64'] });
     let tokenBalance: bigint | null = null;
+    let solBalance = 0;
+    const sourceAccount = () => {
+      if (tokenBalance === null) return null;
+      const data = Buffer.alloc(AccountLayout.span);
+      AccountLayout.encode({
+        mint: config.mint, owner: wallet.publicKey, amount: tokenBalance, state: AccountState.Initialized,
+        delegateOption: 0, delegate: PublicKey.default, isNativeOption: 0, isNative: 0n, delegatedAmount: 0n,
+        closeAuthorityOption: 0, closeAuthority: PublicKey.default,
+      }, data);
+      return { ...accountInfo(data), owner: TOKEN_2022_PROGRAM_ID.toBase58() };
+    };
     let simulationError: string | Record<string, unknown> | null = null;
     let simulationLogs: string[] = [];
     const simulationRequests: string[] = [];
@@ -97,21 +108,18 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
       const context = { slot: 42 };
       switch (payload.method) {
         case 'getGenesisHash': result = MAINNET_GENESIS_HASH; break;
-        case 'getAccountInfo': {
-          if (payload.params[0] !== sourceKey) {
-            result = { context, value: accountInfo(Buffer.alloc(0), true) };
+        case 'getAccountInfo':
+          result = { context, value: payload.params[0] === sourceKey ? sourceAccount() : accountInfo(Buffer.alloc(0), true) };
+          break;
+        case 'getMultipleAccounts':
+          if (payload.params[0][0] === address && payload.params[0][1] === sourceKey) {
+            expect(payload.params[1].commitment).toBe('confirmed');
+            result = { context, value: [
+              solBalance ? { ...accountInfo(Buffer.alloc(0)), owner: PublicKey.default.toBase58(), lamports: solBalance } : null,
+              sourceAccount(),
+            ] };
             break;
           }
-          const data = Buffer.alloc(AccountLayout.span);
-          AccountLayout.encode({
-            mint: config.mint, owner: wallet.publicKey, amount: tokenBalance ?? 0n, state: AccountState.Initialized,
-            delegateOption: 0, delegate: PublicKey.default, isNativeOption: 0, isNative: 0n, delegatedAmount: 0n,
-            closeAuthorityOption: 0, closeAuthority: PublicKey.default,
-          }, data);
-          result = { context, value: tokenBalance === null ? null : { ...accountInfo(data), owner: TOKEN_2022_PROGRAM_ID.toBase58() } };
-          break;
-        }
-        case 'getMultipleAccounts':
           rpcCommitments.push(payload.params[1].commitment);
           result = { context, value: payload.params[0].map((id: string) => id === config.vault.toBase58() ? accountInfo(vault)
             : id === positionKey && position.readBigUInt64LE(72) ? accountInfo(position) : null) };
@@ -132,6 +140,19 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
       body: data ? JSON.stringify(data) : undefined,
     });
     const action = { wallet: address, action: 'stake', amountRaw: '1000000000000' };
+    const balancesUrl = `/v1/stakefast/wallets/${address}/balances`;
+    expect((await app.request(balancesUrl)).status).toBe(401);
+    expect((await request('/v1/stakefast/wallets/invalid/balances')).status).toBe(400);
+    const emptyBalances = await request(balancesUrl);
+    expect(emptyBalances.headers.get('cache-control')).toBe('no-store');
+    expect(await emptyBalances.json()).toEqual({
+      wallet: address, cluster: 'mainnet', mint: config.mint.toBase58(), whoapedAmountRaw: '0', solLamports: '0',
+    });
+    tokenBalance = 1_234_000_000_012n;
+    solBalance = 12_345_678;
+    expect(await (await request(balancesUrl)).json()).toMatchObject({
+      whoapedAmountRaw: '1234000000012', solLamports: '12345678',
+    });
     expect((await request('/v1/stakefast/transactions', action)).status).toBe(403);
     const challenge = await (await request('/v1/stakefast/challenges', { wallet: address })).json() as { challengeId: string; messageBase64: string };
     const message = Buffer.from(challenge.messageBase64, 'base64');
