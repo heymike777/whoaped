@@ -1,6 +1,6 @@
 import { createPublicKey, randomUUID, verify } from 'node:crypto';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, unpackAccount } from '@solana/spl-token';
 import { MongoServerError, type ClientSession } from 'mongodb';
 import { createStakeFastClient } from '@stakefast/sdk';
 import type { StakeFastConfig } from '../config/stakefast.js';
@@ -9,6 +9,7 @@ import { canonicalAccountId, withAccountMutation } from './accounts.js';
 import { decodeStakeFastPosition, decodeStakeFastVault, positionAddress } from './stakefast-accounts.js';
 
 export class StakeFastLinkError extends Error {}
+export class StakeFastPreflightUnavailableError extends Error {}
 const publicKeyPrefix = Buffer.from('302a300506032b6570032100', 'hex');
 
 export function parseStakeFastWallet(value: string) {
@@ -144,8 +145,43 @@ export async function stakeFastStatus(userId: string, config: StakeFastConfig) {
 type StakeFastAction = { action: 'stake'; amountRaw: string } | { action: 'unstake' | 'cancel' | 'claim' };
 let sdk: { key: string; client: ReturnType<typeof createStakeFastClient> } | undefined;
 
+const insufficientWhoAped = 'Not enough WHOAPED in this wallet to stake that amount.';
+
+async function checkStakeFastFunds(config: StakeFastConfig, owner: PublicKey, input: StakeFastAction, transaction: string) {
+  const result = await (async () => {
+    const connection = await stakeFastConnection(config);
+    if (input.action === 'stake') {
+      // StakeFast debits the owner's associated Token-2022 account for this mint.
+      const source = getAssociatedTokenAddressSync(config.mint, owner, false, TOKEN_2022_PROGRAM_ID);
+      const info = await connection.getAccountInfo(source, 'confirmed');
+      const tokens = info?.owner.equals(TOKEN_2022_PROGRAM_ID) ? unpackAccount(source, info, TOKEN_2022_PROGRAM_ID) : null;
+      if (!tokens || !tokens.mint.equals(config.mint) || !tokens.owner.equals(owner) || tokens.amount < BigInt(input.amountRaw)) {
+        return null;
+      }
+    }
+    const unsigned = VersionedTransaction.deserialize(Buffer.from(transaction, 'base64'));
+    // Simulation checks the actual on-chain fee and any account creation rent.
+    return (await connection.simulateTransaction(unsigned, { commitment: 'confirmed', sigVerify: false })).value;
+  })().catch(() => {
+    throw new StakeFastPreflightUnavailableError('Could not check wallet balances on Solana. Try again.');
+  });
+  if (!result) throw new Error(insufficientWhoAped);
+  if (!result.err) return;
+  const { err, logs } = result;
+  if (err === 'AccountNotFound' || err === 'InsufficientFundsForFee'
+    || (typeof err === 'object' && 'InsufficientFundsForRent' in err)
+    || logs?.some(log => log.includes('Transfer: insufficient lamports'))) {
+    throw new Error('Not enough SOL for staking fees, network fees, or account creation.');
+  }
+  if (input.action === 'stake' && logs?.includes(`Program ${TOKEN_2022_PROGRAM_ID.toBase58()} failed: custom program error: 0x1`)) {
+    throw new Error(insufficientWhoAped);
+  }
+  throw new Error('Solana could not simulate this transaction. Refresh your staking position and try again.');
+}
+
 export async function prepareStakeFastAction(userId: string, wallet: string, input: StakeFastAction, config: StakeFastConfig) {
-  const address = parseStakeFastWallet(wallet).toBase58();
+  const owner = parseStakeFastWallet(wallet);
+  const address = owner.toBase58();
   const db = await collections();
   const accountId = await canonicalAccountId(userId, db);
   if (!await db.stakeFastWallets.findOne({ _id: address, userId: accountId })) {
@@ -154,12 +190,16 @@ export async function prepareStakeFastAction(userId: string, wallet: string, inp
   const key = `${config.cluster}:${config.rpcUrl}`;
   if (sdk?.key !== key) sdk = { key, client: createStakeFastClient({ cluster: config.cluster, rpcUrl: config.rpcUrl }) };
   const query = { wallet: address, vault: config.vault.toBase58(), mint: config.mint.toBase58() };
-  switch (input.action) {
-    case 'stake': return sdk.client.buildStakeTransaction({ ...query, amountRaw: input.amountRaw });
-    case 'unstake': return sdk.client.buildUnstakeTransaction(query);
-    case 'cancel': return sdk.client.buildCancelUnstakeTransaction(query);
-    case 'claim': return sdk.client.buildClaimTransaction(query);
-  }
+  const buildPositionAction = {
+    unstake: sdk.client.buildUnstakeTransaction,
+    cancel: sdk.client.buildCancelUnstakeTransaction,
+    claim: sdk.client.buildClaimTransaction,
+  };
+  const prepared = input.action === 'stake'
+    ? await sdk.client.buildStakeTransaction({ ...query, amountRaw: input.amountRaw })
+    : await buildPositionAction[input.action](query);
+  await checkStakeFastFunds(config, owner, input, prepared.transaction);
+  return { ...prepared, preflightChecked: true };
 }
 
 export async function stakeFastConfirmation(signature: string, lastValidBlockHeight: number, config: StakeFastConfig) {

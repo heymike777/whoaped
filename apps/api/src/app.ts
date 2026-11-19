@@ -22,7 +22,7 @@ import { getTrackingStatus, setAccountTrackingPaused } from './services/rate-lim
 import { authorizedTelegramWebhook, telegramUpdateSchema } from './services/telegram.js';
 import { completePayboxImport, createPayboxImport, deletePayboxImport, getPayboxImport, payboxAvailable } from './services/paybox.js';
 import { seekerStakingOffer, stakeFastConfig } from './config/stakefast.js';
-import { createStakeFastChallenge, linkStakeFastWallet, prepareStakeFastAction, stakeFastConfirmation, stakeFastStatus, StakeFastLinkError, unlinkStakeFastWallet } from './services/stakefast.js';
+import { createStakeFastChallenge, linkStakeFastWallet, prepareStakeFastAction, stakeFastConfirmation, stakeFastStatus, StakeFastLinkError, StakeFastPreflightUnavailableError, unlinkStakeFastWallet } from './services/stakefast.js';
 import { getDiscoveryCatalog } from './services/kolscan-discovery.js';
 
 const walletSchema = z.object({
@@ -205,6 +205,7 @@ app.post('/v1/stakefast/transactions', async (context) => {
   try {
     return context.json(await prepareStakeFastAction(context.get('userId'), input.data.wallet, input.data, stakeFastConfig()));
   } catch (error) {
+    if (error instanceof StakeFastPreflightUnavailableError) return context.json({ error: error.message }, 503);
     const message = error instanceof Error ? error.message.replace(/([?&]api-key=)[^\s&]+/gi, '$1[redacted]') : 'Could not prepare the staking transaction.';
     return context.json({ error: message }, error instanceof StakeFastLinkError ? 403 : 400);
   }

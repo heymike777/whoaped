@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { createPrivateKey, sign } from 'node:crypto';
 import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
-import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { AccountLayout, AccountState, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { MAINNET_GENESIS_HASH, stakeFastConfig } from '../config/stakefast.js';
 import { anchorDiscriminator, positionAddress } from '../services/stakefast-accounts.js';
 import type { Collections } from '../db.js';
@@ -74,7 +74,13 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     config.vault.toBuffer().copy(position, 8);
     wallet.publicKey.toBuffer().copy(position, 40);
     const positionKey = positionAddress(config.program, config.vault, wallet.publicKey).toBase58();
+    const sourceKey = getAssociatedTokenAddressSync(config.mint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID).toBase58();
     const accountInfo = (data: Buffer, executable = false) => ({ executable, owner: config.program.toBase58(), lamports: 1_000_000, rentEpoch: 0, data: [data.toString('base64'), 'base64'] });
+    let tokenBalance: bigint | null = null;
+    let simulationError: string | Record<string, unknown> | null = null;
+    let simulationLogs: string[] = [];
+    const simulationRequests: string[] = [];
+    let simulationUnavailable = false;
     const botMessages: string[] = [];
     const botButtons: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
     const rpcCommitments: string[] = [];
@@ -91,13 +97,32 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
       const context = { slot: 42 };
       switch (payload.method) {
         case 'getGenesisHash': result = MAINNET_GENESIS_HASH; break;
-        case 'getAccountInfo': result = { context, value: accountInfo(Buffer.alloc(0), true) }; break;
+        case 'getAccountInfo': {
+          if (payload.params[0] !== sourceKey) {
+            result = { context, value: accountInfo(Buffer.alloc(0), true) };
+            break;
+          }
+          const data = Buffer.alloc(AccountLayout.span);
+          AccountLayout.encode({
+            mint: config.mint, owner: wallet.publicKey, amount: tokenBalance ?? 0n, state: AccountState.Initialized,
+            delegateOption: 0, delegate: PublicKey.default, isNativeOption: 0, isNative: 0n, delegatedAmount: 0n,
+            closeAuthorityOption: 0, closeAuthority: PublicKey.default,
+          }, data);
+          result = { context, value: tokenBalance === null ? null : { ...accountInfo(data), owner: TOKEN_2022_PROGRAM_ID.toBase58() } };
+          break;
+        }
         case 'getMultipleAccounts':
           rpcCommitments.push(payload.params[1].commitment);
           result = { context, value: payload.params[0].map((id: string) => id === config.vault.toBase58() ? accountInfo(vault)
             : id === positionKey && position.readBigUInt64LE(72) ? accountInfo(position) : null) };
           break;
         case 'getLatestBlockhash': result = { context, value: { blockhash: wallet.publicKey.toBase58(), lastValidBlockHeight: 90 } }; break;
+        case 'simulateTransaction':
+          expect(payload.params[1]).toMatchObject({ commitment: 'confirmed', encoding: 'base64', sigVerify: false });
+          simulationRequests.push(payload.params[0]);
+          if (simulationUnavailable) return Response.json({ jsonrpc: '2.0', id: payload.id, error: { code: -32005, message: 'Unavailable' } });
+          result = { context, value: { err: simulationError, logs: simulationLogs } };
+          break;
         default: throw new Error(`Unexpected RPC call ${payload.method}`);
       }
       return Response.json({ jsonrpc: '2.0', id: payload.id, result });
@@ -114,9 +139,38 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     const proof = { challengeId: challenge.challengeId, signature: sign(null, message, key).toString('base64') };
     expect((await request('/v1/stakefast/link', proof)).status).toBe(200);
     expect((await request('/v1/stakefast/link', proof)).status).toBe(409);
+    for (const balance of [null, 999_999_999_999n]) {
+      tokenBalance = balance;
+      const rejected = await request('/v1/stakefast/transactions', action);
+      expect(rejected.status).toBe(400);
+      expect(await rejected.json()).toEqual({ error: expect.stringContaining('Not enough WHOAPED') });
+    }
+    expect(simulationRequests).toHaveLength(0);
+    tokenBalance = 1_000_000_000_000n;
+    for (const error of ['AccountNotFound', 'InsufficientFundsForFee', { InsufficientFundsForRent: { account_index: 0 } }]) {
+      simulationError = error;
+      const rejected = await request('/v1/stakefast/transactions', action);
+      expect(rejected.status).toBe(400);
+      expect(await rejected.json()).toEqual({ error: expect.stringContaining('Not enough SOL') });
+    }
+    simulationError = { InstructionError: [0, { Custom: 1 }] };
+    simulationLogs = ['Program log: Transfer: insufficient lamports 0, need 2000000'];
+    const feeRejected = await request('/v1/stakefast/transactions', action);
+    expect(feeRejected.status).toBe(400);
+    expect(await feeRejected.json()).toEqual({ error: expect.stringContaining('Not enough SOL') });
+    simulationUnavailable = true;
+    const unavailable = await request('/v1/stakefast/transactions', action);
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toEqual({ error: expect.stringContaining('Could not check wallet balances') });
+    simulationUnavailable = false;
+    simulationError = null;
+    simulationLogs = [];
     const prepared = await request('/v1/stakefast/transactions', action);
     expect(prepared.status).toBe(200);
-    const transaction = Transaction.from(Buffer.from((await prepared.json() as { transaction: string }).transaction, 'base64'));
+    const wire = await prepared.json() as { transaction: string; preflightChecked: boolean };
+    expect(wire.preflightChecked).toBe(true);
+    expect(simulationRequests.at(-1)).toBe(wire.transaction);
+    const transaction = Transaction.from(Buffer.from(wire.transaction, 'base64'));
     expect(transaction.feePayer?.toBase58()).toBe(address);
     expect(transaction.instructions[0].programId.equals(config.program)).toBe(true);
 
@@ -152,7 +206,11 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     expect(await (await request('/v1/stakefast/status')).json()).toMatchObject({ qualifiesForPremium: false, positions: [{ wallet: address, qualifies: false }] });
     await bot(4005, '/premium');
     expect(botMessages.at(-1)).toBe(pausedMenu);
-    expect((await request('/v1/stakefast/transactions', { wallet: address, action: 'cancel' })).status).toBe(200);
+    const cancel = { wallet: address, action: 'cancel' };
+    simulationError = 'InsufficientFundsForFee';
+    expect((await (await request('/v1/stakefast/transactions', cancel)).json())).toEqual({ error: expect.stringContaining('Not enough SOL') });
+    simulationError = null;
+    expect((await request('/v1/stakefast/transactions', cancel)).status).toBe(200);
     position.writeBigInt64LE(0n, 80);
     expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: true } });
     expect(rpcCommitments.length).toBeGreaterThan(0);
