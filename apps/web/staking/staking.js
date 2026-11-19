@@ -13,7 +13,7 @@ const shorten = address => `${address.slice(0, 6)}…${address.slice(-5)}`;
 
 let saved = {};
 try { saved = JSON.parse(sessionStorage.getItem(storageKey) ?? '{}') ?? {}; } catch { /* An expired browser session can be recreated. */ }
-let telegramLinked = false;
+let telegramAccount;
 let status;
 let wallet;
 let account;
@@ -46,7 +46,7 @@ async function api(path, body) {
   });
   const data = await response.json().catch(() => ({}));
   if (response.status === 401) {
-    telegramLinked = false;
+    telegramAccount = undefined;
     status = undefined;
     remember({ token: undefined, confirmation: undefined, receipt: undefined });
     throw new Error('This session expired. Connect Telegram again.');
@@ -115,10 +115,14 @@ function positionLabel(position) {
 
 function render() {
   const wallets = availableWallets();
+  const telegramLinked = Boolean(telegramAccount);
+  const username = telegramAccount?.username?.trim().replace(/^@+/, '');
   element('wallet-help').hidden = wallets.length > 0;
   element('telegram').hidden = !wallets.length && !saved.token;
   element('telegram').dataset.connected = String(telegramLinked);
   element('telegram-connected').hidden = !telegramLinked;
+  element('telegram-username').hidden = !username;
+  element('telegram-username').textContent = username ? `@${username}` : '';
   element('telegram-state').hidden = telegramLinked;
   element('position').hidden = !telegramLinked || !status;
   element('refresh').hidden = !saved.token;
@@ -217,8 +221,8 @@ async function refreshWalletBalances() {
 async function refreshStatus() {
   if (!saved.token) return;
   const details = await api('/v1/account');
-  telegramLinked = Boolean(details.telegram?.connected);
-  if (!telegramLinked) { status = undefined; return; }
+  telegramAccount = details.telegram?.connected ? details.telegram : undefined;
+  if (!telegramAccount) { status = undefined; return; }
   remember({ confirmation: undefined });
   status = undefined;
   const next = await api('/v1/stakefast/status');

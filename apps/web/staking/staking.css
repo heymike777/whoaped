@@ -118,6 +118,20 @@
   font: 600 .875rem/1.4 system-ui, sans-serif;
 }
 
+.telegram-account-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.telegram-username {
+  font-size: .875rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
 .staking .staking-status {
   display: inline-flex;
   align-items: center;
