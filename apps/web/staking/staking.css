@@ -11,24 +11,6 @@
   min-height: 44px;
 }
 
-.staking-header .theme-toggle {
-  width: auto;
-  padding-inline: 12px;
-  border-color: transparent;
-  background: transparent;
-  font-family: inherit;
-  font-size: .875rem;
-  font-weight: 600;
-}
-
-.staking-header .theme-toggle::before {
-  content: none;
-}
-
-.staking-header .theme-toggle:hover {
-  background: var(--surface);
-}
-
 .staking {
   --staking-gutter: 28px;
   --staking-control-radius: 10px;
