@@ -24,7 +24,7 @@ import { completePayboxImport, createPayboxImport, deletePayboxImport, getPaybox
 import { seekerStakingOffer, stakeFastConfig } from './config/stakefast.js';
 import {
   createStakeFastChallenge, linkStakeFastWallet, prepareStakeFastAction, stakeFastConfirmation, stakeFastStatus,
-  StakeFastLinkError, StakeFastPreflightUnavailableError, stakeFastWalletBalances, unlinkStakeFastWallet,
+  StakeFastLinkError, StakeFastPreflightUnavailableError, stakeFastWalletBalances, unlinkStakeFastWallet, whoApedVaultTotal,
 } from './services/stakefast.js';
 import { getDiscoveryCatalog } from './services/kolscan-discovery.js';
 
@@ -93,6 +93,15 @@ app.get('/integrations/paybox/callback', async (context) => {
 app.post('/v1/sessions', async (context) => {
   if (!hasDatabase()) return context.json({ error: 'Database is not configured.' }, 503);
   return context.json(await createAnonymousSession(), 201);
+});
+
+app.get('/v1/staking/stats', async (context) => {
+  context.header('Cache-Control', 'no-store');
+  try {
+    return context.json(await whoApedVaultTotal(stakeFastConfig()));
+  } catch {
+    return context.json({ error: 'The WHOAPED staking total is temporarily unavailable.' }, 503);
+  }
 });
 
 // This endpoint also accepts a completed deletion receipt after the session is revoked.

@@ -2,7 +2,7 @@ import { createPublicKey, randomUUID, verify } from 'node:crypto';
 import { Connection, PublicKey, VersionedTransaction, type AccountInfo } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, unpackAccount } from '@solana/spl-token';
 import { MongoServerError, type ClientSession } from 'mongodb';
-import { createStakeFastClient } from '@stakefast/sdk';
+import { createStakeFastClient, type StakeFastVaultStats } from '@stakefast/sdk';
 import type { StakeFastConfig } from '../config/stakefast.js';
 import { collections, type Collections } from '../db.js';
 import { canonicalAccountId, withAccountMutation } from './accounts.js';
@@ -170,6 +170,29 @@ export async function stakeFastWalletBalances(wallet: string, config: StakeFastC
 
 type StakeFastAction = { action: 'stake'; amountRaw: string } | { action: 'unstake' | 'cancel' | 'claim' };
 let sdk: { key: string; client: ReturnType<typeof createStakeFastClient> } | undefined;
+let publicVaultStats: { rpcUrl: string; expiresAt: number; request: Promise<StakeFastVaultStats> } | undefined;
+
+function stakeFastClient(config: StakeFastConfig) {
+  const key = `${config.cluster}:${config.rpcUrl}`;
+  if (sdk?.key !== key) sdk = { key, client: createStakeFastClient({ cluster: config.cluster, rpcUrl: config.rpcUrl }) };
+  return sdk.client;
+}
+
+export async function whoApedVaultTotal(config: StakeFastConfig) {
+  if (config.cluster !== 'mainnet') throw new Error('The public staking total requires mainnet.');
+  const now = Date.now();
+  // Share one finalized position scan across visitors during each cache window.
+  if (publicVaultStats?.rpcUrl !== config.rpcUrl || publicVaultStats.expiresAt <= now) {
+    publicVaultStats = {
+      rpcUrl: config.rpcUrl,
+      expiresAt: now + 60_000,
+      request: stakeFastClient(config).getVaultStats({ vault: config.vault.toBase58() }),
+    };
+  }
+  const stats = await publicVaultStats.request;
+  if (stats.mint !== config.mint.toBase58()) throw new Error('The staking vault uses a different mint.');
+  return { amountRaw: stats.totalAmountRaw, decimals: stats.decimals, slot: stats.slot };
+}
 
 const insufficientWhoAped = 'Not enough WHOAPED in this wallet to stake that amount.';
 
@@ -212,16 +235,15 @@ export async function prepareStakeFastAction(userId: string, wallet: string, inp
   if (!await db.stakeFastWallets.findOne({ _id: address, userId: accountId })) {
     throw new StakeFastLinkError('Connect this wallet to your WhoAped account first.');
   }
-  const key = `${config.cluster}:${config.rpcUrl}`;
-  if (sdk?.key !== key) sdk = { key, client: createStakeFastClient({ cluster: config.cluster, rpcUrl: config.rpcUrl }) };
+  const client = stakeFastClient(config);
   const query = { wallet: address, vault: config.vault.toBase58(), mint: config.mint.toBase58() };
   const buildPositionAction = {
-    unstake: sdk.client.buildUnstakeTransaction,
-    cancel: sdk.client.buildCancelUnstakeTransaction,
-    claim: sdk.client.buildClaimTransaction,
+    unstake: client.buildUnstakeTransaction,
+    cancel: client.buildCancelUnstakeTransaction,
+    claim: client.buildClaimTransaction,
   };
   const prepared = input.action === 'stake'
-    ? await sdk.client.buildStakeTransaction({ ...query, amountRaw: input.amountRaw })
+    ? await client.buildStakeTransaction({ ...query, amountRaw: input.amountRaw })
     : await buildPositionAction[input.action](query);
   await checkStakeFastFunds(config, owner, input, prepared.transaction);
   return { ...prepared, preflightChecked: true };

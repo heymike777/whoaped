@@ -11,7 +11,7 @@ if (measurementId && !/^G-[A-Z0-9]+$/.test(measurementId)) {
 
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
-for (const name of ['styles.css', 'download.js', 'theme.js', 'analytics.js']) {
+for (const name of ['styles.css', 'download.js', 'theme.js', 'analytics.js', 'staking-total.js']) {
   await cp(new URL(name, root), new URL(name, output));
 }
 for (const name of ['index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html', 'staking/index.html']) {

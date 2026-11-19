@@ -95,6 +95,7 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     const botMessages: string[] = [];
     const botButtons: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
     const rpcCommitments: string[] = [];
+    let vaultScans = 0;
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: { body: string }) => {
       const payload = JSON.parse(init.body);
       if (url.startsWith('https://api.telegram.org/')) {
@@ -109,7 +110,22 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
       switch (payload.method) {
         case 'getGenesisHash': result = MAINNET_GENESIS_HASH; break;
         case 'getAccountInfo':
+          if (payload.params[0] === config.mint.toBase58()) {
+            result = { context, value: {
+              owner: TOKEN_2022_PROGRAM_ID.toBase58(), executable: false,
+              data: { parsed: { type: 'mint', info: { isInitialized: true, decimals: 6 } } },
+            } };
+            break;
+          }
           result = { context, value: payload.params[0] === sourceKey ? sourceAccount() : accountInfo(Buffer.alloc(0), true) };
+          break;
+        case 'getProgramAccounts':
+          vaultScans++;
+          expect(payload.params[1]).toMatchObject({
+            commitment: 'finalized', withContext: true,
+            filters: expect.arrayContaining([{ memcmp: { offset: 8, bytes: config.vault.toBase58() } }]),
+          });
+          result = { context, value: [{ pubkey: positionKey, account: accountInfo(position) }] };
           break;
         case 'getMultipleAccounts':
           if (payload.params[0][0] === address && payload.params[0][1] === sourceKey) {
@@ -222,6 +238,12 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     position.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1000)) - 1n, 80);
     await bot(4004);
     expect(botMessages.at(-1)).toContain('ready to withdraw');
+    const publicTotals = await Promise.all([app.request('/v1/staking/stats'), app.request('/v1/staking/stats')]);
+    for (const total of publicTotals) {
+      expect(total.status).toBe(200);
+      expect(await total.json()).toEqual({ amountRaw: '1000000000000', decimals: 6, slot: 42 });
+    }
+    expect(vaultScans).toBe(1);
     vi.stubEnv('TELEGRAM_STAKING_ENABLED', 'false');
     expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: false }, tracking: { tier: 'free' } });
     expect(await (await request('/v1/stakefast/status')).json()).toMatchObject({ qualifiesForPremium: false, positions: [{ wallet: address, qualifies: false }] });

@@ -4,6 +4,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "trailingSlash": true,
+  "rewrites": [
+    {
+      "source": "/api/staking-stats/",
+      "destination": "https://plankton-app-ztlp4.ondigitalocean.app/v1/staking/stats"
+    }
+  ],
   "headers": [
     {
       "source": "/staking/(.*)",
