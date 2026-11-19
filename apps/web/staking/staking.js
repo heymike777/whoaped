@@ -75,6 +75,7 @@ function selectAccounts(nextAccounts) {
   accounts = nextAccounts.filter(item => item.chains.includes(chain)
     && item.features.includes('solana:signMessage') && item.features.includes('solana:signAndSendTransaction'));
   account = accounts.find(item => item.address === account?.address) ?? accounts[0];
+  element('staking-error').hidden = true;
   element('wallet-account').replaceChildren(...accounts.map(item =>
     new Option(item.label ? `${item.label} · ${shorten(item.address)}` : item.address, item.address)));
   if (account) element('wallet-account').value = account.address;
@@ -150,14 +151,16 @@ async function refreshStatus() {
   status = next;
 }
 
-async function run(work) {
+async function run(work, errorOutput = element('notice')) {
   if (busy) return;
   busy = true;
   render();
   try {
     await work();
   } catch (error) {
-    element('notice').textContent = error instanceof Error ? error.message : 'Try again in your wallet.';
+    element('notice').textContent = '';
+    errorOutput.textContent = error instanceof Error ? error.message : 'Try again in your wallet.';
+    errorOutput.hidden = false;
   } finally {
     busy = false;
     render();
@@ -192,12 +195,16 @@ async function pollReceipt() {
 async function submit(action, amountRaw) {
   if (!status || !wallet || !account || saved.receipt || !status.positions.some(item => item.wallet === account.address)) return;
   const owner = account;
-  const signer = wallet.features['solana:signAndSendTransaction'];
-  element('notice').textContent = 'Approve the transaction in your Solana wallet.';
+  const selectedWallet = wallet;
+  const signer = selectedWallet.features['solana:signAndSendTransaction'];
+  element('notice').textContent = 'Checking wallet balances…';
   const prepared = await api('/v1/stakefast/transactions', { wallet: owner.address, action, amountRaw });
   if (prepared.cluster !== 'mainnet' || prepared.vault !== status.vault || prepared.mint !== status.mint) {
     throw new Error('This transaction does not match the mainnet WHOAPED vault.');
   }
+  if (prepared.preflightChecked !== true) throw new Error('The balance check is temporarily unavailable. Try again shortly.');
+  if (selectedWallet !== wallet || owner.address !== account?.address) throw new Error('Your wallet account changed. Try again.');
+  element('notice').textContent = 'Approve the transaction in your Solana wallet.';
   const [receipt] = await signer.signAndSendTransaction({
     account: owner,
     chain,
@@ -261,6 +268,7 @@ walletPicker.addEventListener('click', event => {
 });
 element('wallet-account').onchange = () => {
   account = accounts.find(item => item.address === element('wallet-account').value);
+  element('staking-error').hidden = true;
   render();
 };
 element('link-wallet').onclick = () => run(async () => {
@@ -279,15 +287,23 @@ element('link-wallet').onclick = () => run(async () => {
   await refreshStatus();
   element('notice').textContent = 'Wallet verified.';
 });
+function runStakingAction(work) {
+  const errorOutput = element('staking-error');
+  return run(async () => {
+    errorOutput.hidden = true;
+    await work();
+  }, errorOutput);
+}
+
 element('stake-form').onsubmit = event => {
   event.preventDefault();
-  void run(() => submit('stake', amountInBaseUnits(element('amount').value)));
+  void runStakingAction(() => submit('stake', amountInBaseUnits(element('amount').value)));
 };
 element('unstake').onclick = () => {
-  if (confirm('Request unstake? Stake-based PRO ends when this transaction finalizes and the withdrawal cooldown starts.')) void run(() => submit('unstake'));
+  if (confirm('Request unstake? Stake-based PRO ends when this transaction finalizes and the withdrawal cooldown starts.')) void runStakingAction(() => submit('unstake'));
 };
-element('cancel-unstake').onclick = () => run(() => submit('cancel'));
-element('claim').onclick = () => run(() => submit('claim'));
+element('cancel-unstake').onclick = () => runStakingAction(() => submit('cancel'));
+element('claim').onclick = () => runStakingAction(() => submit('claim'));
 element('refresh').onclick = () => run(refreshStatus);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') void run(refreshStatus);
