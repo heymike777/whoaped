@@ -95,8 +95,12 @@ function selectAccounts(nextAccounts) {
   accounts = nextAccounts.filter(item => item.chains.includes(chain)
     && item.features.includes('solana:signMessage') && item.features.includes('solana:signAndSendTransaction'));
   const selected = accounts.find(item => item.address === account?.address) ?? accounts[0];
-  element('wallet-account').replaceChildren(...accounts.map(item =>
-    new Option(item.label ? `${item.label} · ${shorten(item.address)}` : item.address, item.address)));
+  element('wallet-account').replaceChildren(...accounts.map(item => {
+    const address = shorten(item.address);
+    const option = new Option(item.label ? `${item.label} · ${address}` : address, item.address);
+    option.title = item.address;
+    return option;
+  }));
   selectWalletAccount(selected);
   if (account) element('wallet-account').value = account.address;
 }
@@ -112,10 +116,12 @@ function render() {
   const wallets = availableWallets();
   element('wallet-help').hidden = wallets.length > 0;
   element('telegram').hidden = !wallets.length && !saved.token;
+  element('telegram').dataset.connected = String(telegramLinked);
+  element('telegram-connected').hidden = !telegramLinked;
+  element('telegram-state').hidden = telegramLinked;
   element('position').hidden = !telegramLinked || !status;
   element('refresh').hidden = !saved.token;
   element('refresh').disabled = busy;
-  element('telegram-state').textContent = telegramLinked ? 'Telegram connected.' : 'Connect the Telegram account where you want PRO access.';
   element('connect-telegram').hidden = telegramLinked;
   element('connect-telegram').disabled = busy;
   const confirmation = saved.confirmation;
@@ -127,16 +133,20 @@ function render() {
 
   element('receipt').hidden = !lastSignature;
   if (lastSignature) element('receipt').href = 'https://explorer.solana.com/tx/' + encodeURIComponent(lastSignature);
+  element('pro').hidden = !status;
   if (!status) return;
 
   const pending = busy || Boolean(saved.receipt);
   element('pro').textContent = status.qualifiesForPremium ? 'Stake-based PRO active' : 'Stake-based PRO inactive';
-  element('terms').textContent = `Stake ${displayAmount(status.minimumAmountRaw)} WHOAPED in one wallet to get PRO. Track up to 60/min, 1,000/hour and 3,000/day across all wallets.`;
+  element('pro').dataset.active = String(status.qualifiesForPremium);
+  element('pro-minimum').textContent = `${displayAmount(status.minimumAmountRaw)} WHOAPED`;
   element('connect-wallet').disabled = pending;
   element('connect-wallet').textContent = account ? 'Change wallet' : 'Connect wallet';
-  element('account-label').hidden = !account;
-  element('wallet-account').hidden = !account;
+  element('connect-wallet').classList.toggle('button-ink', !account);
+  element('connect-wallet').classList.toggle('button-outline', Boolean(account));
+  element('wallet-account-field').hidden = !account;
   element('wallet-account').disabled = pending;
+  element('wallet-account').title = account?.address ?? '';
   element('wallet-balances').hidden = !account;
   element('wallet-balance-values').hidden = !walletBalances;
   element('wallet-balance-message').hidden = Boolean(walletBalances);
@@ -152,7 +162,17 @@ function render() {
   element('link-wallet').disabled = pending;
   element('positions').replaceChildren(...status.positions.filter(item => item.amountRaw !== '0').map(item => {
     const row = document.createElement('li');
-    row.textContent = `${shorten(item.wallet)} · ${displayAmount(item.amountRaw)} WHOAPED · ${positionLabel(item)}`;
+    const address = document.createElement('span');
+    address.className = 'staking-position-wallet';
+    address.textContent = shorten(item.wallet);
+    address.title = item.wallet;
+    const amount = document.createElement('strong');
+    amount.className = 'staking-position-amount';
+    amount.textContent = `${displayAmount(item.amountRaw)} WHOAPED`;
+    const state = document.createElement('span');
+    state.className = 'staking-position-status';
+    state.textContent = positionLabel(item);
+    row.append(address, amount, state);
     return row;
   }));
   element('position-state').textContent = account && !selected ? 'Verify that you own this wallet to manage staking.'

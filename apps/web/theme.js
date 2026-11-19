@@ -16,7 +16,11 @@ function updateTheme(theme) {
   }
 }
 
-updateTheme(activeTheme());
+let initialTheme = document.documentElement.dataset.theme;
+if (!initialTheme) {
+  try { initialTheme = localStorage.getItem('whoaped.theme'); } catch {}
+}
+updateTheme(initialTheme || (systemTheme.matches ? 'dark' : 'light'));
 
 button?.addEventListener('click', () => {
   const next = activeTheme() === 'dark' ? 'light' : 'dark';
