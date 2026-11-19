@@ -400,10 +400,6 @@
   padding-top: 8px;
 }
 
-.staking-back {
-  margin-inline-start: auto;
-}
-
 .staking .staking-error,
 .staking .staking-notice {
   overflow-wrap: anywhere;
@@ -629,10 +625,6 @@
 
   .stake-form > .button {
     width: 100%;
-  }
-
-  .staking-back {
-    margin-inline-start: 0;
   }
 }
 
