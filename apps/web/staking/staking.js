@@ -22,6 +22,7 @@ let balancesUnavailable = false;
 let balanceRequest = 0;
 let stopWalletEvents;
 let busy = false;
+let jupiterOpened = false;
 let pollTimer;
 let lastSignature = saved.receipt?.signature;
 
@@ -362,8 +363,22 @@ element('unstake').onclick = () => {
 element('cancel-unstake').onclick = () => runStakingAction(() => submit('cancel'));
 element('claim').onclick = () => runStakingAction(() => submit('claim'));
 element('refresh').onclick = () => run(refreshStatus);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') void run(refreshStatus);
+element('buy-whoaped').onclick = () => { jupiterOpened = true; };
+
+function refreshOnReturn() {
+  if (document.visibilityState !== 'visible') return;
+  const refreshDuringAction = jupiterOpened && busy && account && status;
+  jupiterOpened = false;
+  if (refreshDuringAction) void refreshWalletBalances();
+  else void run(refreshStatus);
+}
+
+document.addEventListener('visibilitychange', refreshOnReturn);
+window.addEventListener('focus', () => {
+  if (jupiterOpened) refreshOnReturn();
+});
+window.addEventListener('pageshow', event => {
+  if (event.persisted && jupiterOpened) refreshOnReturn();
 });
 function onWalletsChanged() {
   render();
