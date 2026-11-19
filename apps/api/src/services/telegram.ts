@@ -12,6 +12,7 @@ import { enrichActivityMetadata } from './token-metadata.js';
 import { AccountLinkError, canonicalAccountId, confirmTelegramLink, linkHash, previewTelegramLink, setTrackFailedTransactions, withAccountMutation } from './accounts.js';
 import { buildTokenActionLinks } from '../config/token-actions.js';
 import { stakingOffer } from '../config/staking.js';
+import { TELEGRAM_STAKING_URL, telegramStakingEnabled, telegramStakingSummary } from './telegram-staking.js';
 import { formatTelegramActivity, formatTelegramActivityGroup } from './telegram-activity-format.js';
 import { interactionLabel, recordTelegramEvent } from './telegram-analytics.js';
 import { formatPortfolio, getPortfolioSnapshot } from './telegram-portfolio.js';
@@ -39,8 +40,13 @@ type Update = z.infer<typeof telegramUpdateSchema>;
 type Button = { text: string; url?: string; callback_data?: string };
 const TELEGRAM_WALLET_LIMIT = 200;
 const TELEGRAM_WALLET_PAGE_SIZE = 10;
-const menu: Button[][] = [[{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }], [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '📊 Portfolio', callback_data: 'portfolio' }], [{ text: '⚙️ Settings', callback_data: 'settings' }, { text: '⭐ Premium', callback_data: 'premium' }]];
-const help = 'WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/portfolio — balances and USD values\n/settings — transaction preferences\n/cancel — cancel wallet input\n/premium — Premium status and token lock\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.';
+const menu = (staking = telegramStakingEnabled()): Button[][] => [
+  [{ text: '➕ Add wallets', callback_data: 'add' }, { text: '➖ Remove wallets', callback_data: 'remove' }],
+  [{ text: '👛 Wallets', callback_data: 'wallets' }, { text: '📊 Portfolio', callback_data: 'portfolio' }],
+  [{ text: '⚙️ Settings', callback_data: 'settings' },
+    staking ? { text: '⭐ Staking & PRO', callback_data: 'staking' } : { text: '⭐ Premium', callback_data: 'premium' }],
+];
+const help = () => `WhoAped · Solana wallet tracker\n\n/add — add one or many wallets\n/remove — remove one or many wallets\n/wallets — manage wallets\n/portfolio — balances and USD values\n/settings — transaction preferences\n/cancel — cancel wallet input\n${telegramStakingEnabled() ? '/staking — $WHOAPED positions and PRO status' : '/premium — Premium status and token lock'}\n/paysupport — help with existing payments\n\nDetected confirmed transactions are sent directly to this chat. Failed onchain transactions are optional in /settings. Transactions that never land onchain cannot be detected.\n\nFree account limits: 20 transactions/minute, 100/hour, 300/day across all wallets. Exceeding a limit pauses tracking until quota becomes available. Transactions during a pause are not collected.`;
 const DISCOVERY_PAGE_SIZE = 8;
 function discoveryPage(profiles: Awaited<ReturnType<typeof getDiscoveryCatalog>>['profiles'], query: string, requestedPage: number) {
   const filtered = query ? profiles.filter(profile => `${profile.name} ${profile.address}`.toLowerCase().includes(query.toLowerCase())) : profiles;
@@ -54,7 +60,7 @@ function discoveryPage(profiles: Awaited<ReturnType<typeof getDiscoveryCatalog>>
   if (navigation.length) buttons.push(navigation);
   const heading = query ? `Discovery · “${query}”` : 'Discovery · Solana KOLs';
   const text = `${heading}\n${filtered.length} profiles · page ${page + 1}/${lastPage + 1}\n\n${rows.length ? rows.map((profile, index) => `${page * DISCOVERY_PAGE_SIZE + index + 1}. ${profile.name}\n${profile.address.slice(0, 6)}…${profile.address.slice(-6)}`).join('\n\n') : 'No matching profiles.'}\n\nSelect a profile to see social links and track its wallet. Search: /discovery name or address.`;
-  return { text, buttons: [...buttons, ...menu] };
+  return { text, buttons: [...buttons, ...menu()] };
 }
 const addPrompt = 'Send one or many wallets, one per line, in this format:\nADDRESS Name\nADDRESS Another name\n\nYou can also send /add followed by the list. Use /cancel to cancel.';
 const removePrompt = 'Send the wallet addresses to remove, one per line:\nADDRESS\nADDRESS\n\nYou can also paste ADDRESS Name lines or send /remove followed by the list. Use /cancel to cancel.';
@@ -69,7 +75,7 @@ export function authorizedTelegramWebhook(received: string) {
 }
 export { TelegramError, telegramCall } from './telegram-api.js';
 
-async function send(chatId: string, text: string, buttons: Button[][] = menu, parseMode?: 'HTML') {
+async function send(chatId: string, text: string, buttons: Button[][] = menu(), parseMode?: 'HTML') {
   await telegramCall('sendMessage', {
     chat_id: chatId, text: text.slice(0, 4000), link_preview_options: { is_disabled: true },
     ...(parseMode ? { parse_mode: parseMode } : {}),
@@ -186,7 +192,7 @@ export async function handleTelegramUpdate(update: Update) {
         .catch(error => console.error('Telegram Discovery wallet analytics failed', error));
       const status = result === 'added' ? 'Tracking enabled. New transactions will arrive in this chat.' :
         result === 'already' ? 'This wallet is already tracked.' : `${TELEGRAM_WALLET_LIMIT}-wallet limit reached.`;
-      return send(chatId, `${profile.name}\n${status}`, [[{ text: '← Discovery', callback_data: 'discovery' }], ...menu]);
+      return send(chatId, `${profile.name}\n${status}`, [[{ text: '← Discovery', callback_data: 'discovery' }], ...menu()]);
     }
     const accountId = await canonicalAccountId(userId, db);
     const alreadyTracked = Boolean(await db.wallets.findOne({ userId: accountId, address, deletedAt: null }));
@@ -195,7 +201,7 @@ export async function handleTelegramUpdate(update: Update) {
     if (profile.telegram) buttons.push([{ text: 'Telegram', url: profile.telegram }]);
     buttons.push([{ text: alreadyTracked ? '✓ Already tracking' : '➕ Track wallet', callback_data: alreadyTracked ? `discovery:view:${address}` : `discovery:track:${address}` }]);
     buttons.push([{ text: '← Discovery', callback_data: 'discovery' }]);
-    return send(chatId, `${profile.name}\n${address}\n\nTwitter: ${profile.twitter ?? 'not provided'}\nTelegram: ${profile.telegram ?? 'not provided'}\nPnL: not available yet`, [...buttons, ...menu]);
+    return send(chatId, `${profile.name}\n${address}\n\nTwitter: ${profile.twitter ?? 'not provided'}\nTelegram: ${profile.telegram ?? 'not provided'}\nPnL: not available yet`, [...buttons, ...menu()]);
   }
   if (command === '/portfolio' || command === 'portfolio' || command.startsWith('portfolio:')) {
     const accountId = await canonicalAccountId(userId, db);
@@ -225,7 +231,7 @@ export async function handleTelegramUpdate(update: Update) {
     const buttons = [[{
       text: enabled ? '🟢 Failed transactions' : '🔴 Failed transactions',
       callback_data: enabled ? 'settings:failed:off' : 'settings:failed:on',
-    }], ...menu];
+    }], ...menu()];
     if (!togglesFailedTransactions) return send(chatId, settingsText, buttons);
     try {
       await telegramCall('editMessageText', {
@@ -244,11 +250,21 @@ export async function handleTelegramUpdate(update: Update) {
     try { return send(chatId, `Billing request recorded. Reference: ${await createBillingSupport(userId, detail)}`); }
     catch (error) { if (error instanceof BillingError) return send(chatId, error.message); throw error; }
   }
+  if (['/staking', 'staking', '/premium', 'premium'].includes(command) && telegramStakingEnabled()) {
+    return send(chatId, await telegramStakingSummary(userId, db), [
+      [{ text: 'Open staking', url: TELEGRAM_STAKING_URL }],
+      [{ text: 'Refresh staking status', callback_data: 'staking' }],
+      ...menu(true),
+    ]);
+  }
+  if (command === '/staking' || command === 'staking') {
+    return send(chatId, 'Staking is not available through this bot yet.');
+  }
   if (command === '/premium' || command === 'premium') {
     const catalog = await billingCatalog(userId);
     const status = catalog.premium.active ? `Premium active until ${catalog.premium.expiresAt?.toISOString()}.\n\n` : '';
     const offer = stakingOffer();
-    return send(chatId, `${status}WhoAped Premium · Coming Soon\n\n60 transactions/minute · 1,000/hour · 3,000/day.\n\nPlanned: stake ${offer.amount.toLocaleString('en-US')} project tokens through Streamflow. Request unstaking at any time, then wait 7 days to withdraw.\n\nStaking and new purchases are not live. Do not send tokens to this bot or any address claiming to activate Premium.`, menu);
+    return send(chatId, `${status}WhoAped Premium · Coming Soon\n\n60 transactions/minute · 1,000/hour · 3,000/day.\n\nPlanned: stake ${offer.amount.toLocaleString('en-US')} project tokens through Streamflow. Request unstaking at any time, then wait 7 days to withdraw.\n\nStaking and new purchases are not live. Do not send tokens to this bot or any address claiming to activate Premium.`, menu());
   }
   if (command.startsWith('purchase:')) {
     return send(chatId, 'New Premium purchases are paused. Existing invoices and refunds remain supported via /paysupport. Do not send tokens to any address claiming to activate staking.');
@@ -259,10 +275,10 @@ export async function handleTelegramUpdate(update: Update) {
     try {
       if (command.startsWith('connect:')) {
         await confirmTelegramLink(linkToken, chatId, sender?.username);
-        return send(chatId, 'Telegram connected. Your wallets are now shared with the mobile app. New transactions will arrive here and in the app. Return to WhoAped to see your account.');
+        return send(chatId, 'Telegram connected. Your wallets and PRO access are shared with your WhoAped account. Return to WhoAped to continue.');
       }
       const link = await previewTelegramLink(linkToken, chatId);
-      return send(chatId, `Connect Telegram to WhoAped?\n\nVerification code: ${link.code}\n\nCheck that this code matches the one in your mobile app. Only confirm if you started this connection yourself. Your wallet lists will be combined into one account, including any account access and future subscriptions.`, [[
+      return send(chatId, `Connect Telegram to WhoAped?\n\nVerification code: ${link.code}\n\nCheck that this code matches the one in WhoAped. Only confirm if you started this connection yourself. Your wallet lists will be combined into one account, including any account access and future subscriptions.`, [[
         { text: 'Confirm connection', callback_data: `connect:${linkToken}` },
         { text: 'Cancel', callback_data: `cancel-connect:${linkToken}` },
       ]]);
@@ -278,7 +294,7 @@ export async function handleTelegramUpdate(update: Update) {
   }
   if (['/start', '/help', '/cancel'].includes(command)) {
     await db.telegramChats.updateOne({ _id: chatId }, { $unset: { pendingAction: '' } });
-    return send(chatId, command === '/cancel' ? 'Wallet input cancelled.' : help);
+    return send(chatId, command === '/cancel' ? 'Wallet input cancelled.' : help());
   }
   if (command.startsWith('remove:')) {
     const result = await withAccountMutation(userId, (database, session, accountId) => database.wallets.updateOne({ _id: command.slice(7), userId: accountId, deletedAt: null }, { $set: { deletedAt: new Date() } }, { session }));
@@ -366,9 +382,9 @@ export async function handleTelegramUpdate(update: Update) {
     if (page > 0) navigation.push({ text: '← Previous', callback_data: `wallets:${page - 1}` });
     if (wallets.length > TELEGRAM_WALLET_PAGE_SIZE) navigation.push({ text: 'Next →', callback_data: `wallets:${page + 1}` });
     if (navigation.length) buttons.push(navigation);
-    return send(chatId, rows.length ? rows.map(w => `${w.name}\n${w.address}`).join('\n\n') : 'No wallets yet. Use /add ADDRESS Name.', [...buttons, ...menu]);
+    return send(chatId, rows.length ? rows.map(w => `${w.name}\n${w.address}`).join('\n\n') : 'No wallets yet. Use /add ADDRESS Name.', [...buttons, ...menu()]);
   }
-  return send(chatId, help);
+  return send(chatId, help());
 }
 
 export function telegramNotification(wallet: WalletDocument, transaction: ParsedSolanaTransaction, activities: NormalizedActivity[], addressLabels?: ReadonlyMap<string, string>) {

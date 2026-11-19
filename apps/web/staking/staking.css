@@ -1,0 +1,18 @@
+.staking { max-width: 640px; padding-block: 36px 64px; display: grid; gap: 16px; }
+.staking h1 { font-size: clamp(32px, 8vw, 48px); letter-spacing: -.05em; }
+.staking h2 { font-size: 20px; }
+.staking h1, .staking h2, .staking p { margin: 0; }
+.staking p { color: var(--quiet); line-height: 1.5; }
+.staking h1 + p { margin-top: 8px; }
+.staking .button { min-height: 44px; justify-self: start; }
+.staking .button:disabled { opacity: .5; cursor: default; }
+.staking-card { display: grid; gap: 12px; padding: clamp(16px, 4vw, 24px); border: 1px solid var(--line); border-radius: 16px; background: var(--sheet); }
+.staking-controls, .staking-step { display: grid; gap: 8px; }
+.staking-controls label { font-weight: 600; }
+.staking input, .staking select { min-height: 44px; width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
+.staking-step strong, .staking-positions { font-variant-numeric: tabular-nums; }
+.staking-positions { margin: 0; padding-inline-start: 20px; overflow-wrap: anywhere; }
+.staking-positions li + li { margin-top: 8px; }
+.staking-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.staking-actions:empty, .staking-positions:empty { display: none; }
+.staking-notice { overflow-wrap: anywhere; }

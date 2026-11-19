@@ -3,7 +3,7 @@ import type { Collections, TelegramAnalyticsEventDocument } from '../db.js';
 
 // No message text, wallet address, username or callback payload is stored.
 export function interactionLabel(command: string, callback: boolean): Pick<TelegramAnalyticsEventDocument, 'command' | 'surface'> {
-  const known = new Set(['start', 'help', 'add', 'remove', 'wallets', 'portfolio', 'settings', 'premium', 'cancel', 'terms', 'paysupport', 'purchase', 'connect', 'cancel-connect', 'discoveryreports']);
+  const known = new Set(['start', 'help', 'add', 'remove', 'wallets', 'portfolio', 'settings', 'premium', 'staking', 'cancel', 'terms', 'paysupport', 'purchase', 'connect', 'cancel-connect', 'discoveryreports']);
   if (callback) {
     const label = command.split(':')[0] || 'unknown';
     return { command: known.has(label) ? label : 'other', surface: 'button' };

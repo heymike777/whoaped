@@ -1,4 +1,6 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 
 const root = new URL('.', import.meta.url);
 const output = new URL('./dist/', root);
@@ -12,9 +14,17 @@ await mkdir(output, { recursive: true });
 for (const name of ['styles.css', 'download.js', 'theme.js', 'analytics.js']) {
   await cp(new URL(name, root), new URL(name, output));
 }
-for (const name of ['index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html']) {
+for (const name of ['index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html', 'staking/index.html']) {
   const html = await readFile(new URL(name, root), 'utf8');
   await mkdir(new URL(name.substring(0, name.lastIndexOf('/') + 1), output), { recursive: true });
   await writeFile(new URL(name, output), html.replaceAll('__GA_MEASUREMENT_ID__', measurementId));
 }
 await cp(new URL('assets/', root), new URL('assets/', output), { recursive: true });
+await cp(new URL('staking/staking.css', root), new URL('staking/staking.css', output));
+await build({
+  entryPoints: [fileURLToPath(new URL('staking/staking.js', root))],
+  outfile: fileURLToPath(new URL('staking/staking.js', output)),
+  bundle: true,
+  format: 'esm',
+  platform: 'browser',
+});

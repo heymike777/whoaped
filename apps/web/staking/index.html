@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>$WHOAPED Staking</title>
+    <link rel="icon" href="/assets/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="./staking.css" />
+    <script src="/theme.js" defer></script>
+    <script type="module" src="./staking.js"></script>
+  </head>
+  <body>
+    <header class="site-header shell"><a class="brand" href="/"><img src="/assets/mark.svg" alt="" width="36" height="36" />WhoAped</a></header>
+    <main class="shell staking">
+      <div>
+        <h1>$WHOAPED Staking</h1>
+        <p>Stake WHOAPED on Solana mainnet to increase your Telegram tracking limits.</p>
+      </div>
+      <section id="wallet-help" class="staking-card">
+        <h2>Open in your wallet</h2>
+        <p>On mobile, open this page in your Solana wallet’s browser. On desktop, use a Wallet Standard extension.</p>
+        <a id="open-phantom" class="button button-outline">Open in Phantom</a>
+      </section>
+      <section class="staking-card" id="telegram" hidden>
+        <h2>Telegram account</h2>
+        <p id="telegram-state">Connect the Telegram account where you want PRO access.</p>
+        <button id="connect-telegram" class="button button-outline" type="button">Connect Telegram</button>
+        <div id="telegram-confirmation" class="staking-step" hidden>
+          <p>Match this code in the bot before confirming. Then return here.</p>
+          <strong id="telegram-code"></strong>
+          <a id="confirm-telegram" class="button button-outline" target="_blank" rel="noopener noreferrer">Open Telegram</a>
+        </div>
+      </section>
+      <section class="staking-card" id="position" hidden>
+        <h2>Your position</h2>
+        <p id="pro"></p>
+        <p id="terms"></p>
+        <div class="staking-controls">
+          <label for="wallet-choice">Solana wallet</label>
+          <select id="wallet-choice"></select>
+          <button id="connect-wallet" class="button button-outline" type="button">Connect wallet</button>
+          <label id="account-label" for="wallet-account" hidden>Wallet account</label>
+          <select id="wallet-account" hidden></select>
+          <button id="link-wallet" class="button button-outline" type="button" hidden>Verify wallet ownership</button>
+        </div>
+        <ul id="positions" class="staking-positions"></ul>
+        <p id="position-state"></p>
+        <form id="stake-form" class="staking-controls" hidden>
+          <label for="amount">Amount to stake</label>
+          <input id="amount" type="text" inputmode="decimal" maxlength="21" required />
+          <button class="button button-outline" type="submit">Stake WHOAPED</button>
+        </form>
+        <div class="staking-actions">
+          <button id="unstake" class="button button-outline" type="button" hidden>Request unstake</button>
+          <button id="cancel-unstake" class="button button-outline" type="button" hidden>Cancel unstake</button>
+          <button id="claim" class="button button-outline" type="button" hidden>Withdraw WHOAPED</button>
+        </div>
+        <p>0.002 SOL per staking action plus network fees.</p>
+      </section>
+      <div class="staking-actions">
+        <button id="refresh" class="button button-outline" type="button" hidden>Refresh status</button>
+        <a id="receipt" target="_blank" rel="noopener noreferrer" hidden>View transaction</a>
+        <a href="https://t.me/whoapedbot">Back to Telegram</a>
+      </div>
+      <p id="notice" role="status" class="staking-notice"></p>
+    </main>
+  </body>
+</html>

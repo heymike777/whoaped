@@ -5,6 +5,13 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test analytics.test.mjs legal.test.mjs",
-    "check": "node --check download.js && node --check theme.js && node --check analytics.js && node --check build.mjs"
+    "check": "node --check download.js && node --check theme.js && node --check analytics.js && node --check build.mjs && node --check staking/staking.js"
+  },
+  "dependencies": {
+    "@solana/codecs-strings": "8.6.0",
+    "@wallet-standard/app": "1.1.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

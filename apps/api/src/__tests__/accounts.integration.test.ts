@@ -52,8 +52,9 @@ async function pendingLink() {
 }
 
 describe('atomic Telegram account linking (real MongoDB replica set)', () => {
-  it('grants Seeker PRO from finalized stake and keeps Telegram on paid billing', async () => {
+  it('shares finalized staking PRO with Telegram when the bot rollout is enabled', async () => {
     vi.stubEnv('STAKEFAST_DEVNET_ENABLED', 'false');
+    vi.stubEnv('TELEGRAM_STAKING_ENABLED', 'false');
     vi.stubEnv('STAKEFAST_MAINNET_RPC_URL', 'https://staking-rpc.test');
     const config = stakeFastConfig();
     const wallet = Keypair.generate();
@@ -75,11 +76,15 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     const positionKey = positionAddress(config.program, config.vault, wallet.publicKey).toBase58();
     const accountInfo = (data: Buffer, executable = false) => ({ executable, owner: config.program.toBase58(), lamports: 1_000_000, rentEpoch: 0, data: [data.toString('base64'), 'base64'] });
     const botMessages: string[] = [];
+    const botButtons: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
     const rpcCommitments: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: { body: string }) => {
       const payload = JSON.parse(init.body);
       if (url.startsWith('https://api.telegram.org/')) {
-        if (url.endsWith('/sendMessage')) botMessages.push(payload.text);
+        if (url.endsWith('/sendMessage')) {
+          botMessages.push(payload.text);
+          botButtons.push(payload.reply_markup.inline_keyboard.flat());
+        }
         return Response.json({ ok: true, result: {} });
       }
       let result;
@@ -118,20 +123,35 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     const link = await pendingLink();
     await accounts.confirmTelegramLink(link.token, '123');
     const { handleTelegramUpdate } = await import('../services/telegram.js');
-    const bot = (id: number) => handleTelegramUpdate({ update_id: id, message: { chat: { id: 123, type: 'private' }, from: { id: 123 }, text: '/premium' } });
+    const bot = (id: number, text = '/staking') => handleTelegramUpdate({ update_id: id, message: { chat: { id: 123, type: 'private' }, from: { id: 123 }, text } });
     position.writeBigUInt64LE(999_999_999_999n, 72);
     expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: false }, tracking: { tier: 'free' } });
     position.writeBigUInt64LE(1_000_000_000_000n, 72);
     expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: true }, tracking: { tier: 'premium' } });
-    await bot(4000);
+    await bot(4000, '/premium');
     expect(botMessages.at(-1)).toContain('WhoAped Premium · Coming Soon');
     expect(botMessages.at(-1)).not.toContain('Premium active until');
+    const pausedMenu = botMessages.at(-1);
+    vi.stubEnv('TELEGRAM_STAKING_ENABLED', 'true');
+    await bot(4001, '/start');
+    expect(botButtons.at(-1)).toContainEqual({ text: '⭐ Staking & PRO', callback_data: 'staking' });
+    await bot(4002);
+    expect(botMessages.at(-1)).toContain('PRO active through staking.');
+    expect(botMessages.at(-1)).toContain('1,000,000 WHOAPED · locked');
+    expect(botButtons.at(-1)).toContainEqual({ text: 'Open staking', url: 'https://whoaped.com/staking/' });
     expect(await (await request('/v1/billing/products')).json()).toMatchObject({ premium: { active: true } });
     position.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1000)) + 604800n, 80);
+    await bot(4003);
+    expect(botMessages.at(-1)).toContain('PRO inactive.');
+    expect(botMessages.at(-1)).toContain('withdrawal opens');
+    position.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1000)) - 1n, 80);
+    await bot(4004);
+    expect(botMessages.at(-1)).toContain('ready to withdraw');
+    vi.stubEnv('TELEGRAM_STAKING_ENABLED', 'false');
     expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: false }, tracking: { tier: 'free' } });
     expect(await (await request('/v1/stakefast/status')).json()).toMatchObject({ qualifiesForPremium: false, positions: [{ wallet: address, qualifies: false }] });
-    await bot(4001);
-    expect(botMessages.at(-1)).toBe(botMessages.at(-2));
+    await bot(4005, '/premium');
+    expect(botMessages.at(-1)).toBe(pausedMenu);
     expect((await request('/v1/stakefast/transactions', { wallet: address, action: 'cancel' })).status).toBe(200);
     position.writeBigInt64LE(0n, 80);
     expect(await (await request('/v1/account')).json()).toMatchObject({ premium: { active: true } });

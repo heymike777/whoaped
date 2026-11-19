@@ -1,4 +1,5 @@
 import { telegramCall, telegramWebhookSecret } from './services/telegram.js';
+import { telegramStakingEnabled } from './services/telegram-staking.js';
 
 const origin = new URL(process.env.TELEGRAM_PUBLIC_URL ?? 'https://api.whoaped.com');
 if (origin.protocol !== 'https:') throw new Error('TELEGRAM_PUBLIC_URL must use HTTPS');
@@ -19,7 +20,8 @@ await telegramCall('setMyCommands', { commands: [
   { command: 'portfolio', description: 'Balances and USD values for tracked wallets' },
   { command: 'settings', description: 'Transaction tracking preferences' },
   { command: 'cancel', description: 'Cancel wallet input' },
-  { command: 'premium', description: 'Premium status and BONK lock' },
+  ...(telegramStakingEnabled() ? [{ command: 'staking', description: '$WHOAPED staking and PRO status' }] : []),
+  { command: 'premium', description: 'WhoAped PRO status' },
   { command: 'paysupport', description: 'Billing help and refund requests' },
   { command: 'help', description: 'Show commands' },
 ] });
