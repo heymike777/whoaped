@@ -6,6 +6,7 @@ const chain = 'solana:mainnet';
 const storageKey = 'whoaped.telegram-staking';
 const registry = getWallets();
 const element = id => document.getElementById(id);
+const walletPicker = element('wallet-picker');
 const decodeBase64 = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 const shorten = address => `${address.slice(0, 6)}…${address.slice(-5)}`;
 
@@ -88,11 +89,6 @@ function positionLabel(position) {
 
 function render() {
   const wallets = availableWallets();
-  const choices = element('wallet-choice');
-  const previous = choices.value;
-  choices.replaceChildren(...wallets.map((item, index) => new Option(item.name, String(index))));
-  if (previous !== '' && wallets[Number(previous)]) choices.value = previous;
-
   element('wallet-help').hidden = wallets.length > 0;
   element('telegram').hidden = !wallets.length && !saved.token;
   element('position').hidden = !telegramLinked || !status;
@@ -115,8 +111,8 @@ function render() {
   const pending = busy || Boolean(saved.receipt);
   element('pro').textContent = status.qualifiesForPremium ? 'Stake-based PRO active' : 'Stake-based PRO inactive';
   element('terms').textContent = `Stake ${displayAmount(status.minimumAmountRaw)} WHOAPED in one wallet to get PRO. Track up to 60/min, 1,000/hour and 3,000/day across all wallets.`;
-  choices.disabled = pending || !wallets.length;
-  element('connect-wallet').disabled = pending || !wallets.length;
+  element('connect-wallet').disabled = pending;
+  element('connect-wallet').textContent = account ? 'Change wallet' : 'Connect wallet';
   element('account-label').hidden = !account;
   element('wallet-account').hidden = !account;
   element('wallet-account').disabled = pending;
@@ -215,25 +211,53 @@ async function submit(action, amountRaw) {
   void pollReceipt();
 }
 
-element('open-phantom').href = `https://phantom.com/ul/browse/${encodeURIComponent(location.origin + '/staking/')}?ref=${encodeURIComponent(location.origin)}`;
+const phantomUrl = `https://phantom.com/ul/browse/${encodeURIComponent(location.origin + '/staking/')}?ref=${encodeURIComponent(location.origin)}`;
+element('open-phantom').href = phantomUrl;
+element('wallet-picker-phantom').href = phantomUrl;
 element('connect-telegram').onclick = () => run(async () => {
   if (!saved.token) remember({ token: (await api('/v1/sessions', {})).token });
   const confirmation = await api('/v1/account/telegram-link', {});
   remember({ confirmation });
   element('notice').textContent = '';
 });
-element('connect-wallet').onclick = () => run(async () => {
-  const next = availableWallets()[Number(element('wallet-choice').value)];
-  if (!next) return;
-  const authorization = await next.features['standard:connect'].connect();
-  stopWalletEvents?.();
-  wallet = next;
-  selectAccounts(authorization.accounts);
-  stopWalletEvents = wallet.features['standard:events']?.on('change', event => {
-    if (event.accounts) { selectAccounts(event.accounts); render(); }
+function connectWallet(next) {
+  if (busy || saved.receipt || !availableWallets().includes(next)) return;
+  walletPicker.close();
+  return run(async () => {
+    element('notice').textContent = `Opening ${next.name}…`;
+    const authorization = await next.features['standard:connect'].connect();
+    stopWalletEvents?.();
+    wallet = next;
+    selectAccounts(authorization.accounts);
+    stopWalletEvents = wallet.features['standard:events']?.on('change', event => {
+      if (event.accounts) { selectAccounts(event.accounts); render(); }
+    });
+    if (!account) throw new Error('Select a Solana account with message and transaction signing.');
+    element('notice').textContent = '';
   });
-  if (!account) throw new Error('Select a Solana account with message and transaction signing.');
-  element('notice').textContent = '';
+}
+
+function renderWalletPicker() {
+  const wallets = availableWallets();
+  element('wallet-options').replaceChildren(...wallets.map(next => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-outline';
+    button.textContent = next.name;
+    button.onclick = () => connectWallet(next);
+    return button;
+  }));
+  element('wallet-picker-empty').hidden = wallets.length > 0;
+}
+
+element('connect-wallet').onclick = event => {
+  renderWalletPicker();
+  event.currentTarget.focus();
+  walletPicker.showModal();
+};
+element('close-wallet-picker').onclick = () => walletPicker.close();
+walletPicker.addEventListener('click', event => {
+  if (event.target === walletPicker) walletPicker.close();
 });
 element('wallet-account').onchange = () => {
   account = accounts.find(item => item.address === element('wallet-account').value);
@@ -268,10 +292,15 @@ element('refresh').onclick = () => run(refreshStatus);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') void run(refreshStatus);
 });
-registry.on('register', render);
+function onWalletsChanged() {
+  render();
+  if (walletPicker.open) renderWalletPicker();
+}
+
+registry.on('register', onWalletsChanged);
 registry.on('unregister', (...removed) => {
   if (removed.includes(wallet)) { stopWalletEvents?.(); wallet = undefined; selectAccounts([]); }
-  render();
+  onWalletsChanged();
 });
 render();
 void run(refreshStatus);
