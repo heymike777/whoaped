@@ -27,6 +27,7 @@ import {
   StakeFastLinkError, StakeFastPreflightUnavailableError, stakeFastWalletBalances, unlinkStakeFastWallet, whoApedVaultTotal,
 } from './services/stakefast.js';
 import { getDiscoveryCatalog } from './services/kolscan-discovery.js';
+import { getPublicWalletStats, PUBLIC_STATS_RETRY_SECONDS, PUBLIC_STATS_TTL_SECONDS } from './services/public-stats.js';
 
 const walletSchema = z.object({
   name: z.string().trim().min(2).max(40),
@@ -80,6 +81,19 @@ app.get('/health', async (context) => {
     console.error('MongoDB health check failed', error);
     return context.json({ ok: false, database: 'unavailable' }, 503);
   }
+});
+
+app.get('/public/stats', async (context) => {
+  const stats = hasDatabase() ? await getPublicWalletStats() : null;
+  if (!stats) {
+    context.header('Cache-Control', 'no-store');
+    context.header('Retry-After', String(PUBLIC_STATS_RETRY_SECONDS));
+    return context.json({ error: 'Stats temporarily unavailable.' }, 503);
+  }
+  const age = Math.max(0, Date.now() - Date.parse(stats.asOf));
+  const maxAge = Math.max(0, PUBLIC_STATS_TTL_SECONDS - Math.ceil(age / 1_000));
+  context.header('Cache-Control', `public, max-age=${maxAge}`);
+  return context.json(stats);
 });
 
 // OAuth codes and state must never enter the request logger.

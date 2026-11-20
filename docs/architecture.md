@@ -29,6 +29,12 @@ The mobile contract only knows `Wallet`, `Activity`, and `Chain`. Provider paylo
 
 The foreground Activity feed is event-driven rather than polled. Each API instance watches new transaction inserts and fans an activity only to WebSocket clients authenticated for that transaction's user. The app reconciles once after connecting or returning to the foreground to cover disconnect gaps. FCM handles background notification delivery and also triggers a silent reconciliation when a notification is received or opened. Only an explicit user pull displays the native refresh indicator.
 
+## Public tracking count
+
+`GET /public/stats` needs no session and returns only `uniqueWalletsTracked` and `asOf` (an ISO 8601 UTC timestamp). The count deduplicates by Solana wallet address across the mobile app and Telegram. An address counts if at least one non-deleted, active watch belongs to an account that is not paused, in cooldown, or waiting to resume. Discovery profiles and protocol position addresses are not counted unless the address was explicitly added as an eligible wallet watch.
+
+Each API replica caches its result for five minutes and shares one refresh across concurrent requests. Clients should treat a `503` as unavailable, not as a zero count.
+
 ## Idempotency and ordering
 
 - Short-lived ingestion events are unique on `(provider, externalId)`.
