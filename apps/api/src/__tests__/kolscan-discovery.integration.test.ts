@@ -2,16 +2,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
 import { kolscanSnapshot } from '../data/kolscan-profiles.js';
+import { kolscanFlightPage } from './fixtures/kolscan-flight.js';
 
 let mongo: MongoMemoryReplSet;
 let database: typeof import('../db.js');
 let discovery: typeof import('../services/kolscan-discovery.js');
 
 const extraAddress = 'So11111111111111111111111111111111111111112';
-const row = (profile: { address: string; name: string; twitter: string | null; telegram: string | null }) =>
-  `\\"wallet_address\\":\\"${profile.address}\\",\\"name\\":\\"${profile.name}\\",\\"telegram\\":${profile.telegram ? `\\"${profile.telegram}\\"` : 'null'},\\"twitter\\":${profile.twitter ? `\\"${profile.twitter}\\"` : 'null'}`;
 const page = (profiles: Array<{ address: string; name: string; twitter: string | null; telegram: string | null }>) =>
-  profiles.map(row).join(',');
+  kolscanFlightPage(profiles.map(({ address, ...profile }) => ({ wallet_address: address, ...profile })));
 const fetchPage = (html: string) => vi.fn(async () => new Response(html)) as unknown as typeof fetch;
 
 beforeAll(async () => {
@@ -59,7 +58,7 @@ describe('daily Kolscan Discovery sync', () => {
     expect((await db.discoverySync.findOne({ _id: 'kolscan:solana' }))?.lastReport).toMatchObject({ status: 'ok', parsed: 101, added: 1, missing: 1 });
     expect(await db.telegramJobs.countDocuments({ kind: 'discovery', chatId: '123' })).toBe(2);
     expect(await db.telegramJobs.countDocuments({ kind: 'discovery', chatId: '456' })).toBe(0);
-    expect((await db.telegramJobs.findOne({ kind: 'discovery', chatId: '123', text: /Новых кошельков: 1/ }))?.text).toContain('Спарсено сейчас: 101');
+    expect((await db.telegramJobs.findOne({ kind: 'discovery', chatId: '123', text: /New wallets: 1/ }))?.text).toContain('Wallets found: 101');
     expect((await discovery.getDiscoveryCatalog()).profiles.some(profile => profile.address === extraAddress)).toBe(true);
   });
 
@@ -72,7 +71,30 @@ describe('daily Kolscan Discovery sync', () => {
     expect(await db.discoveryProfiles.countDocuments()).toBe(101);
     expect((await db.discoverySync.findOne({ _id: 'kolscan:solana' }))?.lastError).toContain('only 0 profiles');
     expect((await db.discoverySync.findOne({ _id: 'kolscan:solana' }))?.lastReport).toMatchObject({ status: 'error', parsed: 0, added: null, missing: null });
-    expect((await db.telegramJobs.findOne({ kind: 'discovery', status: 'pending', text: /🔴 Ошибка/ }))?.text).toContain('Спарсено сейчас: 0');
+    expect((await db.telegramJobs.findOne({ kind: 'discovery', status: 'pending', text: /🔴 Failed/ }))?.text).toContain('Wallets found: 0');
+  });
+
+  it('records each retry but only alerts once a day until the import recovers', async () => {
+    const db = await database.collections();
+    const id = { _id: 'kolscan:solana' };
+    const alerts = { kind: 'discovery' as const, text: /🔴 Failed/ };
+    const runWhenDue = async (html: string) =>
+      discovery.syncKolscanDiscovery((await db.discoverySync.findOne(id))?.nextRunAt ?? new Date(), fetchPage(html));
+
+    await expect(runWhenDue('invalid')).rejects.toThrow('only 0 profiles');
+    await expect(runWhenDue(page([{ address: extraAddress, name: 'Trader', twitter: null, telegram: null }]))).rejects.toThrow('only 1 profiles');
+    expect((await db.discoverySync.findOne(id))?.lastReport?.parsed).toBe(1);
+    expect(await db.telegramJobs.countDocuments(alerts)).toBe(1);
+
+    await db.discoverySync.updateOne(id, { $set: { lastFailureReportAt: new Date(Date.now() - 25 * 60 * 60 * 1000) } });
+    await expect(runWhenDue('invalid')).rejects.toThrow('only 0 profiles');
+    expect(await db.telegramJobs.countDocuments(alerts)).toBe(2);
+
+    await expect(runWhenDue(page(kolscanSnapshot.profiles.slice(0, 101)))).resolves.toMatchObject({ count: 101 });
+    expect((await db.discoverySync.findOne(id))?.lastFailureReportAt).toBeUndefined();
+    expect(await db.telegramJobs.countDocuments({ kind: 'discovery', text: /✅ OK/ })).toBe(1);
+    await expect(runWhenDue('invalid')).rejects.toThrow('only 0 profiles');
+    expect(await db.telegramJobs.countDocuments(alerts)).toBe(3);
   });
 
   it('finds the private report chat from a past authenticated bot update', async () => {

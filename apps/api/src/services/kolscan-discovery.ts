@@ -2,34 +2,26 @@ import { randomUUID } from 'node:crypto';
 
 import { collections, withDatabaseTransaction, type DiscoverySyncDocument, type TelegramChatDocument } from '../db.js';
 import { kolscanSnapshot } from '../data/kolscan-profiles.js';
+import { fetchKolscanProfiles, KolscanParseError, type DiscoveryProfile } from './kolscan-source.js';
+export type { DiscoveryProfile } from './kolscan-source.js';
 
-export type DiscoveryProfile = { address: string; name: string; twitter: string | null; telegram: string | null };
-
-const SOURCE_URL = 'https://kolscan.io/leaderboard';
 const SYNC_ID = 'kolscan:solana';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETRY_MS = 60 * 60 * 1000;
 const LEASE_MS = 5 * 60 * 1000;
-const MIN_PROFILES = 100;
-const MAX_HTML_BYTES = 5_000_000;
-const PROFILE_PATTERN = /\\"wallet_address\\":\\"([1-9A-HJ-NP-Za-km-z]{32,44})\\",\\"name\\":\\"([^\\"]*)\\",(?:\\"pfp\\":(?:null|\\"[^\\"]*\\"),)?\\"telegram\\":(null|\\"[^\\"]*\\"),\\"twitter\\":(null|\\"[^\\"]*\\")/g;
-
-export class KolscanParseError extends Error {
-  constructor(public parsed: number) { super(`Kolscan returned only ${parsed} profiles`); }
-}
 
 type Report = NonNullable<DiscoverySyncDocument['lastReport']>;
 
 export function formatDiscoveryReport(report: Report) {
-  const status = report.status === 'ok' ? '✅ OK' : '🔴 Ошибка';
+  const status = report.status === 'ok' ? '✅ OK' : '🔴 Failed';
   const number = (value: number | null) => value === null ? '—' : value.toLocaleString('en-US');
   return [
     `📡 Kolscan Discovery · ${status}`,
-    `Спарсено сейчас: ${number(report.parsed)}`,
-    `Новых кошельков: ${number(report.added)}`,
-    `Пропали из источника: ${number(report.missing)} (из Discovery не удаляем)`,
-    `Время: ${report.finishedAt.toISOString()}`,
-    ...(report.error ? [`Причина: ${report.error}`] : []),
+    `Wallets found: ${number(report.parsed)}`,
+    `New wallets: ${number(report.added)}`,
+    `Missing from Kolscan: ${number(report.missing)} (kept in Discovery)`,
+    `Finished at: ${report.finishedAt.toISOString()}`,
+    ...(report.error ? [`Reason: ${report.error}`] : []),
   ].join('\n');
 }
 
@@ -86,8 +78,9 @@ async function finishSync(leaseToken: string, report: Report, nextRunAt: Date, c
         nextRunAt,
         leaseUntil: new Date(0),
         ...(report.status === 'ok' ? { lastSuccessAt: report.finishedAt, lastCount: report.parsed! } : { lastError: report.error ?? 'Unknown error' }),
+        ...(report.status === 'error' && chat ? { lastFailureReportAt: report.finishedAt } : {}),
       },
-      $unset: { leaseToken: '', ...(report.status === 'ok' ? { lastError: '' } : {}) },
+      $unset: { leaseToken: '', ...(report.status === 'ok' ? { lastError: '', lastFailureReportAt: '' } : {}) },
     }, { session });
     if (!result.matchedCount || !chat) return;
     await db.telegramJobs.updateOne({ _id: `discovery:${leaseToken}:${chat._id}` }, {
@@ -99,44 +92,6 @@ async function finishSync(leaseToken: string, report: Report, nextRunAt: Date, c
       },
     }, { upsert: true, session });
   });
-}
-
-function parseLink(raw: string, hosts: string[]) {
-  if (raw === 'null') return null;
-  const value = raw.slice(2, -2);
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && hosts.includes(url.hostname) && url.pathname.length > 1 ? url.href : null;
-  } catch { return null; }
-}
-
-export function parseKolscanProfiles(html: string): DiscoveryProfile[] {
-  const profiles = new Map<string, DiscoveryProfile>();
-  for (const match of html.matchAll(PROFILE_PATTERN)) {
-    const [, address, rawName, telegramRaw, twitterRaw] = match;
-    if (profiles.has(address)) continue;
-    const name = rawName.trim().slice(0, 80) || `${address.slice(0, 6)}…${address.slice(-4)}`;
-    profiles.set(address, {
-      address,
-      name,
-      twitter: parseLink(twitterRaw, ['x.com', 'twitter.com']),
-      telegram: parseLink(telegramRaw, ['t.me']),
-    });
-  }
-  return [...profiles.values()];
-}
-
-export async function fetchKolscanProfiles(fetcher: typeof fetch = fetch) {
-  const response = await fetcher(SOURCE_URL, {
-    headers: { 'User-Agent': 'WhoAped-Discovery/1.0' },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) throw new Error(`Kolscan HTTP ${response.status}`);
-  const html = await response.text();
-  if (Buffer.byteLength(html) > MAX_HTML_BYTES) throw new Error('Kolscan response too large');
-  const profiles = parseKolscanProfiles(html);
-  if (profiles.length < MIN_PROFILES) throw new KolscanParseError(profiles.length);
-  return profiles;
 }
 
 export async function syncKolscanDiscovery(now = new Date(), fetcher: typeof fetch = fetch) {
@@ -183,7 +138,8 @@ export async function syncKolscanDiscovery(now = new Date(), fetcher: typeof fet
     const message = error instanceof Error ? error.message : String(error);
     const finishedAt = new Date();
     const report: Report = { status: 'error', parsed: error instanceof KolscanParseError ? error.parsed : parsed, added: null, missing: null, finishedAt, error: message.slice(0, 200) };
-    await finishSync(leaseToken, report, new Date(finishedAt.getTime() + RETRY_MS), await findReportChat(db, lease));
+    const shouldAlert = !lease.lastFailureReportAt || finishedAt.getTime() - lease.lastFailureReportAt.getTime() >= DAY_MS;
+    await finishSync(leaseToken, report, new Date(finishedAt.getTime() + RETRY_MS), shouldAlert ? await findReportChat(db, lease) : null);
     throw error;
   }
 }

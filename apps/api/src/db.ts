@@ -109,6 +109,7 @@ export type DiscoverySyncDocument = {
   lastSuccessAt?: Date;
   lastCount?: number;
   lastError?: string;
+  lastFailureReportAt?: Date;
   lastReport?: { status: 'ok' | 'error'; parsed: number | null; added: number | null; missing: number | null; finishedAt: Date; error?: string };
 };
 export type PipelineCheckpointDocument = { _id: string; lastSlot: number; updatedAt: Date };
