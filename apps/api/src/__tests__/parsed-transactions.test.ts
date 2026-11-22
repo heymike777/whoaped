@@ -70,11 +70,16 @@ describe('parsed transaction ingestion', () => {
   });
 
   it('stores the slot and creates an idempotent notification job', async () => {
-    await ingestParsedTransaction(transaction(), { provider: 'helius-parsed-stream' });
+    await ingestParsedTransaction(transaction(), {
+      provider: 'helius-parsed-stream', streamTiming: { streamReceivedAt: 1000, streamProcessingStartedAt: 1200 },
+    });
 
     expect(mocks.ingestionUpdateOne).toHaveBeenCalledWith(
       { provider: 'helius-parsed-stream', externalId: 'stream-signature' },
-      expect.objectContaining({ $set: expect.objectContaining({ slot: 433_950_192 }) }),
+      expect.objectContaining({
+        $set: expect.objectContaining({ slot: 433_950_192 }),
+        $setOnInsert: expect.objectContaining({ streamReceivedAt: new Date(1000), streamProcessingStartedAt: new Date(1200) }),
+      }),
       { upsert: true },
     );
     expect(mocks.transactionUpdateOne).toHaveBeenCalledWith(

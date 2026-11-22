@@ -52,6 +52,8 @@ export type WalletDocument = {
 };
 export type IngestionEventDocument = {
   _id: string; provider: string; externalId: string; slot: number; payload: unknown; receivedAt: Date;
+  streamReceivedAt?: Date;
+  streamProcessingStartedAt?: Date;
 };
 export type TransactionDocument = {
   _id: string;

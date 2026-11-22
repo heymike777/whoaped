@@ -11,7 +11,12 @@ import { transactionBalanceLines } from './transaction-balances.js';
 
 export async function ingestParsedTransaction(
   transaction: ParsedSolanaTransaction,
-  options: { provider: 'helius-parsed-stream' | 'helius-parsed-events'; watchedAddresses?: string[]; onCooldown?: () => Promise<void> },
+  options: {
+    provider: 'helius-parsed-stream' | 'helius-parsed-events';
+    watchedAddresses?: string[];
+    onCooldown?: () => Promise<void>;
+    streamTiming?: { streamReceivedAt: number; streamProcessingStartedAt: number };
+  },
 ) {
   if (!transaction.signature || !Number.isFinite(transaction.slot)) return { activities: 0 };
   const failed = transaction.status === 'error' || transaction.transactionStatus === 'ERROR';
@@ -71,7 +76,13 @@ export async function ingestParsedTransaction(
     { provider: options.provider, externalId: transaction.signature },
     {
       $set: { slot: transaction.slot, payload: transaction },
-      $setOnInsert: { _id: randomUUID(), receivedAt: new Date() },
+      $setOnInsert: {
+        _id: randomUUID(), receivedAt: new Date(),
+        ...(options.streamTiming ? {
+          streamReceivedAt: new Date(options.streamTiming.streamReceivedAt),
+          streamProcessingStartedAt: new Date(options.streamTiming.streamProcessingStartedAt),
+        } : {}),
+      },
     },
     { upsert: true },
   );

@@ -40,7 +40,7 @@ Each API replica caches its result for five minutes and shares one refresh acros
 - Short-lived ingestion events are unique on `(provider, externalId)`.
 - Feed events are unique on `(walletId, chain, txHash, eventIndex)`.
 - Notification jobs are unique on `(deviceTokenId, transactionId)`.
-- Every new Solana transaction stores its slot. Each stream connection persists its last completely processed slot in `pipeline_checkpoints`.
+- Every new Solana transaction stores its slot. The worker persists the last completely processed slot per address in `pipeline_checkpoints`.
 - Feed reads use `(user_id, occurred_at desc)` and should move from offset to cursor pagination before public launch.
 
 MongoDB upserts make duplicate stream deliveries and REST backfill overlap harmless. `findOneAndUpdate` atomically leases pending push jobs so concurrent drain calls cannot claim the same job. A transfer between two watched wallets intentionally creates one feed event per watched wallet because the user-facing direction differs.
@@ -62,6 +62,10 @@ Do not introduce Redis initially. MongoDB provides the required uniqueness const
 The worker polls the distinct active Solana address set every five seconds. It creates one subscription per 100 addresses, up to 25 subscriptions (2,500 addresses) on each WebSocket connection, matching Helius's beta limits. Address changes rebuild the connection set. MongoDB remains the source of truth, so API instances never need to coordinate socket state.
 
 Parsed Streams delivers at most once and has no replay. Each connection sends JSON-RPC `ping` messages to survive the ten-minute idle timeout. On reconnect, the worker compares its persisted slot checkpoint with the current slot and queries Parsed Events history for every address in that connection over the missing slot range. Writes and notifications remain idempotent.
+
+Reconnect recovery runs separately from the ordered live queue. While history is incomplete, live transactions can be delivered, but live pings cannot advance the checkpoint past the gap. History requests time out and retry without dropping a healthy socket; a closed socket cancels its history requests.
+
+The worker's `solana_stream_timing_sample` and `solana_stream_timing_slow` logs distinguish block-to-WebSocket time, local queue wait, and transaction processing time. Block-to-WebSocket time is approximate; if the frame has no block timestamp, a rate-limited RPC sample looks it up off the delivery path. A saved live ingestion event also records its exact `streamReceivedAt` and `streamProcessingStartedAt` timestamps for signature-level diagnosis.
 
 Run one worker replica initially. Multiple replicas are data-safe but waste Helius connections and database writes. At higher scale, assign stable address shards to workers with MongoDB lease documents rather than relying on process-local connection indexes.
 

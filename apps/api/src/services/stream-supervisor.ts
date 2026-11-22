@@ -12,6 +12,7 @@ import { drainUsdcPayments } from './usdc-payments.js';
 import { drainTelegramJobs } from './telegram.js';
 import { drainTelegramGa4Events } from './telegram-ga4.js';
 import { eligibleSubscriptionPlan, resumeAccountsAtSlot } from './rate-limits.js';
+import { StreamTimingReporter } from './stream-timing.js';
 
 function positiveInteger(value: string | undefined, fallback: number, maximum = Number.MAX_SAFE_INTEGER) {
   const parsed = Number(value);
@@ -21,6 +22,7 @@ function positiveInteger(value: string | undefined, fallback: number, maximum = 
 const STREAM_URL = (process.env.HELIUS_PARSED_STREAM_URL ?? 'wss://fs-beta.helius-rpc.com').replace(/\/$/, '');
 const REFRESH_MS = positiveInteger(process.env.HELIUS_WALLET_REFRESH_MS, 5_000);
 const PING_MS = positiveInteger(process.env.HELIUS_STREAM_PING_MS, 240_000, 540_000);
+const RECOVERY_RETRY_MS = 30_000;
 
 type StreamValue = {
   transaction: ParsedSolanaTransaction;
@@ -60,19 +62,36 @@ async function saveCheckpoint(id: string, slot: number) {
 
 export const addressCheckpointId = (address: string) => `solana-parsed-address:${address}`;
 
-export async function backfillTrackedAddresses(addresses: string[], currentSlot: number, onCooldown?: () => Promise<void>, shouldContinue: () => boolean = () => true) {
+async function saveAddressCheckpoints(addresses: string[], slot: number) {
+  const db = await collections();
+  const updatedAt = new Date();
+  await db.pipelineCheckpoints.bulkWrite(addresses.map(address => ({
+    updateOne: {
+      filter: { _id: addressCheckpointId(address) },
+      update: { $max: { lastSlot: slot }, $set: { updatedAt } },
+      upsert: true,
+    },
+  })), { ordered: false });
+}
+
+export async function backfillTrackedAddresses(addresses: string[], currentSlot: number, onCooldown?: () => Promise<void>, shouldContinue: () => boolean = () => true, signal?: AbortSignal) {
   const queue = [...addresses];
   const concurrency = Math.min(positiveInteger(process.env.HELIUS_BACKFILL_CONCURRENCY, 4, 16), queue.length);
-  await Promise.all(Array.from({ length: concurrency }, async () => {
+  const results = await Promise.allSettled(Array.from({ length: concurrency }, async () => {
     while (queue.length && shouldContinue()) {
       const address = queue.shift();
       if (!address) return;
       const id = addressCheckpointId(address);
       const previousSlot = await getCheckpoint(id);
-      if (previousSlot != null && currentSlot > previousSlot) await backfillParsedEvents(address, previousSlot, currentSlot, 20, { onCooldown, shouldContinue });
+      if (shouldContinue() && previousSlot != null && currentSlot > previousSlot) {
+        await backfillParsedEvents(address, previousSlot, currentSlot, 20, { onCooldown, shouldContinue, signal });
+      }
       if (shouldContinue()) await saveCheckpoint(id, currentSlot);
     }
   }));
+  // Wait for all lanes to finish before a retry can start new history requests.
+  const failure = results.find(result => result.status === 'rejected');
+  if (failure) throw failure.reason;
 }
 
 function streamTransaction(notification: StreamNotification): ParsedSolanaTransaction {
@@ -99,6 +118,7 @@ export class ParsedStreamSupervisor {
   private refreshTimer?: NodeJS.Timeout;
   private pushTimer?: NodeJS.Timeout;
   private readonly activeDrains = new Set<string>();
+  private readonly timing = new StreamTimingReporter();
   private lastRefreshAt = 0;
   private refreshing?: Promise<void>;
 
@@ -195,17 +215,42 @@ export class ParsedStreamSupervisor {
     let processing = Promise.resolve();
     let processingFailed = false;
     let pingTimer: NodeJS.Timeout | undefined;
-    let synchronized = false;
+    let recoveryStarted = false;
+    let recovered = false;
+    let closed = false;
+    let recoveryTimer: NodeJS.Timeout | undefined;
+    const recoveryController = new AbortController();
+    const current = () => !closed && !processingFailed && !this.stopped && generation === this.generation;
+
+    const recover = async (slot: number) => {
+      if (!current()) return;
+      const startedAt = Date.now();
+      try {
+        await backfillTrackedAddresses(
+          addresses, slot, () => this.refreshSubscriptions(), current, recoveryController.signal,
+        );
+        if (!current()) return;
+        recovered = true;
+        console.info('solana_stream_recovery_complete', { connectionIndex, slot, durationMs: Date.now() - startedAt });
+      } catch (error) {
+        if (!current()) return;
+        // A slow or unavailable REST endpoint must not tear down a healthy live socket.
+        const reason = error instanceof Error
+          ? error.message.match(/^Helius Parsed Events failed \(\d{3}\)/)?.[0] ?? error.name : 'UnknownError';
+        console.warn('solana_stream_recovery_retry', { connectionIndex, slot, durationMs: Date.now() - startedAt, reason });
+        recoveryTimer = setTimeout(() => { void recover(slot); }, RECOVERY_RETRY_MS);
+      }
+    };
 
     const enqueue = (task: () => Promise<void>) => {
       processing = processing.then(async () => {
-        if (this.stopped || generation !== this.generation) return;
+        if (!current()) return;
         await task();
       }).catch((error) => {
         console.error(`Parsed Streams processing failed for connection ${connectionIndex}`, error);
-        if (!processingFailed) {
+        if (current()) {
           processingFailed = true;
-          socket.close(1011, 'processing failed');
+          socket.close(4001, 'processing failed');
         }
       });
     };
@@ -228,7 +273,9 @@ export class ParsedStreamSupervisor {
     });
 
     socket.addEventListener('message', (event) => {
+      const streamReceivedAt = Date.now();
       enqueue(async () => {
+        const streamProcessingStartedAt = Date.now();
         const message = JSON.parse(await messageText(event.data)) as RpcResponse | StreamNotification;
         if ('error' in message && message.error) {
           if (message.id != null && subscriptionIds.has(message.id)) {
@@ -243,24 +290,31 @@ export class ParsedStreamSupervisor {
         }
         if ('id' in message && message.id != null && pingIds.delete(message.id)) {
           const slot = Number(message.result);
-          if (Number.isFinite(slot) && subscriptionIds.size === 0) {
-            if (!synchronized) {
-              synchronized = true;
+          if (Number.isSafeInteger(slot) && slot > 0 && subscriptionIds.size === 0) {
+            if (!recoveryStarted) {
+              recoveryStarted = true;
+              // Keep the per-account resume floor in order, but free the live queue
+              // before doing HTTP history reads or processing recovered transactions.
               await resumeAccountsAtSlot(addresses, slot);
-              await backfillTrackedAddresses(addresses, slot, () => this.refreshSubscriptions(), () => !this.stopped && generation === this.generation);
-            } else {
-              // The message queue is serial, so all notifications before this ping are durable.
-              for (const address of addresses) await saveCheckpoint(addressCheckpointId(address), slot);
+              void recover(slot);
+            } else if (recovered) {
+              // All live frames before this ping are durable, and its historical
+              // range has already been covered. Avoid skipping a recovery gap.
+              await saveAddressCheckpoints(addresses, slot);
             }
           }
           return;
         }
         if ('method' in message && message.method === 'parsedTransactionNotification') {
           const transaction = streamTransaction(message);
-          await ingestParsedTransaction(transaction, { provider: 'helius-parsed-stream', onCooldown: () => this.refreshSubscriptions() });
-          if (generation === this.generation) {
-            const involved = new Set(transaction.accountKeys ?? []);
-            for (const address of addresses) if (involved.has(address)) await saveCheckpoint(addressCheckpointId(address), transaction.slot);
+          try {
+            await ingestParsedTransaction(transaction, {
+              provider: 'helius-parsed-stream',
+              streamTiming: { streamReceivedAt, streamProcessingStartedAt },
+              onCooldown: () => this.refreshSubscriptions(),
+            });
+          } finally {
+            this.timing.record(connectionIndex, transaction, streamReceivedAt, streamProcessingStartedAt, Date.now());
           }
         }
       });
@@ -271,6 +325,9 @@ export class ParsedStreamSupervisor {
     });
 
     socket.addEventListener('close', (event) => {
+      closed = true;
+      recoveryController.abort();
+      if (recoveryTimer) clearTimeout(recoveryTimer);
       if (pingTimer) clearInterval(pingTimer);
       this.sockets.delete(socket);
       if (this.stopped || generation !== this.generation) return;

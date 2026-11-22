@@ -21,14 +21,16 @@ export function parsedEventTransaction(result: ParsedEventResult): ParsedSolanaT
   return { signature: result.signature, ...result.parsed };
 }
 
-async function parsedEventsRequest<T>(path: string, body: Record<string, unknown>): Promise<T> {
+async function parsedEventsRequest<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey) throw new Error('HELIUS_API_KEY is not configured');
 
+  const deadline = AbortSignal.timeout(15_000);
   const response = await fetch(`${parsedEventsBaseUrl}${path}?api-key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -42,7 +44,7 @@ export async function backfillParsedEvents(
   fromSlot: number,
   toSlot: number,
   maxPages = 20,
-  options: { onCooldown?: () => Promise<void>; shouldContinue?: () => boolean } = {},
+  options: { onCooldown?: () => Promise<void>; shouldContinue?: () => boolean; signal?: AbortSignal } = {},
 ) {
   const configuredMaxPages = Number(process.env.HELIUS_BACKFILL_MAX_PAGES);
   const pageLimit = Number.isFinite(configuredMaxPages) && configuredMaxPages > 0
@@ -64,7 +66,7 @@ export async function backfillParsedEvents(
       commitment: 'confirmed',
       slot: { gte: fromSlot, lte: toSlot },
       ...(paginationToken ? { paginationToken } : {}),
-    });
+    }, options.signal);
     pages += 1;
 
     for (const result of page.data) {
