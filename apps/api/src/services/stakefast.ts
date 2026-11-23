@@ -209,12 +209,19 @@ async function checkStakeFastFunds(config: StakeFastConfig, owner: PublicKey, in
     }
     const unsigned = VersionedTransaction.deserialize(Buffer.from(transaction, 'base64'));
     // Simulation checks the actual on-chain fee and any account creation rent.
-    return (await connection.simulateTransaction(unsigned, { commitment: 'confirmed', sigVerify: false })).value;
+    const [simulation, fee] = await Promise.all([
+      connection.simulateTransaction(unsigned, { commitment: 'confirmed', sigVerify: false }),
+      input.action === 'claim' && config.cluster === 'mainnet'
+        ? connection.getFeeForMessage(unsigned.message, 'confirmed').catch(() => null)
+        : null,
+    ]);
+    const lamports = fee?.value;
+    return { ...simulation.value, networkFeeLamports: typeof lamports === 'number' && Number.isSafeInteger(lamports) && lamports >= 0 ? String(lamports) : null };
   })().catch(() => {
     throw new StakeFastPreflightUnavailableError('Could not check wallet balances on Solana. Try again.');
   });
   if (!result) throw new Error(insufficientWhoAped);
-  if (!result.err) return;
+  if (!result.err) return result.networkFeeLamports;
   const { err, logs } = result;
   if (err === 'AccountNotFound' || err === 'InsufficientFundsForFee'
     || (typeof err === 'object' && 'InsufficientFundsForRent' in err)
@@ -245,8 +252,11 @@ export async function prepareStakeFastAction(userId: string, wallet: string, inp
   const prepared = input.action === 'stake'
     ? await client.buildStakeTransaction({ ...query, amountRaw: input.amountRaw })
     : await buildPositionAction[input.action](query);
-  await checkStakeFastFunds(config, owner, input, prepared.transaction);
-  return { ...prepared, preflightChecked: true };
+  const networkFeeLamports = await checkStakeFastFunds(config, owner, input, prepared.transaction);
+  return {
+    ...prepared, preflightChecked: true,
+    ...(prepared.withdrawal ? { withdrawal: { ...prepared.withdrawal, networkFeeLamports } } : {}),
+  };
 }
 
 export async function stakeFastConfirmation(signature: string, lastValidBlockHeight: number, config: StakeFastConfig) {

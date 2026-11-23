@@ -3,7 +3,10 @@ import {
   addressBytes, clockUnixTimestamp, decodePosition, decodeVault, isOnCurve, positionAddress, CLOCK_ADDRESS,
   POSITION_DISCRIMINATOR, POSITION_SIZE, POSITION_VAULT_OFFSET, POSITION_WALLET_OFFSET,
 } from './accounts.js';
-import { positionInstructions, serializePositionTransaction, stakeAmount } from './transactions.js';
+import {
+  positionInstructions, serializePositionTransaction, stakeAmount, withdrawalAmounts,
+  STAKEFAST_ACTION_FEE_LAMPORTS, STAKEFAST_WITHDRAWAL_FEE_BPS,
+} from './transactions.js';
 
 const clusters = {
   devnet: {
@@ -231,9 +234,17 @@ export function createStakeFastClient(options) {
     const instructions = positionInstructions({
       program, action, wallet, vault, mint: settings.mint, tokenProgram: settings.tokenProgram, amountRaw: amount,
     });
+    // WhoAped's production fee review must use the same position snapshot as the builder.
+    const withdrawal = action === 'withdraw' && cluster === 'mainnet' ? withdrawalAmounts(position.amount) : null;
     const { value: lifetime } = await rpc('getLatestBlockhash', [{ commitment: 'confirmed', minContextSlot: slot }]);
     return { cluster, vault, mint: settings.mint, transaction: serializePositionTransaction(instructions, wallet, lifetime),
-      blockhash: lifetime.blockhash, lastValidBlockHeight: lifetime.lastValidBlockHeight };
+      blockhash: lifetime.blockhash, lastValidBlockHeight: lifetime.lastValidBlockHeight,
+      ...(withdrawal ? {
+        withdrawal: {
+          wallet, grossRaw: withdrawal.gross.toString(), feeRaw: withdrawal.fee.toString(), netRaw: withdrawal.net.toString(),
+          feeBps: STAKEFAST_WITHDRAWAL_FEE_BPS, actionFeeLamports: STAKEFAST_ACTION_FEE_LAMPORTS.toString(),
+        },
+      } : {}) };
   }
 
   return {

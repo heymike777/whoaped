@@ -1,6 +1,6 @@
 {
   "name": "@stakefast/sdk",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Read StakeFast positions and build Solana transactions from Node.js and React Native",
   "type": "module",
   "exports": {

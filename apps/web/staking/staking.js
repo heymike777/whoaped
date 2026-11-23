@@ -1,5 +1,6 @@
 import { getBase58Decoder } from '@solana/codecs-strings';
 import { getWallets } from '@wallet-standard/app';
+import { confirmWithdrawal, verifyWithdrawalQuote } from './withdrawal-review.mjs';
 
 const apiOrigin = 'https://api.whoaped.com';
 const chain = 'solana:mainnet';
@@ -8,6 +9,7 @@ const registry = getWallets();
 const element = id => document.getElementById(id);
 const walletPicker = element('wallet-picker');
 const unstakeDialog = element('unstake-dialog');
+const withdrawalDialog = element('withdrawal-dialog');
 const decodeBase64 = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 const shorten = address => `${address.slice(0, 6)}…${address.slice(-5)}`;
 
@@ -296,6 +298,22 @@ async function submit(action, amountRaw) {
   }
   if (prepared.preflightChecked !== true) throw new Error('The balance check is temporarily unavailable. Try again shortly.');
   if (selectedWallet !== wallet || owner.address !== account?.address) throw new Error('Your wallet account changed. Try again.');
+  if (action === 'claim') {
+    const quote = verifyWithdrawalQuote(prepared.withdrawal, owner.address);
+    element('withdrawal-gross').textContent = displayAmount(quote.grossRaw) + ' WHOAPED';
+    element('withdrawal-fee').textContent = displayAmount(quote.feeRaw) + ' WHOAPED';
+    element('withdrawal-net').textContent = displayAmount(quote.netRaw) + ' WHOAPED';
+    element('withdrawal-sol-fee').textContent = displayAmount(quote.actionFeeLamports, 9) + ' SOL';
+    element('withdrawal-network-fee').textContent = quote.networkFeeLamports === null ? 'Shown by wallet'
+      : displayAmount(quote.networkFeeLamports, 9) + ' SOL';
+    element('withdrawal-wallet').textContent = shorten(owner.address);
+    element('withdrawal-wallet').title = owner.address;
+    element('notice').textContent = '';
+    const decision = await confirmWithdrawal(withdrawalDialog);
+    if (decision === 'expired') throw new Error('The withdrawal quote expired. Open Withdraw to review a fresh quote.');
+    if (decision !== 'approve') return;
+    if (selectedWallet !== wallet || owner.address !== account?.address) throw new Error('Your wallet account changed. Try again.');
+  }
   element('notice').textContent = 'Approve the transaction in your Solana wallet.';
   const [receipt] = await signer.signAndSendTransaction({
     account: owner,
@@ -420,7 +438,16 @@ unstakeDialog.addEventListener('click', event => {
   if (event.target === unstakeDialog) unstakeDialog.close();
 });
 element('cancel-unstake').onclick = () => runStakingAction(() => submit('cancel'));
-element('claim').onclick = () => runStakingAction(() => submit('claim'));
+element('close-withdrawal-dialog').onclick = () => withdrawalDialog.close('cancel');
+element('confirm-withdrawal').onclick = () => withdrawalDialog.close('approve');
+withdrawalDialog.addEventListener('click', event => {
+  if (event.target === withdrawalDialog) withdrawalDialog.close('cancel');
+});
+element('claim').onclick = async event => {
+  const button = event.currentTarget;
+  await runStakingAction(() => submit('claim'));
+  if (!button.disabled && !button.hidden) button.focus();
+};
 element('refresh').onclick = () => run(refreshStatus);
 element('buy-whoaped').onclick = () => { jupiterOpened = true; };
 

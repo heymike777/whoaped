@@ -65,6 +65,15 @@ export interface StakeFastUnsignedTransaction {
   transaction: string;
   blockhash: string;
   lastValidBlockHeight: number;
+  /** Present only for a mainnet claim, from the same position used by the builder. */
+  withdrawal?: {
+    wallet: string;
+    grossRaw: string;
+    feeRaw: string;
+    netRaw: string;
+    feeBps: number;
+    actionFeeLamports: string;
+  };
 }
 
 export interface StakeFastClient {

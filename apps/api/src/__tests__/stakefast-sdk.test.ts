@@ -1,7 +1,7 @@
 import { Keypair, PublicKey, SYSVAR_CLOCK_PUBKEY, SystemProgram, Transaction } from '@solana/web3.js';
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { createStakeFastClient } from '@stakefast/sdk';
-import { STAKEFAST_FEE_RECIPIENT } from '@stakefast/sdk/transactions';
+import { STAKEFAST_FEE_RECIPIENT, withdrawalAmounts } from '@stakefast/sdk/transactions';
 import { vi, describe, expect, it } from 'vitest';
 import { DEVNET_GENESIS_HASH, STAKEFAST_PROGRAM_ID } from '../config/stakefast.js';
 import { anchorDiscriminator, vaultAddress } from '../services/stakefast-accounts.js';
@@ -187,10 +187,22 @@ describe('StakeFast SDK', () => {
     expect(createAta.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)).toBe(true);
     expect(createAta.data).toEqual(Buffer.from([1]));
     expect(createAta.keys[1].pubkey.equals(ownerAta)).toBe(true);
-    expect(withdraw.data).toEqual(anchorDiscriminator('global', 'withdraw'));
+    expect(withdraw.data).toEqual(Buffer.concat([anchorDiscriminator('global', 'withdraw'), Buffer.from([50, 0])]));
+    expect(withdraw.keys).toHaveLength(11);
     expect(withdraw.keys[2].pubkey.toBase58()).toBe(unstaking.position);
     expect(withdraw.keys[4].pubkey.equals(ownerAta)).toBe(true);
-    expect(withdraw.keys.at(-1)).toMatchObject({ pubkey: new PublicKey(STAKEFAST_FEE_RECIPIENT), isWritable: true, isSigner: false });
+    const recipient = new PublicKey(STAKEFAST_FEE_RECIPIENT);
+    expect(withdraw.keys[8]).toMatchObject({ pubkey: recipient, isWritable: true, isSigner: false });
+    expect(withdraw.keys[9]).toMatchObject({
+      pubkey: getAssociatedTokenAddressSync(mint, recipient, false, TOKEN_2022_PROGRAM_ID), isWritable: true, isSigner: false,
+    });
+    expect(withdraw.keys[10]).toMatchObject({ pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isWritable: false, isSigner: false });
+  });
+
+  it('rounds the 50 bps token fee down in base units without floating-point loss', () => {
+    for (const [gross, fee] of [[199n, 0n], [200n, 1n], [399n, 1n], [9_007_199_254_740_993n, 45_035_996_273_704n]]) {
+      expect(withdrawalAmounts(gross)).toEqual({ gross, fee, net: gross - fee });
+    }
   });
 
   it('rejects an early claim, a second unstake request, an invalid amount and an empty position', async () => {

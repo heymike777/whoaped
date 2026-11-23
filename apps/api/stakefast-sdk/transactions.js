@@ -9,6 +9,9 @@ import { addressBytes, anchorDiscriminator, findAddress, positionAddress } from 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
 const ASSOCIATED_TOKEN_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 export const STAKEFAST_FEE_RECIPIENT = '5VW1Ry8okrK4XLUZnmtqCiXKLHLV7XBYg3Mu9qwycpgH';
+export const STAKEFAST_ACTION_FEE_LAMPORTS = 2_000_000n;
+export const STAKEFAST_CREATE_FEE_LAMPORTS = 100_000_000n;
+export const STAKEFAST_WITHDRAWAL_FEE_BPS = 50;
 const MAX_AMOUNT = (1n << 64n) - 1n;
 const account = (address, role = AccountRole.READONLY) => ({ address, role });
 
@@ -24,7 +27,13 @@ export function stakeAmount(amountRaw) {
   return amountRaw;
 }
 
-export function positionInstructions({ program, action, wallet, vault, mint, tokenProgram, amountRaw }) {
+export function withdrawalAmounts(amountRaw) {
+  const gross = stakeAmount(amountRaw);
+  const fee = gross / 200n;
+  return { gross, fee, net: gross - fee };
+}
+
+export function positionInstructions({ program, action, wallet, vault, mint, tokenProgram, amountRaw, withdrawalFeeBps = STAKEFAST_WITHDRAWAL_FEE_BPS }) {
   const position = positionAddress(program, vault, wallet);
   const discriminator = anchorDiscriminator('global', action);
   const vaultAccount = account(vault);
@@ -52,13 +61,18 @@ export function positionInstructions({ program, action, wallet, vault, mint, tok
     view.setUint32(12, Number(amount >> 32n), true);
     return [{ programAddress: program, accounts, data }];
   }
+  accounts.push(account(associatedTokenAddress(STAKEFAST_FEE_RECIPIENT, mint, tokenProgram), AccountRole.WRITABLE), account(ASSOCIATED_TOKEN_PROGRAM));
+  if (withdrawalFeeBps !== 0 && withdrawalFeeBps !== STAKEFAST_WITHDRAWAL_FEE_BPS) throw new Error('Unsupported withdrawal fee.');
+  const withdrawData = new Uint8Array(10);
+  withdrawData.set(discriminator);
+  new DataView(withdrawData.buffer).setUint16(8, withdrawalFeeBps, true);
   return [
     {
       programAddress: ASSOCIATED_TOKEN_PROGRAM,
       accounts: [payer, ownerTokenAccount, account(wallet), mintAccount, systemProgramAccount, tokenProgramAccount],
       data: Uint8Array.of(1), // Create the owner's associated token account idempotently.
     },
-    { programAddress: program, accounts, data: discriminator },
+    { programAddress: program, accounts, data: withdrawData },
   ];
 }
 

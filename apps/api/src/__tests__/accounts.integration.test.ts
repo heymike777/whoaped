@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { createPrivateKey, sign } from 'node:crypto';
-import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
+import { Keypair, PublicKey, SYSVAR_CLOCK_PUBKEY, Transaction } from '@solana/web3.js';
 import { AccountLayout, AccountState, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { MAINNET_GENESIS_HASH, stakeFastConfig } from '../config/stakefast.js';
 import { anchorDiscriminator, positionAddress } from '../services/stakefast-accounts.js';
@@ -73,6 +73,8 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     anchorDiscriminator('account', 'Position').copy(position);
     config.vault.toBuffer().copy(position, 8);
     wallet.publicKey.toBuffer().copy(position, 40);
+    const clock = Buffer.alloc(40);
+    clock.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1000)), 32);
     const positionKey = positionAddress(config.program, config.vault, wallet.publicKey).toBase58();
     const sourceKey = getAssociatedTokenAddressSync(config.mint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID).toBase58();
     const accountInfo = (data: Buffer, executable = false) => ({ executable, owner: config.program.toBase58(), lamports: 1_000_000, rentEpoch: 0, data: [data.toString('base64'), 'base64'] });
@@ -138,9 +140,11 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
           }
           rpcCommitments.push(payload.params[1].commitment);
           result = { context, value: payload.params[0].map((id: string) => id === config.vault.toBase58() ? accountInfo(vault)
-            : id === positionKey && position.readBigUInt64LE(72) ? accountInfo(position) : null) };
+            : id === positionKey && position.readBigUInt64LE(72) ? accountInfo(position)
+              : id === SYSVAR_CLOCK_PUBKEY.toBase58() ? { ...accountInfo(clock), owner: 'Sysvar1111111111111111111111111111111111111' } : null) };
           break;
         case 'getLatestBlockhash': result = { context, value: { blockhash: wallet.publicKey.toBase58(), lastValidBlockHeight: 90 } }; break;
+        case 'getFeeForMessage': result = { context, value: 5000 }; break;
         case 'simulateTransaction':
           expect(payload.params[1]).toMatchObject({ commitment: 'confirmed', encoding: 'base64', sigVerify: false });
           simulationRequests.push(payload.params[0]);
@@ -238,6 +242,16 @@ describe('atomic Telegram account linking (real MongoDB replica set)', () => {
     position.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1000)) - 1n, 80);
     await bot(4004);
     expect(botMessages.at(-1)).toContain('ready to withdraw');
+    expect(botMessages.at(-1)).toContain('The 0.5% WHOAPED fee applies only when you withdraw.');
+    const claim = await request('/v1/stakefast/transactions', { wallet: address, action: 'claim' });
+    expect(claim.status).toBe(200);
+    const claimed = await claim.json() as { transaction: string };
+    expect(claimed).toMatchObject({ preflightChecked: true, withdrawal: {
+      wallet: address, grossRaw: '1000000000000', feeRaw: '5000000000', netRaw: '995000000000',
+      feeBps: 50, actionFeeLamports: '2000000', networkFeeLamports: '5000',
+    } });
+    expect(simulationRequests.at(-1)).toBe(claimed.transaction);
+    expect(Transaction.from(Buffer.from(claimed.transaction, 'base64')).instructions[1].data.readUInt16LE(8)).toBe(50);
     const publicTotals = await Promise.all([app.request('/v1/staking/stats'), app.request('/v1/staking/stats')]);
     for (const total of publicTotals) {
       expect(total.status).toBe(200);

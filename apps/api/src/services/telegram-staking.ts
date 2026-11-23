@@ -46,6 +46,7 @@ export async function telegramStakingSummary(userId: string, db: Collections) {
     ...(positions.length > rows.length ? ['Open staking to view all positions.'] : []),
     `Stake ${threshold} WHOAPED in one wallet to get PRO. Track up to ${limits} across all wallets.`,
     `Stake-based PRO ends when the unstake request finalizes. Withdraw after ${wait}.`,
+    'StakeFast charges 0.002 SOL per action, plus network fees and any token account rent. The 0.5% WHOAPED fee applies only when you withdraw.',
     'Open staking to connect Telegram and approve transactions in your Solana wallet.',
   ].join('\n\n');
 }

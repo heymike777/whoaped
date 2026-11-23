@@ -116,6 +116,7 @@
           <p class="staking-limits-note">Across all tracked wallets.</p>
           <h3>Withdrawal cooldown</h3>
           <p>You can withdraw your WHOAPED <strong id="withdrawal-wait">7 days after</strong> your unstake request finalizes.</p>
+          <p>StakeFast deducts a 0.5% token fee only when you withdraw.</p>
         </aside>
       </div>
 
@@ -144,6 +145,25 @@
           <div class="unstake-dialog-actions">
             <button id="close-unstake-dialog" class="button button-outline" type="button" autofocus>Cancel</button>
             <button id="confirm-unstake" class="button staking-primary" type="button">Continue to wallet</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="withdrawal-dialog" class="staking-dialog" aria-labelledby="withdrawal-title" aria-describedby="withdrawal-description">
+        <div class="staking-dialog-content">
+          <h2 id="withdrawal-title">Review withdrawal</h2>
+          <p id="withdrawal-description">Withdraw your full StakeFast position to your connected Solana wallet.</p>
+          <dl class="unstake-review">
+            <div><dt>Wallet</dt><dd id="withdrawal-wallet"></dd></div>
+            <div><dt>Gross amount</dt><dd id="withdrawal-gross"></dd></div>
+            <div><dt>Token fee (0.5%)</dt><dd id="withdrawal-fee"></dd></div>
+            <div><dt>You receive</dt><dd><strong id="withdrawal-net"></strong></dd></div>
+            <div><dt>StakeFast action fee</dt><dd id="withdrawal-sol-fee"></dd></div>
+            <div><dt>Estimated network fee</dt><dd id="withdrawal-network-fee"></dd></div>
+          </dl>
+          <p>Solana may also charge rent if a token account needs to be created.</p>
+          <div class="unstake-dialog-actions">
+            <button id="close-withdrawal-dialog" class="button button-outline" type="button" autofocus>Cancel</button>
+            <button id="confirm-withdrawal" class="button staking-primary" type="button">Continue to wallet</button>
           </div>
         </div>
       </dialog>
