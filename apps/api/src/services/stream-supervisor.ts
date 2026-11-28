@@ -23,6 +23,8 @@ const STREAM_URL = (process.env.HELIUS_PARSED_STREAM_URL ?? 'wss://fs-beta.heliu
 const REFRESH_MS = positiveInteger(process.env.HELIUS_WALLET_REFRESH_MS, 5_000);
 const PING_MS = positiveInteger(process.env.HELIUS_STREAM_PING_MS, 240_000, 540_000);
 const RECOVERY_RETRY_MS = 30_000;
+const SLOT_PING_GRACE_MS = 1_500;
+const SLOT_RPC_TIMEOUT_MS = 5_000;
 
 type StreamValue = {
   transaction: ParsedSolanaTransaction;
@@ -44,6 +46,32 @@ type RpcResponse = {
   result?: unknown;
   error?: { code?: number; message?: string };
 };
+
+function positiveSlot(value: unknown): number | null {
+  const slot = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+  return typeof slot === 'number' && Number.isSafeInteger(slot) && slot > 0 ? slot : null;
+}
+
+function pingSlot(result: unknown): number | null {
+  // Parsed Streams currently returns { slot }; keep accepting the older scalar reply.
+  return result !== null && typeof result === 'object' && 'slot' in result
+    ? positiveSlot(result.slot)
+    : positiveSlot(result);
+}
+
+async function confirmedRpcSlot(apiKey: string, signal: AbortSignal): Promise<number> {
+  const response = await fetch(`https://mainnet.helius-rpc.com/?api-key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getSlot', params: [{ commitment: 'confirmed' }] }),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(SLOT_RPC_TIMEOUT_MS)]),
+  });
+  if (!response.ok) throw new Error(`Slot RPC returned ${response.status}`);
+  const payload = await response.json() as RpcResponse;
+  const slot = payload.error ? null : positiveSlot(payload.result);
+  if (slot === null) throw new Error('Slot RPC did not return a valid slot');
+  return slot;
+}
 
 async function getCheckpoint(id: string) {
   const db = await collections();
@@ -219,6 +247,7 @@ export class ParsedStreamSupervisor {
     let recovered = false;
     let closed = false;
     let recoveryTimer: NodeJS.Timeout | undefined;
+    let slotFallbackTimer: NodeJS.Timeout | undefined;
     const recoveryController = new AbortController();
     const current = () => !closed && !processingFailed && !this.stopped && generation === this.generation;
 
@@ -255,6 +284,30 @@ export class ParsedStreamSupervisor {
       });
     };
 
+    const beginRecovery = async (slot: number, source: 'stream_ping' | 'confirmed_rpc') => {
+      if (recoveryStarted || !current() || subscriptionIds.size !== 0) return;
+      recoveryStarted = true;
+      clearTimeout(slotFallbackTimer);
+      // Apply the live slot floor before history runs. Paused transactions must not replay.
+      await resumeAccountsAtSlot(addresses, slot);
+      console.info('solana_stream_recovery_anchor', { connectionIndex, slot, source });
+      void recover(slot);
+    };
+
+    const lookupRecoverySlot = async () => {
+      if (recoveryStarted || !current()) return;
+      try {
+        const slot = await confirmedRpcSlot(apiKey, recoveryController.signal);
+        // Order the database resume with live frames and ignore stale sockets or a winning ping.
+        enqueue(() => beginRecovery(slot, 'confirmed_rpc'));
+      } catch (error) {
+        if (recoveryStarted || !current()) return;
+        // Keep the socket live and do not log transport errors that can contain the API key.
+        console.warn('solana_stream_recovery_anchor_retry', { connectionIndex, reason: error instanceof Error ? error.name : 'UnknownError' });
+        slotFallbackTimer = setTimeout(() => { void lookupRecoverySlot(); }, RECOVERY_RETRY_MS);
+      }
+    };
+
     const sendPing = () => {
       if (socket.readyState !== WebSocket.OPEN) return;
       const id = 100_000 + pingSequence++;
@@ -285,18 +338,19 @@ export class ParsedStreamSupervisor {
           return;
         }
         if ('id' in message && message.id != null && subscriptionIds.delete(message.id)) {
-          if (subscriptionIds.size === 0) sendPing();
+          if (subscriptionIds.size === 0) {
+            sendPing();
+            // Some Parsed Streams gateways return a keepalive acknowledgement, not a slot.
+            // The timer also covers a missing response and does not block live processing.
+            slotFallbackTimer = setTimeout(() => { void lookupRecoverySlot(); }, SLOT_PING_GRACE_MS);
+          }
           return;
         }
         if ('id' in message && message.id != null && pingIds.delete(message.id)) {
-          const slot = Number(message.result);
-          if (Number.isSafeInteger(slot) && slot > 0 && subscriptionIds.size === 0) {
+          const slot = pingSlot(message.result);
+          if (slot !== null && subscriptionIds.size === 0) {
             if (!recoveryStarted) {
-              recoveryStarted = true;
-              // Keep the per-account resume floor in order, but free the live queue
-              // before doing HTTP history reads or processing recovered transactions.
-              await resumeAccountsAtSlot(addresses, slot);
-              void recover(slot);
+              await beginRecovery(slot, 'stream_ping');
             } else if (recovered) {
               // All live frames before this ping are durable, and its historical
               // range has already been covered. Avoid skipping a recovery gap.
@@ -328,6 +382,7 @@ export class ParsedStreamSupervisor {
       closed = true;
       recoveryController.abort();
       if (recoveryTimer) clearTimeout(recoveryTimer);
+      clearTimeout(slotFallbackTimer);
       if (pingTimer) clearInterval(pingTimer);
       this.sockets.delete(socket);
       if (this.stopped || generation !== this.generation) return;

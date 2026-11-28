@@ -28,14 +28,14 @@ let supervisor: ParsedStreamSupervisor;
 const plan = (addresses: string[], resuming: string[] = []) => ({ addresses, resuming, fingerprint: JSON.stringify([addresses, resuming]) });
 const flush = async () => { for (let i = 0; i < 60; i++) await Promise.resolve(); };
 const tx = (signature: string, slot = 101) => ({ data: JSON.stringify({ method: 'parsedTransactionNotification', params: { result: { context: { slot }, value: { transaction: { signature, slot, accountKeys: ['A'], blockTime: Date.now() / 1000 } } } } }) });
-function answerPing(socket: Socket, result: number) {
+function answerPing(socket: Socket, result: unknown) {
   const ping = socket.sent.findLast(message => message.method === 'ping');
   socket.emit('message', { data: JSON.stringify({ id: ping.id, result }) });
 }
-function acknowledge(socket: Socket, slot: number) {
+function acknowledge(socket: Socket, result: unknown) {
   socket.emit('open');
   socket.emit('message', { data: JSON.stringify({ id: 1, result: 999 }) });
-  socket.emit('message', { data: JSON.stringify({ id: 100000, result: slot }) });
+  socket.emit('message', { data: JSON.stringify({ id: 100000, result }) });
 }
 beforeEach(() => {
   vi.useFakeTimers(); vi.resetAllMocks(); Socket.instances = [];
@@ -155,6 +155,56 @@ describe('upstream quota enforcement', () => {
     expect(mocks.resume).toHaveBeenCalledWith(['A'], 500);
     expect(mocks.save).toHaveBeenCalledWith({ _id: addressCheckpointId('A') }, expect.objectContaining({ $max: { lastSlot: 500 } }), { upsert: true });
     expect(mocks.backfill).not.toHaveBeenCalled();
+  });
+  it('accepts the observed Helius { slot } ping response for resumption and checkpoints', async () => {
+    mocks.plan.mockResolvedValue(plan(['A'], ['user']));
+    await supervisor.start();
+    const socket = Socket.instances[0];
+    acknowledge(socket, { slot: 500 });
+    await flush();
+    expect(mocks.resume).toHaveBeenCalledExactlyOnceWith(['A'], 500);
+    expect(mocks.save).toHaveBeenCalledWith({ _id: addressCheckpointId('A') }, expect.objectContaining({ $max: { lastSlot: 500 } }), { upsert: true });
+    answerPing(socket, { slot: 510 });
+    await flush();
+    expect(mocks.bulkSave).toHaveBeenCalledWith([{
+      updateOne: { filter: { _id: addressCheckpointId('A') }, update: { $max: { lastSlot: 510 }, $set: { updatedAt: expect.any(Date) } }, upsert: true },
+    }], { ordered: false });
+  });
+  it('uses a confirmed RPC slot if the stream ping has no usable slot', async () => {
+    mocks.plan.mockResolvedValue(plan(['A'], ['user']));
+    const rpc = vi.fn().mockResolvedValue(new Response(JSON.stringify({ result: 600 })));
+    vi.stubGlobal('fetch', rpc);
+    await supervisor.start();
+    const socket = Socket.instances[0];
+    acknowledge(socket, true); // Boolean acknowledgements are not slot 1.
+    await flush();
+    expect(mocks.resume).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(rpc).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('mainnet.helius-rpc.com'), expect.objectContaining({
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getSlot', params: [{ commitment: 'confirmed' }] }),
+    }));
+    expect(mocks.resume).toHaveBeenCalledExactlyOnceWith(['A'], 600);
+    expect(mocks.bulkSave).not.toHaveBeenCalled();
+  });
+  it('retries a missing anchor without blocking live frames or resuming on a closed socket', async () => {
+    mocks.plan.mockResolvedValue(plan(['A'], ['user']));
+    let reply!: (response: Response) => void;
+    const rpc = vi.fn().mockRejectedValueOnce(new Error('RPC not available'))
+      .mockImplementationOnce(() => new Promise<Response>(resolve => { reply = resolve; }));
+    vi.stubGlobal('fetch', rpc);
+    await supervisor.start();
+    const socket = Socket.instances[0];
+    acknowledge(socket, null);
+    await vi.advanceTimersByTimeAsync(1_500);
+    socket.emit('message', tx('still-live'));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.ingest).toHaveBeenCalledTimes(1);
+    expect(mocks.resume).not.toHaveBeenCalled();
+    supervisor.stop();
+    reply(new Response(JSON.stringify({ result: 600 })));
+    await flush();
+    expect(mocks.resume).not.toHaveBeenCalled();
   });
   it('keeps checkpoints attached to addresses when connection groups change', async () => {
     mocks.checkpoint.mockImplementation(async ({ _id }) => ({ lastSlot: _id.endsWith(':A') ? 10 : 20 }));
